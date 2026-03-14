@@ -58,6 +58,7 @@ export const ProjectEditor: React.FC = () => {
   const dragStartPos = useRef<{x: number, y: number} | null>(null);
   const [dragBox, setDragBox] = useState<{x1:number, y1:number, x2:number, y2:number} | null>(null);
   const maskSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generateAbortController = useRef<AbortController | null>(null);
   const globalReferenceRef = useRef<string | null>(null);
   const defaultPromptRef = useRef<string>('');
   const activeSlideIdRef = useRef<string>('');
@@ -579,12 +580,18 @@ export const ProjectEditor: React.FC = () => {
     }
   };
 
+  const handleCancelGenerate = () => {
+    generateAbortController.current?.abort();
+  };
+
   const handleGenerate = async () => {
     if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
     if (!globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
     const hasImage = Array.from(selectedSlides).some(sid => slides.find(s => s.id === sid)?.originalImage);
     if (!hasImage) return alert('Please upload a PPT or image first before generating.');
     
+    const abort = new AbortController();
+    generateAbortController.current = abort;
     const total = selectedSlides.size;
     setGenerateProgress({ current: 0, total });
     setIsGenerating(true);
@@ -621,7 +628,7 @@ export const ProjectEditor: React.FC = () => {
           const base64Mask = slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null;
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
-            slide.prompt + (globalExtraPrompt.trim() ? '\n' + globalExtraPrompt.trim() : ''), apiKey, model, aspectRatio, resolution
+            slide.prompt + (globalExtraPrompt.trim() ? '\n' + globalExtraPrompt.trim() : ''), apiKey, model, aspectRatio, resolution, abort.signal
           );
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
@@ -630,6 +637,7 @@ export const ProjectEditor: React.FC = () => {
           setGenerateProgress({ current: completedCount, total });
           return { slideId, genUrl: generatedImg };
         } catch (err: any) {
+          if (err?.name === 'AbortError') throw err;
           const msg = err?.message || String(err);
           const is429 = msg.includes('429');
           console.error(`Slide ${slideId} failed:`, msg);
@@ -652,8 +660,9 @@ export const ProjectEditor: React.FC = () => {
           }
         }
       } catch (loopErr: any) {
-        const msg = String(loopErr);
-        if (msg.includes('QUOTA_EXHAUSTED')) {
+        if ((loopErr as any)?.name === 'AbortError') {
+          // User cancelled — silent exit
+        } else if (String(loopErr).includes('QUOTA_EXHAUSTED')) {
           const successCount = results.filter(Boolean).length;
           alert(
             `⚠️ API quota 已耗盡 (429 Resource Exhausted)\n\n` +
@@ -853,6 +862,11 @@ export const ProjectEditor: React.FC = () => {
               style={{ opacity: !globalReference ? 0.5 : 1 }}>
               {generateProgress ? `Generating... ${generateProgress.current}/${generateProgress.total}` : '1-Click Modify'}
             </Button>
+            {isGenerating && (
+              <Button variant="ghost" onClick={handleCancelGenerate} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
+                取消
+              </Button>
+            )}
           </div>
           {pendingImages.size > 0 && (() => {
             const unbackedCount = pendingImages.size - backedUpIds.size;

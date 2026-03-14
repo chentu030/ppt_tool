@@ -19,7 +19,8 @@ const imagenInpaint = async (
   cleanMask: string,
   prompt: string,
   apiKey: string,
-  aspectRatio: string
+  aspectRatio: string,
+  signal?: AbortSignal
 ): Promise<string> => {
   const requestBody = {
     prompt,
@@ -50,7 +51,8 @@ const imagenInpaint = async (
   const response = await fetch(inpaintUrl, {
     method: 'POST',
     headers: inpaintHeaders,
-    body: JSON.stringify(requestBody)
+    body: JSON.stringify(requestBody),
+    signal
   });
 
   if (!response.ok) {
@@ -76,7 +78,8 @@ export const generateImageDesign = async (
   apiKey: string,
   modelName: string = 'gemini-3-pro-image-preview',
   aspectRatio: string = '16:9',
-  resolution: string = '2K'
+  resolution: string = '2K',
+  signal?: AbortSignal
 ): Promise<string> => {
   console.log(`Calling API with model: ${modelName}, ratio: ${aspectRatio}, res: ${resolution}, mask: ${!!maskImage}`);
 
@@ -86,7 +89,7 @@ export const generateImageDesign = async (
 
   // When mask is present use Imagen 4 inpainting
   if (cleanMask) {
-    return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', apiKey, aspectRatio);
+    return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', apiKey, aspectRatio, signal);
   }
 
   // No mask — use Gemini generateContent
@@ -132,7 +135,8 @@ export const generateImageDesign = async (
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal
     });
 
     if (!response.ok) {
