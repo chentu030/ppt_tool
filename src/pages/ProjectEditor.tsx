@@ -81,6 +81,8 @@ export const ProjectEditor: React.FC = () => {
   const [textHistories, setTextHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [textSaving, setTextSaving] = useState(false);
   const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [polishDirection, setPolishDirection] = useState('');
+  const [isPolishing, setIsPolishing] = useState(false);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -184,6 +186,22 @@ export const ProjectEditor: React.FC = () => {
       next.set(slideId, { ...hist, pos: newPos });
       return next;
     });
+  };
+
+  const handlePolishText = async (slideId: string, text: string) => {
+    if (!text.trim() || isPolishing) return;
+    setIsPolishing(true);
+    try {
+      const apiKey = localStorage.getItem('vertexApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '';
+      const { polishTextWithAI } = await import('../utils/gemini');
+      const polished = await polishTextWithAI(text, polishDirection, apiKey);
+      handleTextChange(slideId, polished);
+    } catch (err: any) {
+      console.error('Polish failed:', err);
+      alert('AI 潤色失敗：' + (err?.message || '未知錯誤'));
+    } finally {
+      setIsPolishing(false);
+    }
   };
 
   React.useEffect(() => {
@@ -1390,10 +1408,24 @@ export const ProjectEditor: React.FC = () => {
                     const canRedo = !!hist && hist.pos < hist.stack.length - 1;
                     const btnStyle = (enabled: boolean): React.CSSProperties => ({ background: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.6rem', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.35, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem' });
                     return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <button style={btnStyle(canUndo)} disabled={!canUndo} onClick={() => handleTextUndo(activeSlideId)}><ChevronLeft size={13}/> 上一步</button>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{hist ? `${hist.pos + 1}/${hist.stack.length}` : '1/1'}</span>
                         <button style={btnStyle(canRedo)} disabled={!canRedo} onClick={() => handleTextRedo(activeSlideId)}>下一步 <ChevronRight size={13}/></button>
+                        <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)', flexShrink: 0 }} />
+                        <input
+                          value={polishDirection}
+                          onChange={e => setPolishDirection(e.target.value)}
+                          placeholder="潤色方向（選填，例：更正式、更簡潔）"
+                          style={{ flex: 1, minWidth: '160px', padding: '0.28rem 0.55rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                        />
+                        <button
+                          disabled={isPolishing || !activeSlide?.prompt?.trim()}
+                          onClick={() => handlePolishText(activeSlideId, activeSlide?.prompt || '')}
+                          style={{ ...btnStyle(!isPolishing && !!activeSlide?.prompt?.trim()), backgroundColor: 'var(--accent-color)', color: 'white', border: 'none', padding: '0.3rem 0.75rem', gap: '0.3rem' }}
+                        >
+                          <Sparkles size={13}/> {isPolishing ? 'AI 潤色中...' : 'AI 潤色'}
+                        </button>
                       </div>
                     );
                   })()}

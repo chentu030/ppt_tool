@@ -69,6 +69,41 @@ const imagenInpaint = async (
   throw new Error('Imagen API did not return an image.');
 };
 
+// Text-only polish via Gemini (no image output)
+export const polishTextWithAI = async (
+  text: string,
+  direction: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<string> => {
+  const modelName = 'gemini-3-flash-preview';
+  const instruction = direction
+    ? `請根據以下方向潤色文字：「${direction}」。直接回傳修飾後的文字，不要加任何說明或格式標記。`
+    : '請潤色以下投影片文字，使其更流暢、專業、清晰。直接回傳修飾後的文字，不要加任何說明或格式標記。';
+
+  const requestBody = {
+    contents: [{ role: 'user', parts: [{ text: `${instruction}\n\n原始文字：\n${text}` }] }]
+  };
+
+  const bearerToken = await getValidBearerToken();
+  const url = bearerToken
+    ? `${getBaseUrl(true)}/${modelName}:generateContent`
+    : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
+
+  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody), signal });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Polish API failed:', errorText);
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  const data = await response.json();
+  const textPart = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.text);
+  if (textPart) return textPart.text.trim();
+  throw new Error('AI did not return text.');
+};
+
 // Standard generation via Gemini generateContent endpoint (no mask)
 export const generateImageDesign = async (
   baseImage: string | null,
