@@ -747,7 +747,7 @@ export const ProjectEditor: React.FC = () => {
       });
       await initialBatch.commit();
       const apiKey = localStorage.getItem('vertexApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '';
-      const model = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || "gemini-3-pro-image-preview";
+      const model = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || "gemini-3.1-flash-image-preview";
       
       const { generateImageDesign } = await import('../utils/gemini');
       let completedCount = 0;

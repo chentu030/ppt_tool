@@ -76,7 +76,7 @@ export const generateImageDesign = async (
   maskImage: string | null,
   prompt: string,
   apiKey: string,
-  modelName: string = 'gemini-3-pro-image-preview',
+  modelName: string = 'gemini-3.1-flash-image-preview',
   aspectRatio: string = '16:9',
   resolution: string = '2K',
   signal?: AbortSignal

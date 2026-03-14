@@ -6,7 +6,13 @@ import { Button } from '../components/ui/Button';
 export const Settings: React.FC = () => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [apiKey, setApiKey] = useState(localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '');
-  const [model, setModel] = useState(localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-3-pro-image-preview');
+  const [model, setModel] = useState(localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-3.1-flash-image-preview');
+
+  const GEMINI_MODELS = [
+    { label: 'gemini-3.1-flash-image-preview（預設，快速）', value: 'gemini-3.1-flash-image-preview' },
+    { label: 'gemini-3-pro-image-preview（高品質）', value: 'gemini-3-pro-image-preview' },
+    { label: 'gemini-2.5-flash-image（輕量）', value: 'gemini-2.5-flash-image' },
+  ];
   const [backendUrl, setBackendUrl] = useState(localStorage.getItem('backendUrl') || import.meta.env.VITE_BACKEND_URL || '');
   const [driveScriptUrl, setDriveScriptUrl] = useState(localStorage.getItem('driveScriptUrl') || import.meta.env.VITE_DRIVE_SCRIPT_URL || '');
   const [vertexRegion, setVertexRegion] = useState(localStorage.getItem('vertexRegion') || 'global');
@@ -104,11 +110,22 @@ export const Settings: React.FC = () => {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
-            <Input 
-              label="Vertex AI Model Name" 
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Gemini Model</label>
+              <select
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                  color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer'
+                }}
+              >
+                {GEMINI_MODELS.map(m => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
             <Input 
               label="Cloud Run Backend URL (PPT Parser)" 
               value={backendUrl}
