@@ -265,13 +265,6 @@ export const ProjectEditor: React.FC = () => {
           setSelectedSlides(new Set([dbSlides[0].id]));
       }
 
-      // If project has no slides, add a default empty one
-      if (dbSlides.length === 0) {
-        const newId = Math.random().toString(36).substr(2, 9);
-        setDoc(doc(db, 'projects', id, 'slides', newId), {
-           originalImage: null, generatedImage: null, maskImage: null, prompt: defaultPromptRef.current, status: 'empty', createdAt: Date.now()
-        });
-      }
 
     });
     return () => unsubscribe();
@@ -1376,7 +1369,7 @@ export const ProjectEditor: React.FC = () => {
               </button>
             </div>
             <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: activeSlide?.status === 'empty' ? '1px dashed var(--border-color)' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage ? (
+              {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage && activeSlide.status !== 'empty' ? (
                 // ── Text-only slide: show text editor ──
                 <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
