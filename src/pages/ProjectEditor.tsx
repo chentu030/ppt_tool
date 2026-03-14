@@ -30,7 +30,7 @@ export const ProjectEditor: React.FC = () => {
   const navigate = useNavigate();
 
   const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [resolution, setResolution] = useState('2K');
+  const [resolution, setResolution] = useState('1K');
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
   const [slides, setSlides] = useState<Slide[]>([]);
