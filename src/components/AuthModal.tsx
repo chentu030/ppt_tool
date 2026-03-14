@@ -1,69 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { auth } from '../firebase';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-
-const GOOGLE_CLIENT_ID = '240166589655-ltaqhugqi2ai3sirlbgnqbifg45lki3f.apps.googleusercontent.com';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-declare global {
-  interface Window {
-    google: any;
-    handleGoogleCredential: (response: any) => void;
-  }
-}
-
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    window.handleGoogleCredential = async (response: any) => {
-      setLoading(true);
-      setError('');
-      try {
-        const credential = GoogleAuthProvider.credential(response.credential);
-        await signInWithCredential(auth, credential);
-        onClose();
-        window.location.href = '/home';
-      } catch (err: any) {
-        setError(err.message || 'Google Sign-In failed.');
-      } finally {
-        setLoading(false);
-      }
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!window.google?.accounts?.id) return;
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: window.handleGoogleCredential,
-    });
-    window.google.accounts.id.renderButton(
-      document.getElementById('google-signin-btn'),
-      { theme: 'outline', size: 'large', width: '100%', text: 'continue_with' }
-    );
-  }, [isOpen]);
-
-  const handleGoogleSignIn = () => {
-    if (!window.google?.accounts?.id) {
-      setError('Google Sign-In not loaded. Please refresh.');
-      return;
-    }
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
     setError('');
-    window.google.accounts.id.prompt((notification: any) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        const btn = document.getElementById('google-signin-btn');
-        if (btn) btn.click();
-      }
-    });
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      onClose();
+      window.location.href = '/home';
+    } catch (err: any) {
+      setError(err.message || 'Google Sign-In failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,10 +44,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       )}
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Google-rendered sign-in button (primary) */}
-        <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }} />
-
-        {/* Fallback button in case GIS renderButton doesn't work */}
         <Button
           onClick={handleGoogleSignIn}
           fullWidth
