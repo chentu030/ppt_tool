@@ -1255,7 +1255,7 @@ export const ProjectEditor: React.FC = () => {
                       </div>
                       <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Slide {index + 1}</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.15rem', color: slides.length === 1 ? 'transparent' : 'var(--text-secondary)' }} disabled={slides.length === 1}>
+                    <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.15rem', color: 'var(--text-secondary)' }}>
                       <Trash2 size={14} />
                     </Button>
                   </div>
@@ -1356,7 +1356,7 @@ export const ProjectEditor: React.FC = () => {
                     <div style={{ flex: 1, aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (<img loading="lazy" src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
                     </div>
-                    <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: slides.length === 1 ? 'transparent' : 'var(--text-secondary)' }} disabled={slides.length === 1}><Trash2 size={14} /></Button>
+                    <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}><Trash2 size={14} /></Button>
                   </div>
                 ))}
               </div>
