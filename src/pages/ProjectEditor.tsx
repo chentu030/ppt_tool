@@ -793,7 +793,8 @@ export const ProjectEditor: React.FC = () => {
           );
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
-          await updateDoc(doc(db, 'projects', id, 'slides', slideId), { status: 'done' });
+          const compressedGen = await compressImage(generatedImg, 1200, 0.7);
+          await updateDoc(doc(db, 'projects', id, 'slides', slideId), { status: 'done', generatedImage: compressedGen });
           completedCount++;
           setGenerateProgress({ current: completedCount, total });
           return { slideId, genUrl: generatedImg };
