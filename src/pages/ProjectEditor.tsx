@@ -317,19 +317,22 @@ export const ProjectEditor: React.FC = () => {
   const deleteSlide = async (e: React.MouseEvent, slideId: string) => {
     e.stopPropagation();
     if (!id) return;
-    
-    await deleteDoc(doc(db, 'projects', id, 'slides', slideId));
-    
-    // Fallback UI selection
+    // Optimistic UI: remove immediately
     const index = slides.findIndex(s => s.id === slideId);
+    setSlides(prev => prev.filter(s => s.id !== slideId));
     if (activeSlideId === slideId) {
-       const nextSlide = slides[index === 0 ? 1 : index - 1];
-       if (nextSlide) setActiveSlideId(nextSlide.id);
+      const nextSlide = slides[index === 0 ? 1 : index - 1];
+      setActiveSlideId(nextSlide ? nextSlide.id : '');
     }
-    
     const newSelected = new Set(selectedSlides);
     newSelected.delete(slideId);
     setSelectedSlides(newSelected);
+    try {
+      await deleteDoc(doc(db, 'projects', id, 'slides', slideId));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('刪除失敗，請稍後再試。');
+    }
   };
 
   const toggleSlideSelection = (id: string, e: React.MouseEvent) => {
@@ -662,7 +665,9 @@ export const ProjectEditor: React.FC = () => {
   // ── Word / TXT helpers ──────────────────────────────────────────────────
   const parseTextIntoPages = (text: string): string[] => {
     const parts = text.split(/(?=第[一二三四五六七八九十百千\d]+頁)/);
-    return parts.map(p => p.trim()).filter(p => p.length > 0);
+    return parts
+      .map(p => p.replace(/^第[一二三四五六七八九十百千\d]+頁[\s\n]*/, '').trim())
+      .filter(p => p.length > 0);
   };
 
   const extractDocxText = async (file: File): Promise<string> => {
