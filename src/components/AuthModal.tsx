@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Modal } from './ui/Modal';
-import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { auth } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -11,69 +10,70 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleSignIn = async () => {
     setLoading(true);
     setError('');
     
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        const userCred = await createUserWithEmailAndPassword(auth, email, password);
-        if (name) {
-          await updateProfile(userCred.user, { displayName: name });
-        }
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       onClose();
       window.location.href = '/home';
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please try again.');
+      setError(err.message || 'Google Sign-In failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={isLogin ? 'Sign In' : 'Create Account'}>
-      {error && <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem' }}>{error}</div>}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {!isLogin && (
-          <Input label="Name" placeholder="Dr. Presentation" value={name} onChange={e => setName(e.target.value)} required />
-        )}
-        <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-        <Input label="Password" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
-        
-        <Button type="submit" fullWidth disabled={loading} style={{ marginTop: '1rem', opacity: loading ? 0.7 : 1 }}>
-          {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Sign Up')}
-        </Button>
-      </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Sign In">
+      {error && (
+        <div style={{ 
+          marginBottom: '1rem', 
+          padding: '0.75rem', 
+          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+          color: '#ef4444', 
+          borderRadius: 'var(--radius-sm)', 
+          fontSize: '0.875rem' 
+        }}>
+          {error}
+        </div>
+      )}
       
-      <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem' }}>
-        <span style={{ color: 'var(--text-secondary)' }}>
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-        </span>
-        <button 
-          onClick={() => setIsLogin(!isLogin)}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <Button 
+          onClick={handleGoogleSignIn} 
+          fullWidth 
+          disabled={loading}
           style={{ 
-            color: 'var(--text-primary)', 
-            fontWeight: 500, 
-            textDecoration: 'underline',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            gap: '0.75rem',
+            opacity: loading ? 0.7 : 1 
           }}
         >
-          {isLogin ? 'Sign up' : 'Sign in'}
-        </button>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+            <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.18L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9.003 18z" fill="#34A853"/>
+            <path d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.96H.957C.347 6.175 0 7.55 0 9.002c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+            <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+          </svg>
+          {loading ? 'Signing in...' : 'Continue with Google'}
+        </Button>
+        
+        <p style={{ 
+          textAlign: 'center', 
+          fontSize: '0.75rem', 
+          color: 'var(--text-secondary)', 
+          margin: '0.5rem 0 0' 
+        }}>
+          使用 Google 帳號快速登入，無需註冊
+        </p>
       </div>
     </Modal>
   );
