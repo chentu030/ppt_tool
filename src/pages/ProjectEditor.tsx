@@ -1387,7 +1387,7 @@ export const ProjectEditor: React.FC = () => {
               </button>
             </div>
             <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: activeSlide?.status === 'empty' ? '1px dashed var(--border-color)' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage && activeSlide.status !== 'empty' ? (
+              {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId) && activeSlide.status !== 'empty' ? (
                 // ── Text-only slide: show text editor ──
                 <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -1448,7 +1448,7 @@ export const ProjectEditor: React.FC = () => {
                 </>
               )}
             </div>
-            {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage) && (
+            {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
               <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                   <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
