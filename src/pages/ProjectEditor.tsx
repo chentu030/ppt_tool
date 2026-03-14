@@ -596,7 +596,6 @@ export const ProjectEditor: React.FC = () => {
          initialBatch.update(doc(db, 'projects', id, 'slides', slideId), { status: 'generating' });
       });
       await initialBatch.commit();
-      const apiKey = localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '';
       const model = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || "gemini-3-pro-image-preview";
       
       const { generateImageDesign } = await import('../utils/gemini');
@@ -621,7 +620,7 @@ export const ProjectEditor: React.FC = () => {
           const base64Mask = slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null;
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
-            slide.prompt + (globalExtraPrompt.trim() ? '\n' + globalExtraPrompt.trim() : ''), apiKey, model, aspectRatio, resolution
+            slide.prompt + (globalExtraPrompt.trim() ? '\n' + globalExtraPrompt.trim() : ''), model, aspectRatio, resolution
           );
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
