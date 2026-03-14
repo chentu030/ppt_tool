@@ -58,10 +58,12 @@ export const Home: React.FC = () => {
   
   // Current User
   const [userId, setUserId] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Auth Listener
   React.useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setAuthLoading(false);
       if (user) {
         setUserId(user.uid);
       } else {
@@ -210,6 +212,8 @@ export const Home: React.FC = () => {
       </div>
     </>
   );
+
+  if (authLoading) return null; // Wait for auth state to resolve before rendering or redirecting
 
   return (
     <div>
