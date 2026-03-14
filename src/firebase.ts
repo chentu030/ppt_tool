@@ -1,20 +1,21 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyDMHyOpFTc8JwMim4-mB5Tb79fEzwj_-tw",
+  authDomain: "project-d70e7.firebaseapp.com",
+  databaseURL: "https://project-d70e7-default-rtdb.firebaseio.com",
+  projectId: "project-d70e7",
+  storageBucket: "project-d70e7.firebasestorage.app",
+  messagingSenderId: "260921428694",
+  appId: "1:260921428694:web:0d4a4f238106d6b3191777",
+  measurementId: "G-K8M3Q76TQR",
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(console.error);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
