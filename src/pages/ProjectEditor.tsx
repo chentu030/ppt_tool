@@ -70,6 +70,7 @@ export const ProjectEditor: React.FC = () => {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null); // timestamp of previous run
   const [imageHistories, setImageHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const imageHistoriesRef = useRef<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -82,6 +83,19 @@ export const ProjectEditor: React.FC = () => {
 
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Check for previous unfinished generation on mount
+  React.useEffect(() => {
+    const ts = localStorage.getItem('vertexGenerating');
+    if (ts) {
+      const elapsed = Date.now() - Number(ts);
+      if (elapsed < 5 * 60 * 1000) { // within 5 minutes
+        setPrevSessionWarning(Number(ts));
+      } else {
+        localStorage.removeItem('vertexGenerating');
+      }
+    }
+  }, []);
 
   // Auth State
   const [userId, setUserId] = useState<string | null>(null);
@@ -595,6 +609,7 @@ export const ProjectEditor: React.FC = () => {
     const total = selectedSlides.size;
     setGenerateProgress({ current: 0, total });
     setIsGenerating(true);
+    localStorage.setItem('vertexGenerating', Date.now().toString());
 
     try {
       // Set initiating state using batch
@@ -704,6 +719,8 @@ export const ProjectEditor: React.FC = () => {
       } catch (_) { /* best effort */ }
       setGenerateProgress(null);
       setIsGenerating(false);
+      localStorage.removeItem('vertexGenerating');
+      setPrevSessionWarning(null);
     }
   };
 
@@ -819,6 +836,17 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Previous session warning banner */}
+      {prevSessionWarning && !isGenerating && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', marginBottom: '0.5rem', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: '#b45309' }}>
+          <span>⚠️ 偵測到上一次的生成可能還在 Vertex AI 執行中（{Math.round((Date.now() - prevSessionWarning) / 1000)} 秒前開始）。建議等待約 60 秒再重新生成，避免 429 錯誤。</span>
+          <button onClick={() => { localStorage.removeItem('vertexGenerating'); setPrevSessionWarning(null); }}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            忽略
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1008,7 +1036,7 @@ export const ProjectEditor: React.FC = () => {
                   style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: `2px solid ${dragOverId === slide.id ? '#f59e0b' : activeSlideId === slide.id ? 'var(--accent-color)' : selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)'}`, cursor: 'grab', overflow: 'hidden', transition: 'border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease', boxShadow: dragOverId === slide.id ? '0 0 0 2px #f59e0b' : activeSlideId === slide.id ? '0 0 0 1px var(--accent-color)' : 'var(--shadow-sm)', opacity: draggingId === slide.id ? 0.4 : 1 }}>
                   <div style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (
-                      <img loading="lazy" src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Empty</span>
                     )}
