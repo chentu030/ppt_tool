@@ -613,23 +613,6 @@ export const ProjectEditor: React.FC = () => {
     }).filter(l => l.trim()).join('\n');
   };
 
-  const createTextSlideImage = (text: string): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1280; canvas.height = 720;
-    const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 1280, 720);
-    ctx.fillStyle = '#1a1a1a';
-    ctx.font = 'bold 26px sans-serif';
-    const lines = text.split('\n');
-    let y = 60;
-    for (const line of lines) {
-      if (y > 680) break;
-      ctx.fillText(line.substring(0, 72), 40, y);
-      y += 38;
-    }
-    return canvas.toDataURL('image/jpeg', 0.9);
-  };
 
   const handleTextFileProcess = async (file: File) => {
     if (!file || !id) return;
@@ -650,27 +633,16 @@ export const ProjectEditor: React.FC = () => {
         alert('找不到頁面標記，請確保文件中有「第一頁」、「第二頁」等標示。');
         return;
       }
-      setSavingProgress({ current: 0, total: pages.length });
       const baseTimestamp = Date.now();
       const newSlideIds: string[] = [];
-      const allResults: { newId: string; imageUrl: string; hqUrl: string | null; idx: number; prompt: string }[] = [];
-      for (let i = 0; i < pages.length; i++) {
-        const newId = `${baseTimestamp}_txt_${i}`;
-        newSlideIds.push(newId);
-        const blankImg = createTextSlideImage(pages[i]);
-        const [imageUrl, hqUrl] = await Promise.all([
-          uploadImageToStorage(id as string, newId, 'originalImage', blankImg),
-          uploadHQToStorage(id as string, newId, 'originalImage', blankImg)
-        ]);
-        allResults.push({ newId, imageUrl, hqUrl, idx: i, prompt: pages[i] });
-        setSavingProgress({ current: i + 1, total: pages.length });
-      }
       const fb = writeBatch(db);
-      allResults.forEach(({ newId, imageUrl, hqUrl, idx, prompt }) => {
+      pages.forEach((pageText, idx) => {
+        const newId = `${baseTimestamp}_txt_${idx}`;
+        newSlideIds.push(newId);
         fb.set(doc(db, 'projects', id as string, 'slides', newId), {
-          originalImage: imageUrl, originalImageHQ: hqUrl || null,
+          originalImage: null, originalImageHQ: null,
           generatedImage: null, generatedImageHQ: null, maskImage: null,
-          prompt, status: 'draft',
+          prompt: pageText, status: 'draft',
           createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000
         });
       });
@@ -693,8 +665,11 @@ export const ProjectEditor: React.FC = () => {
   const handleGenerate = async () => {
     if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
     if (!globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
-    const hasImage = Array.from(selectedSlides).some(sid => slides.find(s => s.id === sid)?.originalImage);
-    if (!hasImage) return alert('Please upload a PPT or image first before generating.');
+    const hasContent = Array.from(selectedSlides).some(sid => {
+      const s = slides.find(sl => sl.id === sid);
+      return s?.originalImage || s?.prompt;
+    });
+    if (!hasContent) return alert('Please upload a PPT, image, or Word/TXT file first before generating.');
     
     const abort = new AbortController();
     generateAbortController.current = abort;
@@ -724,13 +699,13 @@ export const ProjectEditor: React.FC = () => {
 
       const processSlide = async (slideId: string) => {
         const slide = slides.find(s => s.id === slideId);
-        if (!slide || !slide.originalImage) {
+        if (!slide || (!slide.originalImage && !slide.prompt)) {
           completedCount++;
           setGenerateProgress({ current: completedCount, total });
           return null;
         }
         try {
-          const base64Original = await fetchImageAsBase64(slide.originalImage);
+          const base64Original = slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null;
           const base64Ref = globalReference ? await fetchImageAsBase64(globalReference) : null;
           const base64Mask = slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null;
           const generatedImg = await generateImageDesign(

@@ -71,7 +71,7 @@ const imagenInpaint = async (
 
 // Standard generation via Gemini generateContent endpoint (no mask)
 export const generateImageDesign = async (
-  baseImage: string,
+  baseImage: string | null,
   referenceImage: string | null,
   maskImage: string | null,
   prompt: string,
@@ -83,21 +83,23 @@ export const generateImageDesign = async (
 ): Promise<string> => {
   console.log(`Calling API with model: ${modelName}, ratio: ${aspectRatio}, res: ${resolution}, mask: ${!!maskImage}`);
 
-  const cleanBase = baseImage.split(',')[1] || baseImage;
+  const cleanBase = baseImage ? (baseImage.split(',')[1] || baseImage) : null;
   const cleanRef = referenceImage ? (referenceImage.split(',')[1] || referenceImage) : null;
   const cleanMask = maskImage ? (maskImage.split(',')[1] || maskImage) : null;
 
-  // When mask is present use Imagen 4 inpainting
-  if (cleanMask) {
+  // When mask is present use Imagen 4 inpainting (requires base image)
+  if (cleanMask && cleanBase) {
     return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', apiKey, aspectRatio, signal);
   }
 
   // No mask — use Gemini generateContent
+  // Text-only slides (no baseImage): just send text prompt + reference style image
   const parts: any[] = [
-    { text: prompt || 'Redesign this slide with a clean, modern minimalist style.' },
-    { inlineData: { mimeType: 'image/jpeg', data: cleanBase } }
+    { text: prompt || 'Design a slide based on the provided content.' }
   ];
-
+  if (cleanBase) {
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase } });
+  }
   if (cleanRef) {
     parts.push({ text: 'Reference Style:' });
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanRef } });
@@ -161,7 +163,7 @@ export const generateImageDesign = async (
     }
 
     console.warn("API didn't return an image part. Returning original.");
-    return baseImage;
+    return baseImage ?? '';
 
   } catch (error: any) {
     if (attempt < MAX_RETRIES && (error?.message?.includes('500') || error?.message?.includes('503'))) {
