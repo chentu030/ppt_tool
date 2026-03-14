@@ -75,12 +75,14 @@ export const Home: React.FC = () => {
   // Fetch Projects from Firestore
   React.useEffect(() => {
     if (!userId) return; // Wait until we know the user
+    console.log('[Home] Fetching projects for userId:', userId);
     
     const q = query(
       collection(db, 'projects'), 
       where('userId', '==', userId)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('[Home] Firestore snapshot received, docs:', snapshot.docs.length);
       const projData: Project[] = snapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
@@ -94,6 +96,9 @@ export const Home: React.FC = () => {
       projData.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       
       setProjects(projData);
+    }, (error) => {
+      console.error('[Home] Firestore error:', error.code, error.message);
+      alert(`Firestore error: ${error.code}\n${error.message}\n\nuserId: ${userId}`);
     });
     return () => unsubscribe();
   }, [userId]);
