@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import pptxgen from 'pptxgenjs';
 import JSZip from 'jszip';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, orderBy, getDoc } from 'firebase/firestore';
@@ -70,7 +70,9 @@ export const ProjectEditor: React.FC = () => {
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
-  const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null); // timestamp of previous run
+  const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null);
+  const [showTextUploadModal, setShowTextUploadModal] = useState(false);
+  const [pendingTextFile, setPendingTextFile] = useState<File | null>(null); // timestamp of previous run
   const [imageHistories, setImageHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const imageHistoriesRef = useRef<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -594,6 +596,98 @@ export const ProjectEditor: React.FC = () => {
     }
   };
 
+  // ── Word / TXT helpers ──────────────────────────────────────────────────
+  const parseTextIntoPages = (text: string): string[] => {
+    const parts = text.split(/(?=第[一二三四五六七八九十百千\d]+頁)/);
+    return parts.map(p => p.trim()).filter(p => p.length > 0);
+  };
+
+  const extractDocxText = async (file: File): Promise<string> => {
+    const zip = new JSZip();
+    const content = await zip.loadAsync(file);
+    const docXml = await content.files['word/document.xml'].async('string');
+    const paragraphs = docXml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [];
+    return paragraphs.map(p => {
+      const texts = p.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+      return texts.map(t => t.replace(/<[^>]+>/g, '')).join('');
+    }).filter(l => l.trim()).join('\n');
+  };
+
+  const createTextSlideImage = (text: string): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280; canvas.height = 720;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 1280, 720);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = 'bold 26px sans-serif';
+    const lines = text.split('\n');
+    let y = 60;
+    for (const line of lines) {
+      if (y > 680) break;
+      ctx.fillText(line.substring(0, 72), 40, y);
+      y += 38;
+    }
+    return canvas.toDataURL('image/jpeg', 0.9);
+  };
+
+  const handleTextFileProcess = async () => {
+    if (!pendingTextFile || !id) return;
+    setShowTextUploadModal(false);
+    let rawText = '';
+    try {
+      if (pendingTextFile.name.endsWith('.txt')) {
+        rawText = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsText(pendingTextFile, 'UTF-8');
+        });
+      } else {
+        rawText = await extractDocxText(pendingTextFile);
+      }
+      const pages = parseTextIntoPages(rawText);
+      if (pages.length === 0) {
+        alert('找不到頁面標記，請確保文件中有「第一頁」、「第二頁」等標示。');
+        return;
+      }
+      setSavingProgress({ current: 0, total: pages.length });
+      const baseTimestamp = Date.now();
+      const newSlideIds: string[] = [];
+      const allResults: { newId: string; imageUrl: string; hqUrl: string | null; idx: number; prompt: string }[] = [];
+      for (let i = 0; i < pages.length; i++) {
+        const newId = `${baseTimestamp}_txt_${i}`;
+        newSlideIds.push(newId);
+        const blankImg = createTextSlideImage(pages[i]);
+        const [imageUrl, hqUrl] = await Promise.all([
+          uploadImageToStorage(id as string, newId, 'originalImage', blankImg),
+          uploadHQToStorage(id as string, newId, 'originalImage', blankImg)
+        ]);
+        allResults.push({ newId, imageUrl, hqUrl, idx: i, prompt: pages[i] });
+        setSavingProgress({ current: i + 1, total: pages.length });
+      }
+      const fb = writeBatch(db);
+      allResults.forEach(({ newId, imageUrl, hqUrl, idx, prompt }) => {
+        fb.set(doc(db, 'projects', id as string, 'slides', newId), {
+          originalImage: imageUrl, originalImageHQ: hqUrl || null,
+          generatedImage: null, generatedImageHQ: null, maskImage: null,
+          prompt, status: 'draft',
+          createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000
+        });
+      });
+      await fb.commit();
+      setSelectedSlides(new Set(newSlideIds));
+      setActiveSlideId(newSlideIds[0]);
+    } catch (err) {
+      console.error(err);
+      alert('解析文件時發生錯誤，請確認檔案格式正確。');
+    } finally {
+      setSavingProgress(null);
+      setPendingTextFile(null);
+    }
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
   const handleCancelGenerate = () => {
     generateAbortController.current?.abort();
   };
@@ -836,6 +930,47 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Word/TXT format instructions modal */}
+      {showTextUploadModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => { setShowTextUploadModal(false); setPendingTextFile(null); }}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '1.75rem', width: '480px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FileText size={18} /> Word / TXT 格式說明
+              </h3>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                請在文件中用 <strong>「第一頁」「第二頁」</strong>... 標記每張投影片的開始位置，每一頁的文字將作為 AI 生成該張投影片的提示詞。
+              </p>
+            </div>
+            <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', padding: '1rem', fontFamily: 'monospace', fontSize: '0.82rem', lineHeight: 2, color: 'var(--text-secondary)', border: '1px solid var(--border-color)', whiteSpace: 'pre-wrap' }}>{`第一頁
+標題：損益表的真相
+重點：現金流比獲利更重要，費用可美化但現金不能
+
+第二頁
+標題：資產負債表解析
+重點：資產 = 負債 + 股東權益
+
+第三頁
+...`}</div>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              ⚠️ 請搭配<strong>風格參考圖</strong>使用，上傳後選取全部投影片再點「1-Click Modify」生成。
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <Button onClick={handleTextFileProcess}
+                style={{ flex: 1, justifyContent: 'center', backgroundColor: 'var(--accent-color)', color: '#fff' }}>
+                確認上傳
+              </Button>
+              <Button variant="secondary" onClick={() => { setShowTextUploadModal(false); setPendingTextFile(null); }}
+                style={{ flex: 1, justifyContent: 'center' }}>
+                取消
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Previous session warning banner */}
       {prevSessionWarning && !isGenerating && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', marginBottom: '0.5rem', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: '#b45309' }}>
@@ -999,6 +1134,19 @@ export const ProjectEditor: React.FC = () => {
                 } catch (err) { console.error(err); alert("Error saving PPT."); }
                 finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
               }} />
+            </label>
+
+            {/* Word / TXT Upload compact */}
+            <label style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+              <FileText size={14} /> Word/TXT
+              <input type="file" accept=".docx,.txt" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setPendingTextFile(file);
+                  setShowTextUploadModal(true);
+                  e.target.value = '';
+                }} />
             </label>
 
             {/* Gallery controls */}
