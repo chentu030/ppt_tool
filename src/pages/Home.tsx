@@ -42,6 +42,8 @@ interface Project {
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const navigateRef = React.useRef(navigate);
+  React.useEffect(() => { navigateRef.current = navigate; });
   const [projects, setProjects] = useState<Project[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +62,7 @@ export const Home: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Auth Listener
+  // Auth Listener — empty deps so it only subscribes ONCE (navigate is stable via ref)
   React.useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       setAuthLoading(false);
@@ -68,11 +70,11 @@ export const Home: React.FC = () => {
         setUserId(user.uid);
       } else {
         setUserId(null);
-        navigate('/'); // Redirect to landing if not logged in
+        navigateRef.current('/'); // Redirect to landing if not logged in
       }
     });
     return () => unsubAuth();
-  }, [navigate]);
+  }, []);
 
   // Fetch Projects from Firestore
   React.useEffect(() => {
