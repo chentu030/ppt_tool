@@ -882,21 +882,21 @@ export const ProjectEditor: React.FC = () => {
 
         {/* ===== MODE A: Preview Hidden ??Compact bar + Grid ===== */}
         {!previewOpen && (<>
-          {/* Extra prompt row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>額外提示詞</span>
-            <input
-              value={globalExtraPrompt}
-              onChange={e => setGlobalExtraPrompt(e.target.value)}
-              placeholder="套用到所有選取投影片的額外指令（選填）"
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', minWidth: 0 }}
-            />
-            {globalExtraPrompt && (
-              <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={14}/></button>
-            )}
-          </div>
-          {/* Compact controls row */}
+          {/* Combined controls + extra prompt row */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+            {/* Extra prompt — flex:1 to fill remaining space */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '160px', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>額外提示詞</span>
+              <input
+                value={globalExtraPrompt}
+                onChange={e => setGlobalExtraPrompt(e.target.value)}
+                placeholder="額外指令（選填）"
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', minWidth: 0 }}
+              />
+              {globalExtraPrompt && (
+                <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={14}/></button>
+              )}
+            </div>
             {/* Reference Style compact */}
             <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>風格參考</span>
