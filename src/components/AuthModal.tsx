@@ -1,32 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { auth } from '../firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+
+const GOOGLE_CLIENT_ID = '240166589655-ltaqhugqi2ai3sirlbgnqbifg45lki3f.apps.googleusercontent.com';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+declare global {
+  interface Window {
+    google: any;
+    handleGoogleCredential: (response: any) => void;
+  }
+}
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      onClose();
-      window.location.href = '/home';
-    } catch (err: any) {
-      setError(err.message || 'Google Sign-In failed. Please try again.');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    window.handleGoogleCredential = async (response: any) => {
+      setLoading(true);
+      setError('');
+      try {
+        const credential = GoogleAuthProvider.credential(response.credential);
+        await signInWithCredential(auth, credential);
+        onClose();
+        window.location.href = '/home';
+      } catch (err: any) {
+        setError(err.message || 'Google Sign-In failed.');
+      } finally {
+        setLoading(false);
+      }
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!window.google?.accounts?.id) return;
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: window.handleGoogleCredential,
+    });
+    window.google.accounts.id.renderButton(
+      document.getElementById('google-signin-btn'),
+      { theme: 'outline', size: 'large', width: '100%', text: 'continue_with' }
+    );
+  }, [isOpen]);
+
+  const handleGoogleSignIn = () => {
+    if (!window.google?.accounts?.id) {
+      setError('Google Sign-In not loaded. Please refresh.');
+      return;
     }
+    setError('');
+    window.google.accounts.id.prompt((notification: any) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        const btn = document.getElementById('google-signin-btn');
+        if (btn) btn.click();
+      }
+    });
   };
 
   return (
@@ -45,17 +82,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       )}
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <Button 
-          onClick={handleGoogleSignIn} 
-          fullWidth 
+        {/* Google-rendered sign-in button (primary) */}
+        <div id="google-signin-btn" style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }} />
+
+        {/* Fallback button in case GIS renderButton doesn't work */}
+        <Button
+          onClick={handleGoogleSignIn}
+          fullWidth
           disabled={loading}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '0.75rem',
-            opacity: loading ? 0.7 : 1 
-          }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', opacity: loading ? 0.7 : 1 }}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
@@ -65,13 +100,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </svg>
           {loading ? 'Signing in...' : 'Continue with Google'}
         </Button>
-        
-        <p style={{ 
-          textAlign: 'center', 
-          fontSize: '0.75rem', 
-          color: 'var(--text-secondary)', 
-          margin: '0.5rem 0 0' 
-        }}>
+
+        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0' }}>
           使用 Google 帳號快速登入，無需註冊
         </p>
       </div>
