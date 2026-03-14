@@ -1413,6 +1413,7 @@ export const ProjectEditor: React.FC = () => {
                         <button style={btnStyle(canUndo)} disabled={!canUndo} onClick={() => handleTextUndo(activeSlideId)}><ChevronLeft size={13}/> 上一步</button>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{hist ? `${hist.pos + 1}/${hist.stack.length}` : '1/1'}</span>
                         <button style={btnStyle(canRedo)} disabled={!canRedo} onClick={() => handleTextRedo(activeSlideId)}>下一步 <ChevronRight size={13}/></button>
+                        {(() => { const imgHist = imageHistories.get(activeSlideId); const canViewImg = !!imgHist && imgHist.stack.length > 0 && imgHist.pos < imgHist.stack.length - 1; const hasImg = !!imgHist && imgHist.stack.length > 0; return hasImg ? (<button style={{ ...btnStyle(true), marginLeft: '0.25rem', color: 'var(--accent-color)', borderColor: 'var(--accent-color)' }} onClick={() => canViewImg ? handleRedo(activeSlideId) : (setPendingImages(p => new Map(p).set(activeSlideId, imgHist!.stack[imgHist!.pos])), updateDoc(doc(db, 'projects', id!, 'slides', activeSlideId), { generatedImage: imgHist!.stack[imgHist!.pos] }).catch(console.error))} title="切換到生成圖片">查看圖片 <ChevronRight size={13}/></button>) : null; })()}
                         <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)', flexShrink: 0 }} />
                         <input
                           value={polishDirection}
@@ -1465,7 +1466,7 @@ export const ProjectEditor: React.FC = () => {
                   )}
                   {(() => {
                     const hist = activeSlideId ? imageHistories.get(activeSlideId) : undefined;
-                    const canUndo = !!hist && hist.pos >= 0;
+                    const canUndo = !!hist && hist.pos > 0;
                     const canRedo = !!hist && hist.pos < hist.stack.length - 1;
                     if (!hist || hist.stack.length === 0) return null;
                     const btnStyle = (enabled: boolean): React.CSSProperties => ({
