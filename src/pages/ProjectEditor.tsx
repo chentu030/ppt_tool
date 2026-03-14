@@ -78,6 +78,9 @@ export const ProjectEditor: React.FC = () => {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [globalExtraPrompt, setGlobalExtraPrompt] = useState('');
+  const [textHistories, setTextHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
+  const [textSaving, setTextSaving] = useState(false);
+  const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -122,6 +125,66 @@ export const ProjectEditor: React.FC = () => {
   }, [navigate, id]);
 
   const activeSlide = slides.find(s => s.id === activeSlideId);
+
+  // Initialize text history for text-only slides
+  React.useEffect(() => {
+    if (!activeSlideId) return;
+    const slide = slides.find(s => s.id === activeSlideId);
+    if (slide && !slide.originalImage && !slide.generatedImage) {
+      setTextHistories(prev => {
+        if (prev.has(activeSlideId)) return prev;
+        const next = new Map(prev);
+        next.set(activeSlideId, { stack: [slide.prompt], pos: 0 });
+        return next;
+      });
+    }
+  }, [activeSlideId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTextChange = (slideId: string, newText: string) => {
+    setSlides(prev => prev.map(s => s.id === slideId ? { ...s, prompt: newText } : s));
+    if (textSaveTimer.current) clearTimeout(textSaveTimer.current);
+    setTextSaving(true);
+    textSaveTimer.current = setTimeout(() => {
+      if (id) updateDoc(doc(db, 'projects', id, 'slides', slideId), { prompt: newText }).catch(console.error);
+      setTextHistories(prev => {
+        const hist = prev.get(slideId);
+        if (!hist || hist.stack[hist.pos] === newText) { setTextSaving(false); return prev; }
+        const newStack = [...hist.stack.slice(0, hist.pos + 1), newText];
+        const next = new Map(prev);
+        next.set(slideId, { stack: newStack, pos: newStack.length - 1 });
+        setTextSaving(false);
+        return next;
+      });
+    }, 1200);
+  };
+
+  const handleTextUndo = (slideId: string) => {
+    setTextHistories(prev => {
+      const hist = prev.get(slideId);
+      if (!hist || hist.pos <= 0) return prev;
+      const newPos = hist.pos - 1;
+      const text = hist.stack[newPos];
+      setSlides(p => p.map(s => s.id === slideId ? { ...s, prompt: text } : s));
+      if (id) updateDoc(doc(db, 'projects', id, 'slides', slideId), { prompt: text }).catch(console.error);
+      const next = new Map(prev);
+      next.set(slideId, { ...hist, pos: newPos });
+      return next;
+    });
+  };
+
+  const handleTextRedo = (slideId: string) => {
+    setTextHistories(prev => {
+      const hist = prev.get(slideId);
+      if (!hist || hist.pos >= hist.stack.length - 1) return prev;
+      const newPos = hist.pos + 1;
+      const text = hist.stack[newPos];
+      setSlides(p => p.map(s => s.id === slideId ? { ...s, prompt: text } : s));
+      if (id) updateDoc(doc(db, 'projects', id, 'slides', slideId), { prompt: text }).catch(console.error);
+      const next = new Map(prev);
+      next.set(slideId, { ...hist, pos: newPos });
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     setPromptDraft(activeSlide?.prompt || '');
@@ -1160,6 +1223,11 @@ export const ProjectEditor: React.FC = () => {
                   <div style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (
                       <img src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : slide.prompt ? (
+                      <div style={{ padding: '0.4rem 0.5rem', width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: 'var(--bg-secondary)' }}>
+                        <FileText size={10} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span>
+                      </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Empty</span>
                     )}
@@ -1286,7 +1354,7 @@ export const ProjectEditor: React.FC = () => {
                     </div>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', width: '20px' }}>{index + 1}</span>
                     <div style={{ flex: 1, aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (<img loading="lazy" src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
+                      {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (<img loading="lazy" src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
                     </div>
                     <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: slides.length === 1 ? 'transparent' : 'var(--text-secondary)' }} disabled={slides.length === 1}><Trash2 size={14} /></Button>
                   </div>
@@ -1303,7 +1371,36 @@ export const ProjectEditor: React.FC = () => {
               </button>
             </div>
             <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: activeSlide?.status === 'empty' ? '1px dashed var(--border-color)' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              {activeSlide?.status === 'empty' ? (
+              {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage ? (
+                // ── Text-only slide: show text editor ──
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <FileText size={15} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>文字內容編輯</span>
+                    {textSaving && <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>儲存中...</span>}
+                    {!textSaving && <span style={{ fontSize: '0.72rem', color: 'var(--accent-color)', marginLeft: 'auto' }}>● 已儲存</span>}
+                  </div>
+                  <textarea
+                    value={activeSlide.prompt}
+                    onChange={e => handleTextChange(activeSlideId, e.target.value)}
+                    placeholder="在此輸入投影片內容，AI 將根據這段文字生成投影片圖片..."
+                    style={{ flex: 1, resize: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.875rem', fontSize: '0.92rem', lineHeight: 1.8, fontFamily: 'inherit', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+                  />
+                  {(() => {
+                    const hist = textHistories.get(activeSlideId);
+                    const canUndo = !!hist && hist.pos > 0;
+                    const canRedo = !!hist && hist.pos < hist.stack.length - 1;
+                    const btnStyle = (enabled: boolean): React.CSSProperties => ({ background: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.6rem', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.35, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem' });
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <button style={btnStyle(canUndo)} disabled={!canUndo} onClick={() => handleTextUndo(activeSlideId)}><ChevronLeft size={13}/> 上一步</button>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{hist ? `${hist.pos + 1}/${hist.stack.length}` : '1/1'}</span>
+                        <button style={btnStyle(canRedo)} disabled={!canRedo} onClick={() => handleTextRedo(activeSlideId)}>下一步 <ChevronRight size={13}/></button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : activeSlide?.status === 'empty' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--text-secondary)' }}>
                   <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}><ImageIcon size={32} /></div>
                   <p>Preview Area</p>
@@ -1321,7 +1418,7 @@ export const ProjectEditor: React.FC = () => {
                 </>
               )}
             </div>
-            {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && (
+            {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage) && (
               <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                   <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
