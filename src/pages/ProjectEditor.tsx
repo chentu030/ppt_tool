@@ -789,7 +789,7 @@ export const ProjectEditor: React.FC = () => {
           const base64Mask = slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null;
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
-            slide.prompt + (globalExtraPrompt.trim() ? '\n' + globalExtraPrompt.trim() : ''), apiKey, model, aspectRatio, resolution, abort.signal
+            (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt, apiKey, model, aspectRatio, resolution, abort.signal
           );
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
