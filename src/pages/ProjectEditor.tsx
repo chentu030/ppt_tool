@@ -59,6 +59,7 @@ export const ProjectEditor: React.FC = () => {
   const [dragBox, setDragBox] = useState<{x1:number, y1:number, x2:number, y2:number} | null>(null);
   const maskSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generateAbortController = useRef<AbortController | null>(null);
+  const textFileInputRef = useRef<HTMLInputElement | null>(null);
   const globalReferenceRef = useRef<string | null>(null);
   const defaultPromptRef = useRef<string>('');
   const activeSlideIdRef = useRef<string>('');
@@ -631,20 +632,19 @@ export const ProjectEditor: React.FC = () => {
     return canvas.toDataURL('image/jpeg', 0.9);
   };
 
-  const handleTextFileProcess = async () => {
-    if (!pendingTextFile || !id) return;
-    setShowTextUploadModal(false);
+  const handleTextFileProcess = async (file: File) => {
+    if (!file || !id) return;
     let rawText = '';
     try {
-      if (pendingTextFile.name.endsWith('.txt')) {
+      if (file.name.endsWith('.txt')) {
         rawText = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = e => resolve(e.target?.result as string);
           reader.onerror = reject;
-          reader.readAsText(pendingTextFile, 'UTF-8');
+          reader.readAsText(file, 'UTF-8');
         });
       } else {
-        rawText = await extractDocxText(pendingTextFile);
+        rawText = await extractDocxText(file);
       }
       const pages = parseTextIntoPages(rawText);
       if (pages.length === 0) {
@@ -958,9 +958,9 @@ export const ProjectEditor: React.FC = () => {
               ⚠️ 請搭配<strong>風格參考圖</strong>使用，上傳後選取全部投影片再點「1-Click Modify」生成。
             </p>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <Button onClick={handleTextFileProcess}
+              <Button onClick={() => { setShowTextUploadModal(false); textFileInputRef.current?.click(); }}
                 style={{ flex: 1, justifyContent: 'center', backgroundColor: 'var(--accent-color)', color: '#fff' }}>
-                確認上傳
+                確認，開啟檔案
               </Button>
               <Button variant="secondary" onClick={() => { setShowTextUploadModal(false); setPendingTextFile(null); }}
                 style={{ flex: 1, justifyContent: 'center' }}>
@@ -1137,17 +1137,20 @@ export const ProjectEditor: React.FC = () => {
             </label>
 
             {/* Word / TXT Upload compact */}
-            <label style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+            <button
+              disabled={parsingProgress !== null || savingProgress !== null}
+              onClick={() => setShowTextUploadModal(true)}
+              style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600, color: 'inherit' }}>
               <FileText size={14} /> Word/TXT
-              <input type="file" accept=".docx,.txt" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setPendingTextFile(file);
-                  setShowTextUploadModal(true);
-                  e.target.value = '';
-                }} />
-            </label>
+            </button>
+            <input ref={textFileInputRef} type="file" accept=".docx,.txt" style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setPendingTextFile(file);
+                handleTextFileProcess(file);
+                e.target.value = '';
+              }} />
 
             {/* Gallery controls */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
