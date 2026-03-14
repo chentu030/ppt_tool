@@ -73,7 +73,6 @@ export const ProjectEditor: React.FC = () => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null);
   const [showTextUploadModal, setShowTextUploadModal] = useState(false);
-  const [pendingTextFile, setPendingTextFile] = useState<File | null>(null); // timestamp of previous run
   const [imageHistories, setImageHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const imageHistoriesRef = useRef<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -683,7 +682,6 @@ export const ProjectEditor: React.FC = () => {
       alert('解析文件時發生錯誤，請確認檔案格式正確。');
     } finally {
       setSavingProgress(null);
-      setPendingTextFile(null);
     }
   };
   // ────────────────────────────────────────────────────────────────────────
@@ -933,7 +931,7 @@ export const ProjectEditor: React.FC = () => {
       {/* Word/TXT format instructions modal */}
       {showTextUploadModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onClick={() => { setShowTextUploadModal(false); setPendingTextFile(null); }}>
+          onClick={() => setShowTextUploadModal(false)}>
           <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '1.75rem', width: '480px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
             onClick={e => e.stopPropagation()}>
             <div>
@@ -962,7 +960,7 @@ export const ProjectEditor: React.FC = () => {
                 style={{ flex: 1, justifyContent: 'center', backgroundColor: 'var(--accent-color)', color: '#fff' }}>
                 確認，開啟檔案
               </Button>
-              <Button variant="secondary" onClick={() => { setShowTextUploadModal(false); setPendingTextFile(null); }}
+              <Button variant="secondary" onClick={() => setShowTextUploadModal(false)}
                 style={{ flex: 1, justifyContent: 'center' }}>
                 取消
               </Button>
@@ -1147,7 +1145,6 @@ export const ProjectEditor: React.FC = () => {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                setPendingTextFile(file);
                 handleTextFileProcess(file);
                 e.target.value = '';
               }} />
