@@ -301,7 +301,7 @@ export const ProjectEditor: React.FC = () => {
     const newId = Math.random().toString(36).substr(2, 9);
     const maxOrder = slides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
     await setDoc(doc(db, 'projects', id, 'slides', newId), {
-       originalImage: null, generatedImage: null, maskImage: null, prompt: defaultPrompt, status: 'empty', createdAt: Date.now(), order: maxOrder + 1000
+       originalImage: null, generatedImage: null, maskImage: null, prompt: '', status: 'empty', createdAt: Date.now(), order: maxOrder + 1000
     });
     setActiveSlideId(newId);
     setSelectedSlides(prev => new Set(prev).add(newId));
@@ -1186,7 +1186,7 @@ export const ProjectEditor: React.FC = () => {
               }} />
 
             {/* Gallery controls */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border-color)' }}>
               <Button size="sm" variant="ghost" onClick={() => {
                 if (selectedSlides.size === slides.length) setSelectedSlides(new Set());
                 else setSelectedSlides(new Set(slides.map(s => s.id)));
