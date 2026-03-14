@@ -1,12 +1,16 @@
 import { getValidBearerToken } from './auth';
 
 const IMAGEN_INPAINT_MODEL = 'imagen-4.0-generate-001';
-// Vertex AI regional endpoint — always uses Bearer token (GCP credits)
-const getBaseUrl = () => {
-  const project = localStorage.getItem('gcpProjectId') || '';
-  const region  = localStorage.getItem('vertexRegion')  || 'us-central1';
-  if (!project) throw new Error('[Vertex] GCP Project ID 未設定，請到 Settings 填入');
-  return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models`;
+// Both paths use aiplatform.googleapis.com (Vertex AI billing) — never generativelanguage.googleapis.com
+// Bearer token → v1 regional endpoint (GCP project credits)
+// API key     → v1beta1 Express Mode (still Vertex AI, still GCP billing)
+const getBaseUrl = (hasBearerToken: boolean) => {
+  if (hasBearerToken) {
+    const project = localStorage.getItem('gcpProjectId') || '';
+    const region  = localStorage.getItem('vertexRegion')  || 'us-central1';
+    return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models`;
+  }
+  return 'https://aiplatform.googleapis.com/v1beta1/publishers/google/models';
 };
 
 // Inpainting via Imagen 4 generateImages endpoint (mask present)
@@ -14,6 +18,7 @@ const imagenInpaint = async (
   cleanBase: string,
   cleanMask: string,
   prompt: string,
+  apiKey: string,
   aspectRatio: string
 ): Promise<string> => {
   const requestBody = {
@@ -36,9 +41,11 @@ const imagenInpaint = async (
   };
 
   const bearerToken = await getValidBearerToken();
-  if (!bearerToken) throw new Error('[Vertex] Bearer Token 未設定，請到 Settings 點擊「刷新 Token」');
-  const inpaintUrl = `${getBaseUrl()}/${IMAGEN_INPAINT_MODEL}:generateImages`;
-  const inpaintHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bearerToken}` };
+  const inpaintUrl = bearerToken
+    ? `${getBaseUrl(true)}/${IMAGEN_INPAINT_MODEL}:generateImages`
+    : `${getBaseUrl(false)}/${IMAGEN_INPAINT_MODEL}:generateImages?key=${apiKey}`;
+  const inpaintHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (bearerToken) inpaintHeaders['Authorization'] = `Bearer ${bearerToken}`;
 
   const response = await fetch(inpaintUrl, {
     method: 'POST',
@@ -66,6 +73,7 @@ export const generateImageDesign = async (
   referenceImage: string | null,
   maskImage: string | null,
   prompt: string,
+  apiKey: string,
   modelName: string = 'gemini-3-pro-image-preview',
   aspectRatio: string = '16:9',
   resolution: string = '2K'
@@ -78,7 +86,7 @@ export const generateImageDesign = async (
 
   // When mask is present use Imagen 4 inpainting
   if (cleanMask) {
-    return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', aspectRatio);
+    return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', apiKey, aspectRatio);
   }
 
   // No mask — use Gemini generateContent
@@ -115,9 +123,11 @@ export const generateImageDesign = async (
     }
   try {
     const bearerToken = await getValidBearerToken();
-    if (!bearerToken) throw new Error('[Vertex] Bearer Token 未設定，請到 Settings 點擊「刷新 Token」');
-    const url = `${getBaseUrl()}/${modelName}:generateContent`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bearerToken}` };
+    const url = bearerToken
+      ? `${getBaseUrl(true)}/${modelName}:generateContent`
+      : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
 
     const response = await fetch(url, {
       method: 'POST',
