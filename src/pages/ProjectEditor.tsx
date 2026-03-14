@@ -810,14 +810,12 @@ export const ProjectEditor: React.FC = () => {
         </div>
       )}
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost" size="sm" onClick={handleBack} style={{ padding: '0.5rem' }}>
-            <ArrowLeft size={20} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Button variant="ghost" size="sm" onClick={handleBack} style={{ padding: '0.4rem' }}>
+            <ArrowLeft size={18} />
           </Button>
-          <div>
-            <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Project Editor</h2>
-          </div>
+          <span style={{ fontSize: '0.9rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Project Editor</span>
         </div>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
