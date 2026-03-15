@@ -89,6 +89,33 @@ export const ProjectEditor: React.FC = () => {
   // Captured at local-modify click time — bypasses stale Firestore mask/base
   const localMaskDataRef = useRef<string | null>(null);
   const localBaseDataRef = useRef<string | null>(null);
+  const localPromptRef = useRef<string>('');
+
+  // Convert canvas mask → white-on-black PNG at the same resolution as the base image
+  const buildLocalMask = (canvasDataUrl: string, baseDataUrl: string): Promise<string> =>
+    new Promise((resolve) => {
+      const baseImg = new Image();
+      baseImg.onload = () => {
+        const maskImg = new Image();
+        maskImg.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = baseImg.naturalWidth; c.height = baseImg.naturalHeight;
+          const ctx = c.getContext('2d')!;
+          ctx.fillStyle = 'black'; ctx.fillRect(0, 0, c.width, c.height);
+          ctx.drawImage(maskImg, 0, 0, c.width, c.height);
+          const d = ctx.getImageData(0, 0, c.width, c.height);
+          for (let i = 0; i < d.data.length; i += 4) {
+            const bright = d.data[i] > 10 || d.data[i+1] > 10 || d.data[i+2] > 10 || d.data[i+3] > 10;
+            d.data[i] = bright ? 255 : 0; d.data[i+1] = bright ? 255 : 0;
+            d.data[i+2] = bright ? 255 : 0; d.data[i+3] = 255;
+          }
+          ctx.putImageData(d, 0, 0);
+          resolve(c.toDataURL('image/png'));
+        };
+        maskImg.src = canvasDataUrl;
+      };
+      baseImg.src = baseDataUrl;
+    });
 
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -807,18 +834,30 @@ export const ProjectEditor: React.FC = () => {
           // Local modify: use the captured current image & canvas mask directly
           const capturedBase = localBaseDataRef.current;
           const capturedMask = localMaskDataRef.current;
+          const capturedPrompt = localPromptRef.current;
           localBaseDataRef.current = null;
           localMaskDataRef.current = null;
+          localPromptRef.current = '';
+          const isLocalModify = !!capturedMask;
+          // Always fetch base as proper data URL (fetchImageAsBase64 handles data: URLs as-is)
           const base64Original = capturedBase
-            ? capturedBase
+            ? await fetchImageAsBase64(capturedBase)
             : (slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null);
-          const base64Ref = globalReference ? await fetchImageAsBase64(globalReference) : null;
-          const base64Mask = capturedMask
-            ? capturedMask
-            : (slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null);
+          const base64Ref = (!isLocalModify && globalReference) ? await fetchImageAsBase64(globalReference) : null;
+          // For local modify: scale canvas mask to match base image dimensions & convert to white-on-black
+          let base64Mask: string | null = null;
+          if (isLocalModify && capturedMask && base64Original) {
+            base64Mask = await buildLocalMask(capturedMask, base64Original);
+          } else if (!isLocalModify && slide.maskImage) {
+            base64Mask = await fetchImageAsBase64(slide.maskImage);
+          }
+          // For local modify: use only the toolbar prompt, no globalExtraPrompt
+          const finalPrompt = isLocalModify
+            ? (capturedPrompt || 'Edit the masked area.')
+            : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt);
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
-            (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt, apiKey, model, aspectRatio, resolution, abort.signal
+            finalPrompt, apiKey, model, aspectRatio, resolution, abort.signal
           );
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
@@ -1531,11 +1570,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
