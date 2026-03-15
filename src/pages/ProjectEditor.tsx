@@ -273,24 +273,12 @@ export const ProjectEditor: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [slides, activeSlideId]);
 
-  // Auto-backup after 2 minutes of inactivity
+  // Always-on auto-backup: triggers 2s after any new unbacked image appears
   React.useEffect(() => {
-    const IDLE_MS = 2 * 60 * 1000;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const reset = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
-        if (unbacked.length > 0 && !isBackingUp) handleBackup();
-      }, IDLE_MS);
-    };
-    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
-    events.forEach(ev => window.addEventListener(ev, reset, { passive: true }));
-    reset();
-    return () => {
-      if (timer) clearTimeout(timer);
-      events.forEach(ev => window.removeEventListener(ev, reset));
-    };
+    const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
+    if (unbacked.length === 0 || isBackingUp) return;
+    const timer = setTimeout(() => { handleBackup(); }, 2000);
+    return () => clearTimeout(timer);
   }, [pendingImages, backedUpIds, isBackingUp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Warn on browser close/refresh when pending images exist
