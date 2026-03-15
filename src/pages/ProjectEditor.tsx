@@ -758,10 +758,9 @@ export const ProjectEditor: React.FC = () => {
     generateAbortController.current?.abort();
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (skipRefCheck = false) => {
     if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
-    const hasOriginalImage = Array.from(selectedSlides).some(sid => slides.find(sl => sl.id === sid)?.originalImage);
-    if (!globalReference && !hasOriginalImage) return alert('請先上傳風格參考圖片才能開始生成。');
+    if (!skipRefCheck && !globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
     const hasContent = Array.from(selectedSlides).some(sid => {
       const s = slides.find(sl => sl.id === sid);
       return s?.originalImage || s?.prompt;
@@ -1520,11 +1519,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } }}
+                  onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
