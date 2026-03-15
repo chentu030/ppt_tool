@@ -1493,18 +1493,16 @@ export const ProjectEditor: React.FC = () => {
                     );
                   })()}
                 </div>
-                <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
-                  <Input
-                    placeholder="What do you want Gemini to change?"
-                    value={promptDraft}
-                    onChange={(e) => setPromptDraft(e.target.value)}
-                    onCompositionStart={() => { isComposing.current = true; }}
-                    onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
-                    onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
-                    style={{ flex: 1, minWidth: 0, width: '100%', backgroundColor: 'transparent', border: 'none', boxShadow: 'none' }}
-                  />
-                </div>
+                <input
+                  placeholder="What do you want Gemini to change?"
+                  value={promptDraft}
+                  onChange={(e) => setPromptDraft(e.target.value)}
+                  onCompositionStart={() => { isComposing.current = true; }}
+                  onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
+                  onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
+                  style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0 0.5rem' }}
+                />
                 <button
                   onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } }}
                   disabled={isGenerating}
