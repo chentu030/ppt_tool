@@ -1451,7 +1451,7 @@ export const ProjectEditor: React.FC = () => {
               )}
             </div>
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
-              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                   <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
                     {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
@@ -1493,7 +1493,7 @@ export const ProjectEditor: React.FC = () => {
                     );
                   })()}
                 </div>
-                <div style={{ flex: 1, display: 'flex' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                   <Input
                     placeholder="What do you want Gemini to change?"
                     value={promptDraft}
@@ -1502,7 +1502,7 @@ export const ProjectEditor: React.FC = () => {
                     onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                     onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
-                    style={{ width: '100%', backgroundColor: 'transparent', border: 'none', boxShadow: 'none' }}
+                    style={{ flex: 1, minWidth: 0, width: '100%', backgroundColor: 'transparent', border: 'none', boxShadow: 'none' }}
                   />
                 </div>
                 <button
