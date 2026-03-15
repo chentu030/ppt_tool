@@ -1,6 +1,5 @@
 import { getValidBearerToken } from './auth';
 
-const IMAGEN_INPAINT_MODEL = 'imagen-4.0-generate-001';
 // Both paths use aiplatform.googleapis.com (Vertex AI billing) — never generativelanguage.googleapis.com
 // Bearer token → v1 regional endpoint (GCP project credits)
 // API key     → v1beta1 Express Mode (still Vertex AI, still GCP billing)
@@ -13,61 +12,6 @@ const getBaseUrl = (hasBearerToken: boolean) => {
   return 'https://aiplatform.googleapis.com/v1beta1/publishers/google/models';
 };
 
-// Inpainting via Imagen 4 generateImages endpoint (mask present)
-const imagenInpaint = async (
-  cleanBase: string,
-  cleanMask: string,
-  prompt: string,
-  apiKey: string,
-  aspectRatio: string,
-  signal?: AbortSignal
-): Promise<string> => {
-  const requestBody = {
-    prompt,
-    referenceImages: [
-      {
-        referenceType: 'REFERENCE_TYPE_RAW',
-        referenceId: 1,
-        referenceImage: { bytesBase64Encoded: cleanBase }
-      },
-      {
-        referenceType: 'REFERENCE_TYPE_MASK',
-        referenceId: 2,
-        referenceImage: { bytesBase64Encoded: cleanMask },
-        maskImageConfig: { maskMode: 'MASK_MODE_WHITE' }
-      }
-    ],
-    editConfig: { editMode: 'INPAINTING_INSERT' },
-    generationConfig: { numberOfImages: 1, aspectRatio }
-  };
-
-  const bearerToken = await getValidBearerToken();
-  const inpaintUrl = bearerToken
-    ? `${getBaseUrl(true)}/${IMAGEN_INPAINT_MODEL}:generateImages`
-    : `${getBaseUrl(false)}/${IMAGEN_INPAINT_MODEL}:generateImages?key=${apiKey}`;
-  const inpaintHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bearerToken) inpaintHeaders['Authorization'] = `Bearer ${bearerToken}`;
-
-  const response = await fetch(inpaintUrl, {
-    method: 'POST',
-    headers: inpaintHeaders,
-    body: JSON.stringify(requestBody),
-    signal
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Imagen inpaint API call failed:', errorText);
-    throw new Error(`Imagen API Error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  console.log('Imagen inpaint response:', data);
-
-  const b64 = data?.images?.[0]?.bytesBase64Encoded;
-  if (b64) return `data:image/png;base64,${b64}`;
-  throw new Error('Imagen API did not return an image.');
-};
 
 // Text-only polish via Gemini (no image output)
 export const polishTextWithAI = async (
@@ -122,22 +66,25 @@ export const generateImageDesign = async (
   const cleanRef = referenceImage ? (referenceImage.split(',')[1] || referenceImage) : null;
   const cleanMask = maskImage ? (maskImage.split(',')[1] || maskImage) : null;
 
-  // When mask is present use Imagen 4 inpainting (requires base image)
-  if (cleanMask && cleanBase) {
-    return imagenInpaint(cleanBase, cleanMask, prompt || 'Edit the masked area.', apiKey, aspectRatio, signal);
-  }
-
   // No mask — use Gemini generateContent
   // Text-only slides (no baseImage): just send text prompt + reference style image
-  const parts: any[] = [
-    { text: prompt || 'Design a slide based on the provided content.' }
-  ];
-  if (cleanBase) {
+  const parts: any[] = [];
+
+  if (cleanMask && cleanBase) {
+    // Mask-guided local edit: send base image + mask, instruct Gemini to only edit white areas
+    parts.push({ text: `You are an image editor. Here is the original image followed by a mask image. The mask has WHITE pixels marking the region to modify and BLACK pixels marking everything to keep unchanged. Task: ${prompt || 'Edit the masked area.'}. Keep every part of the image outside the white mask region pixel-perfect identical to the original. Only change the white-masked area as instructed.` });
     parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase } });
-  }
-  if (cleanRef) {
-    parts.push({ text: 'Reference Style:' });
-    parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanRef } });
+    parts.push({ text: 'Mask (white = edit here, black = keep unchanged):' });
+    parts.push({ inlineData: { mimeType: 'image/png', data: cleanMask } });
+  } else {
+    parts.push({ text: prompt || 'Design a slide based on the provided content.' });
+    if (cleanBase) {
+      parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanBase } });
+    }
+    if (cleanRef) {
+      parts.push({ text: 'Reference Style:' });
+      parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanRef } });
+    }
   }
 
   const requestBody = {
