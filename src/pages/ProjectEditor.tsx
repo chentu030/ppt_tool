@@ -90,6 +90,19 @@ export const ProjectEditor: React.FC = () => {
   const localMaskDataRef = useRef<string | null>(null);
   const localBaseDataRef = useRef<string | null>(null);
   const localPromptRef = useRef<string>('');
+  const localAspectRatioRef = useRef<string>('');
+
+  const getAspectRatioString = (w: number, h: number): string => {
+    const r = w / h;
+    if (Math.abs(r - 1) < 0.05) return '1:1';
+    if (Math.abs(r - 16/9) < 0.1) return '16:9';
+    if (Math.abs(r - 9/16) < 0.1) return '9:16';
+    if (Math.abs(r - 4/3) < 0.1) return '4:3';
+    if (Math.abs(r - 3/4) < 0.1) return '3:4';
+    if (Math.abs(r - 3/2) < 0.08) return '3:2';
+    if (Math.abs(r - 2/3) < 0.08) return '2:3';
+    return r >= 1 ? '1:1' : '1:1';
+  };
 
   // Convert canvas mask → white-on-black PNG at the same resolution as the base image
   const buildLocalMask = (canvasDataUrl: string, baseDataUrl: string): Promise<string> =>
@@ -855,9 +868,11 @@ export const ProjectEditor: React.FC = () => {
           const capturedBase = localBaseDataRef.current;
           const capturedMask = localMaskDataRef.current;
           const capturedPrompt = localPromptRef.current;
+          const capturedAspectRatio = localAspectRatioRef.current;
           localBaseDataRef.current = null;
           localMaskDataRef.current = null;
           localPromptRef.current = '';
+          localAspectRatioRef.current = '';
           const isLocalModify = !!capturedMask;
           // Always fetch base as proper data URL (fetchImageAsBase64 handles data: URLs as-is)
           const base64Original = capturedBase
@@ -875,10 +890,16 @@ export const ProjectEditor: React.FC = () => {
           const finalPrompt = isLocalModify
             ? (capturedPrompt || 'Edit the masked area.')
             : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt);
+          const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
-            finalPrompt, apiKey, model, aspectRatio, resolution, abort.signal
+            finalPrompt, apiKey, model, finalAspectRatio, resolution, abort.signal
           );
+          if (isLocalModify && canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            updateDoc(doc(db, 'projects', id, 'slides', slideId), { maskImage: null }).catch(() => {});
+          }
           setPendingImages(prev => new Map(prev).set(slideId, generatedImg));
           pushToHistory(slideId, generatedImg);
           const compressedGen = await compressImage(generatedImg, 1200, 0.7);
@@ -1590,11 +1611,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
