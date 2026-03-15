@@ -68,6 +68,7 @@ export const ProjectEditor: React.FC = () => {
   const [backedUpIds, setBackedUpIds] = useState<Set<string>>(new Set());
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null);
@@ -1016,6 +1017,9 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
     const exportedSlides = slides.filter(s => s.originalImage || s.generatedImage);
     if (exportedSlides.length === 0) return alert('No slides to export.');
 
@@ -1063,6 +1067,9 @@ export const ProjectEditor: React.FC = () => {
     }
     
     await pres.writeFile({ fileName: `Designt_${id}.pptx` });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -1239,7 +1246,9 @@ export const ProjectEditor: React.FC = () => {
             );
           })()}
           <Button icon={Download} onClick={handleSaveToLocal} variant="secondary">Save Images</Button>
-          <Button icon={Download} onClick={handleExport}>Export PPTX</Button>
+          <Button icon={Download} onClick={handleExport} disabled={isExporting}>
+            {isExporting ? '匯出中...' : 'Export PPTX'}
+          </Button>
         </div>
       </div>
 
