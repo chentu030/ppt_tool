@@ -1091,7 +1091,7 @@ export const ProjectEditor: React.FC = () => {
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-            <Button variant="secondary" onClick={handleGenerate} icon={Sparkles} disabled={isGenerating || !globalReference}
+            <Button variant="secondary" onClick={() => handleGenerate()} icon={Sparkles} disabled={isGenerating || !globalReference}
               style={{ opacity: !globalReference ? 0.5 : 1 }}>
               {generateProgress ? `Generating... ${generateProgress.current}/${generateProgress.total}` : '1-Click Modify'}
             </Button>
