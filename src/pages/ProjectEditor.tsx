@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import pptxgen from 'pptxgenjs';
 import JSZip from 'jszip';
