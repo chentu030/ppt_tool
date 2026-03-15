@@ -212,6 +212,24 @@ export const ProjectEditor: React.FC = () => {
     }
   }, [activeSlideId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keyboard navigation between slides
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const idx = slides.findIndex(s => s.id === activeSlideId);
+      if (e.key === 'ArrowLeft' && idx > 0) {
+        const prevId = slides[idx - 1].id;
+        setActiveSlideId(prevId); setSelectedSlides(new Set([prevId]));
+      } else if ((e.key === 'ArrowRight' || e.key === 'Enter') && idx >= 0 && idx < slides.length - 1) {
+        const nextId = slides[idx + 1].id;
+        setActiveSlideId(nextId); setSelectedSlides(new Set([nextId]));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [slides, activeSlideId]);
+
   // Warn on browser close/refresh when pending images exist
   React.useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -1439,13 +1457,15 @@ export const ProjectEditor: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <img ref={imgRef} src={(activeSlideId ? pendingImages.get(activeSlideId) : undefined) || activeSlide?.generatedImage || activeSlide?.originalImage || ''} alt="Editor Canvas" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
+                  <img ref={imgRef} src={(activeSlideId ? pendingImages.get(activeSlideId) : undefined) || activeSlide?.generatedImage || activeSlide?.originalImage || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
                   <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 0.6, mixBlendMode: 'normal', zIndex: 10 }} />
                   {activeSlide?.status === 'generating' && (
                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-primary)', padding: '1rem 2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', fontWeight: 500, zIndex: 20 }}>
                       <Sparkles size={16} style={{ display: 'inline', marginRight: '0.5rem', animation: 'spin 2s linear infinite' }} /> Generating with Gemini...
                     </div>
                   )}
+                  {/* Prev/Next slide nav buttons */}
+                  {(() => { const idx = slides.findIndex(s => s.id === activeSlideId); const hasPrev = idx > 0; const hasNext = idx < slides.length - 1; const navBtn = (enabled: boolean): React.CSSProperties => ({ position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 15, background: enabled ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.15)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'default', color: 'white', transition: 'background 0.2s' }); return (<><button style={{ ...navBtn(hasPrev), left: '10px' }} disabled={!hasPrev} onClick={() => { if (hasPrev) { const prevId = slides[idx-1].id; setActiveSlideId(prevId); setSelectedSlides(new Set([prevId])); } }}><ChevronLeft size={20} /></button><button style={{ ...navBtn(hasNext), right: '10px' }} disabled={!hasNext} onClick={() => { if (hasNext) { const nextId = slides[idx+1].id; setActiveSlideId(nextId); setSelectedSlides(new Set([nextId])); } }}><ChevronRight size={20} /></button></>); })()}
                 </>
               )}
             </div>
@@ -1500,7 +1520,7 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
-                  style={{ flex: 1, width: 0, minWidth: 0, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem', borderLeft: '1px solid var(--border-color)' }}
+                  style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
                   onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } }}
