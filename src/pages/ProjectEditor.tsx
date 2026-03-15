@@ -760,7 +760,8 @@ export const ProjectEditor: React.FC = () => {
 
   const handleGenerate = async () => {
     if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
-    if (!globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
+    const hasOriginalImage = Array.from(selectedSlides).some(sid => slides.find(sl => sl.id === sid)?.originalImage);
+    if (!globalReference && !hasOriginalImage) return alert('請先上傳風格參考圖片才能開始生成。');
     const hasContent = Array.from(selectedSlides).some(sid => {
       const s = slides.find(sl => sl.id === sid);
       return s?.originalImage || s?.prompt;
