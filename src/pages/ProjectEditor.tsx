@@ -1501,9 +1501,18 @@ export const ProjectEditor: React.FC = () => {
                     onCompositionStart={() => { isComposing.current = true; }}
                     onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                     onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
                     style={{ width: '100%', backgroundColor: 'transparent', border: 'none', boxShadow: 'none' }}
                   />
                 </div>
+                <button
+                  onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } }}
+                  disabled={isGenerating}
+                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  <Sparkles size={14} style={{ animation: isGenerating ? 'spin 2s linear infinite' : 'none' }} />
+                  {isGenerating ? '生成中...' : '生成'}
+                </button>
               </div>
             )}
           </div>
