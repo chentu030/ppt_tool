@@ -72,6 +72,7 @@ export const ProjectEditor: React.FC = () => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [prevSessionWarning, setPrevSessionWarning] = useState<number | null>(null);
   const [showTextUploadModal, setShowTextUploadModal] = useState(false);
+  const [showGenerateConfirmModal, setShowGenerateConfirmModal] = useState(false);
   const [imageHistories, setImageHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const imageHistoriesRef = useRef<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -1055,6 +1056,33 @@ export const ProjectEditor: React.FC = () => {
   return (
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column' }}>
       {/* Exit Confirmation Modal */}
+      {showGenerateConfirmModal && (() => {
+        const sortedSelected = slides
+          .filter(s => selectedSlides.has(s.id))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        const slideNums = sortedSelected.map(s => slides.sort((a,b)=>(a.order??0)-(b.order??0)).findIndex(x=>x.id===s.id)+1);
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setShowGenerateConfirmModal(false)}>
+            <div style={{ background: 'var(--bg-primary)', borderRadius: '1rem', padding: '1.75rem 2rem', minWidth: '320px', maxWidth: '480px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+              onClick={e => e.stopPropagation()}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>確認生成</h3>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                共 <strong style={{ color: 'var(--text-primary)' }}>{sortedSelected.length} 張</strong>投影片將被重新生成：
+              </p>
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.6rem', padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.8, maxHeight: '180px', overflowY: 'auto' }}>
+                {slideNums.join('、')} 頁
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(false)}>取消</Button>
+                <Button onClick={() => { setShowGenerateConfirmModal(false); handleGenerate(); }} icon={Sparkles}
+                  style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}>確認生成</Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {showExitModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowExitModal(false)}>
@@ -1171,7 +1199,7 @@ export const ProjectEditor: React.FC = () => {
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-            <Button variant="secondary" onClick={() => handleGenerate()} icon={Sparkles} disabled={isGenerating || !globalReference}
+            <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(true)} icon={Sparkles} disabled={isGenerating || !globalReference}
               style={{ opacity: !globalReference ? 0.5 : 1 }}>
               {generateProgress ? `Generating... ${generateProgress.current}/${generateProgress.total}` : '1-Click Modify'}
             </Button>
