@@ -1501,7 +1501,7 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } } }}
-                  style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0 0.5rem' }}
+                  style={{ flex: 1, width: 0, minWidth: 0, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem', borderLeft: '1px solid var(--border-color)' }}
                 />
                 <button
                   onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(), 0); } }}
