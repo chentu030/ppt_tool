@@ -86,6 +86,9 @@ export const ProjectEditor: React.FC = () => {
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
   const isComposing = useRef(false);
+  // Captured at local-modify click time — bypasses stale Firestore mask/base
+  const localMaskDataRef = useRef<string | null>(null);
+  const localBaseDataRef = useRef<string | null>(null);
 
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -801,9 +804,18 @@ export const ProjectEditor: React.FC = () => {
           return null;
         }
         try {
-          const base64Original = slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null;
+          // Local modify: use the captured current image & canvas mask directly
+          const capturedBase = localBaseDataRef.current;
+          const capturedMask = localMaskDataRef.current;
+          localBaseDataRef.current = null;
+          localMaskDataRef.current = null;
+          const base64Original = capturedBase
+            ? capturedBase
+            : (slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null);
           const base64Ref = globalReference ? await fetchImageAsBase64(globalReference) : null;
-          const base64Mask = slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null;
+          const base64Mask = capturedMask
+            ? capturedMask
+            : (slide.maskImage ? await fetchImageAsBase64(slide.maskImage) : null);
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
             (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt, apiKey, model, aspectRatio, resolution, abort.signal
@@ -1519,11 +1531,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
