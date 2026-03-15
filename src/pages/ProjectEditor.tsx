@@ -1019,35 +1019,47 @@ export const ProjectEditor: React.FC = () => {
     const exportedSlides = slides.filter(s => s.originalImage || s.generatedImage);
     if (exportedSlides.length === 0) return alert('No slides to export.');
 
-    const pres = new pptxgen();
-    
-    // Map custom aspect ratios
-    if (aspectRatio === '16:9') pres.layout = 'LAYOUT_16x9';
-    else if (aspectRatio === '4:3') pres.layout = 'LAYOUT_4x3';
-    else {
-      // Define custom Layouts. Coordinates are typically in inches for pptxgenjs.
-      let w = 10, h = 5.625; // default 16:9
-      if (aspectRatio === '5:3') { w = 10; h = 6; }
-      else if (aspectRatio === '3:2') { w = 10; h = 6.666; }
-      else if (aspectRatio === '1:1') { w = 10; h = 10; }
-      
-      pres.defineLayout({ name: `CUSTOM_${aspectRatio}`, width: w, height: h });
-      pres.layout = `CUSTOM_${aspectRatio}`;
-    }
-
-    // Fetch all images from URLs → base64 for PPTX embedding (prefer HQ)
+    // Fetch all images + detect natural dimensions
+    const slideImageData: { base64: string; natW: number; natH: number }[] = [];
     for (const slide of exportedSlides) {
-      // HQ priority: Drive (original) → pendingImages (session) → Firestore compressed → original
       const imgUrl = slide.generatedImageDriveUrl || pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage;
       if (imgUrl) {
         const base64Data = await fetchImageAsBase64(imgUrl);
-        const pptSlide = pres.addSlide();
-        pptSlide.addImage({ 
-          data: base64Data, 
-          x: 0, y: 0, w: '100%', h: '100%', 
-          sizing: { type: 'contain', w: '100%', h: '100%' } 
+        const dims = await new Promise<{ natW: number; natH: number }>(resolve => {
+          const img = new Image();
+          img.onload = () => resolve({ natW: img.naturalWidth, natH: img.naturalHeight });
+          img.onerror = () => resolve({ natW: 16, natH: 9 });
+          img.src = base64Data;
         });
+        slideImageData.push({ base64: base64Data, ...dims });
       }
+    }
+
+    // Determine PPTX layout from the first image's actual ratio
+    const pres = new pptxgen();
+    const refRatio = slideImageData.length > 0 ? slideImageData[0].natW / slideImageData[0].natH : 16 / 9;
+    const layoutW = 10;
+    const layoutH = parseFloat((layoutW / refRatio).toFixed(4));
+    pres.defineLayout({ name: 'AUTO_RATIO', width: layoutW, height: layoutH });
+    pres.layout = 'AUTO_RATIO';
+
+    // Add each slide, letterboxing images that differ from the layout ratio
+    for (const { base64, natW, natH } of slideImageData) {
+      const imgRatio = natW / natH;
+      const slideRatio = layoutW / layoutH;
+      let x = 0, y = 0, w = layoutW, h = layoutH;
+      if (Math.abs(imgRatio - slideRatio) > 0.02) {
+        if (imgRatio > slideRatio) {
+          // wider image → letterbox top/bottom
+          w = layoutW; h = layoutW / imgRatio;
+          y = (layoutH - h) / 2;
+        } else {
+          // taller image → pillarbox left/right
+          h = layoutH; w = layoutH * imgRatio;
+          x = (layoutW - w) / 2;
+        }
+      }
+      pres.addSlide().addImage({ data: base64, x, y, w, h });
     }
     
     await pres.writeFile({ fileName: `Designt_${id}.pptx` });
