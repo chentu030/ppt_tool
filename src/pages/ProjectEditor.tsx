@@ -1853,8 +1853,8 @@ export const ProjectEditor: React.FC = () => {
                   value={promptDraft}
                   onChange={(e) => setPromptDraft(e.target.value)}
                   onCompositionStart={() => { isComposing.current = true; }}
-                  onCompositionEnd={(e) => { isComposing.current = false; setPrompt((e.target as HTMLInputElement).value); }}
-                  onBlur={(e) => { if (!isComposing.current) setPrompt(e.target.value); }}
+                  onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
+                  onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
