@@ -341,6 +341,11 @@ export const ProjectEditor: React.FC = () => {
             if (slide.generatedImage) stack.push(slide.generatedImage);
             next.set(slide.id, { stack, pos: stack.length - 1 });
             changed = true;
+          } else if (!slide.originalImage && slide.generatedImage) {
+            // Text-only slide with generated image — '' sentinel lets undo restore text view
+            const stack: string[] = ['', slide.generatedImage];
+            next.set(slide.id, { stack, pos: 1 });
+            changed = true;
           }
         });
         if (changed) imageHistoriesRef.current = next;
@@ -551,7 +556,8 @@ export const ProjectEditor: React.FC = () => {
     if (!id) return;
     const current = imageHistoriesRef.current;
     const slide = slides.find(s => s.id === slideId);
-    const initStack: string[] = slide?.originalImage ? [slide.originalImage] : [];
+    // '' is a sentinel meaning "text state" (no image) — allows undo past pos=0 for text-only slides
+    const initStack: string[] = slide?.originalImage ? [slide.originalImage] : [''];
     const entry = current.get(slideId) || { stack: initStack, pos: initStack.length - 1 };
     // Build new stack: take everything up to current pos, then append new image
     const newStack = [...entry.stack.slice(0, entry.pos + 1), img];
