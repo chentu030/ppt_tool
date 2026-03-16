@@ -28,12 +28,24 @@ export const ProjectEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [resolution, setResolution] = useState('1K');
-  const [fontFamily, setFontFamily] = useState('Noto Sans');
-  const [mainColor, setMainColor] = useState('黑色');
-  const [highlightColor, setHighlightColor] = useState('金黃色');
-  const [specialMark, setSpecialMark] = useState('');
+  const [aspectRatio, setAspectRatio] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.aspectRatio || '16:9'; } catch { return '16:9'; }
+  });
+  const [resolution, setResolution] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.resolution || '1K'; } catch { return '1K'; }
+  });
+  const [fontFamily, setFontFamily] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.fontFamily || 'Noto Sans'; } catch { return 'Noto Sans'; }
+  });
+  const [mainColor, setMainColor] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.mainColor || '黑色'; } catch { return '黑色'; }
+  });
+  const [highlightColor, setHighlightColor] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.highlightColor || '金黃色'; } catch { return '金黃色'; }
+  });
+  const [specialMark, setSpecialMark] = useState<string>(() => {
+    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.specialMark ?? ''; } catch { return ''; }
+  });
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
@@ -163,6 +175,11 @@ export const ProjectEditor: React.FC = () => {
     if (globalExtraPrompt) localStorage.setItem(`extraPrompt_${id}`, globalExtraPrompt);
     else localStorage.removeItem(`extraPrompt_${id}`);
   }, [globalExtraPrompt, id]);
+
+  // Persist all advanced settings (user-level preferences, not project-specific)
+  React.useEffect(() => {
+    localStorage.setItem('advancedSettings', JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark }));
+  }, [aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark]);
 
   // Check for previous unfinished generation on mount
   React.useEffect(() => {
