@@ -397,6 +397,7 @@ export const ProjectEditor: React.FC = () => {
     const newDone = config.doneCount + 1;
     config.doneCount = newDone;
     const another429 = retryModal429Ref.current;
+    console.log(`[AutoRetry] 第 ${newDone} 次重試完成，${another429 ? '仍有 429 錯誤' : '✓ 成功'}`);
     // Succeeded (no new 429) — stop in all modes
     if (!another429) {
       autoRetryConfigRef.current = null;
@@ -408,6 +409,7 @@ export const ProjectEditor: React.FC = () => {
     }
     // Still failing — check stop conditions
     if (config.stopCond === 'retries' && newDone >= config.maxTimes) {
+      console.log(`[AutoRetry] 已達 ${config.maxTimes} 次上限，停止。`);
       autoRetryConfigRef.current = null;
       if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
       autoRetryTimerRef.current = null;
@@ -419,6 +421,7 @@ export const ProjectEditor: React.FC = () => {
       const now = new Date();
       const [h, m] = config.untilTime.split(':').map(Number);
       if (now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)) {
+        console.log(`[AutoRetry] 已到達設定時間 ${config.untilTime}，停止。`);
         autoRetryConfigRef.current = null;
         if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
         autoRetryTimerRef.current = null;
@@ -429,6 +432,7 @@ export const ProjectEditor: React.FC = () => {
     }
     // Continue — update failed slides and start next countdown
     config.toRetrySlides = another429.toRetrySlides;
+    console.log(`[AutoRetry] 繼續，${config.intervalSec} 秒後進行第 ${newDone + 1} 次重試，待重試 ${another429.toRetrySlides.length} 張...`);
     setRetryModal429(null);
     let cd = config.intervalSec;
     setAutoRetryStatus({ countdown: cd, doneCount: newDone });
@@ -439,10 +443,12 @@ export const ProjectEditor: React.FC = () => {
         clearInterval(autoRetryTimerRef.current!); autoRetryTimerRef.current = null;
         const cfg = autoRetryConfigRef.current;
         if (!cfg) return;
+        console.log(`[AutoRetry] 倒數結束，開始第 ${cfg.doneCount + 1} 次重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: -1 } : null);
         autoRetryIsWaiting.current = true;
         setTimeout(() => handleGenerateRef.current(true), 50);
       } else {
+        if (cd % 30 === 0 || cd <= 10) console.log(`[AutoRetry] 倒數 ${cd} 秒後重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: cd } : null);
       }
     }, 1000);
@@ -1239,11 +1245,13 @@ export const ProjectEditor: React.FC = () => {
   const startAutoRetry = () => {
     if (!retryModal429) return;
     const intervalSec = Math.max(1, retryIntervalMin) * 60;
-    autoRetryConfigRef.current = {
+    const cfg = {
       toRetrySlides: [...retryModal429.toRetrySlides],
       intervalSec, stopCond: retryStopCond,
       maxTimes: retryMaxTimes, untilTime: retryUntilTime, doneCount: 0,
     };
+    autoRetryConfigRef.current = cfg;
+    console.log(`[AutoRetry] 啟動自動重試：每 ${retryIntervalMin} 分鐘，待重試投影片 ${cfg.toRetrySlides.length} 張，停止條件：${retryStopCond}`);
     setRetryModal429(null);
     let cd = intervalSec;
     setAutoRetryStatus({ countdown: cd, doneCount: 0 });
@@ -1252,16 +1260,19 @@ export const ProjectEditor: React.FC = () => {
       cd--;
       if (cd <= 0) {
         clearInterval(autoRetryTimerRef.current!); autoRetryTimerRef.current = null;
+        console.log(`[AutoRetry] 倒數結束，開始第 ${(autoRetryConfigRef.current?.doneCount ?? 0) + 1} 次重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: -1 } : null);
         autoRetryIsWaiting.current = true;
         setTimeout(() => handleGenerateRef.current(true), 50);
       } else {
+        if (cd % 30 === 0 || cd <= 10) console.log(`[AutoRetry] 倒數 ${cd} 秒後重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: cd } : null);
       }
     }, 1000);
   };
 
   const stopAutoRetry = () => {
+    console.log('[AutoRetry] 已停止自動重試。');
     if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
     autoRetryTimerRef.current = null;
     autoRetryConfigRef.current = null;
