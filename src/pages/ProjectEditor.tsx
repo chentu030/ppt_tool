@@ -1087,26 +1087,53 @@ export const ProjectEditor: React.FC = () => {
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column' }}>
       {/* Exit Confirmation Modal */}
       {showGenerateConfirmModal && (() => {
-        const sortedSelected = slides
-          .filter(s => selectedSlides.has(s.id))
-          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        const slideNums = sortedSelected.map(s => slides.sort((a,b)=>(a.order??0)-(b.order??0)).findIndex(x=>x.id===s.id)+1);
+        const allSorted = [...slides].sort((a,b)=>(a.order??0)-(b.order??0));
+        const sorted = allSorted.filter(s => selectedSlides.has(s.id));
+        const slideNums = sorted.map(s => allSorted.findIndex(x=>x.id===s.id)+1);
+        const sl: React.CSSProperties = { fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.3rem' };
+        const bx: React.CSSProperties = { background: 'var(--bg-secondary)', borderRadius: '0.55rem', padding: '0.6rem 0.8rem', fontSize: '0.84rem', color: 'var(--text-primary)' };
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
             onClick={() => setShowGenerateConfirmModal(false)}>
-            <div style={{ background: 'var(--bg-primary)', borderRadius: '1rem', padding: '1.75rem 2rem', minWidth: '320px', maxWidth: '480px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            <div style={{ background: 'var(--bg-primary)', borderRadius: '1.1rem', padding: '1.5rem 1.75rem', width: '100%', maxWidth: '500px', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '1rem' }}
               onClick={e => e.stopPropagation()}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>確認生成</h3>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                共 <strong style={{ color: 'var(--text-primary)' }}>{sortedSelected.length} 張</strong>投影片將被重新生成：
-              </p>
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.6rem', padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.8, maxHeight: '180px', overflowY: 'auto' }}>
-                {slideNums.join('、')} 頁
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>確認生成設定</h3>
+
+              <div>
+                <p style={sl}>投影片（共 {sorted.length} 張）</p>
+                <div style={{ ...bx, lineHeight: 1.9 }}>{slideNums.join('、')} 頁</div>
               </div>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+
+              <div>
+                <p style={sl}>風格參考圖</p>
+                {globalReference
+                  ? <img src={globalReference} alt="ref" style={{ width: '100%', maxHeight: '110px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }} />
+                  : <div style={{ ...bx, color: 'var(--text-secondary)', fontStyle: 'italic' }}>未上傳（不使用風格參考）</div>}
+              </div>
+
+              <div>
+                <p style={sl}>額外提示詞</p>
+                <div style={{ ...bx, color: globalExtraPrompt.trim() ? 'var(--text-primary)' : 'var(--text-secondary)', fontStyle: globalExtraPrompt.trim() ? 'normal' : 'italic' }}>
+                  {globalExtraPrompt.trim() || '（無）'}
+                </div>
+              </div>
+
+              <div>
+                <p style={sl}>進階設定</p>
+                <div style={{ ...bx, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1rem', fontSize: '0.82rem' }}>
+                  <span><strong>比例：</strong>{aspectRatio}</span>
+                  <span><strong>解析度：</strong>{resolution}</span>
+                  <span><strong>字體：</strong>{fontFamily}</span>
+                  <span><strong>主要顏色：</strong>{mainColor}</span>
+                  <span style={{ gridColumn: 'span 2' }}><strong>重點標示顏色：</strong>{highlightColor}</span>
+                  {specialMark && <span style={{ gridColumn: 'span 2' }}><strong>特殊標記：</strong>{specialMark}</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
                 <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(false)}>取消</Button>
                 <Button onClick={() => { setShowGenerateConfirmModal(false); handleGenerate(); }} icon={Sparkles}
-                  style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}>確認生成</Button>
+                  style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}>確認，開始生成</Button>
               </div>
             </div>
           </div>
@@ -1231,7 +1258,7 @@ export const ProjectEditor: React.FC = () => {
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
             <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(true)} icon={Sparkles} disabled={isGenerating || !globalReference}
               style={{ opacity: !globalReference ? 0.5 : 1 }}>
-              {generateProgress ? `Generating... ${generateProgress.current}/${generateProgress.total}` : '1-Click Modify'}
+              {generateProgress ? `生成中... ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
             </Button>
             {isGenerating && (
               <Button variant="ghost" onClick={handleCancelGenerate} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
