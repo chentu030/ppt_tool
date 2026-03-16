@@ -140,6 +140,29 @@ export const ProjectEditor: React.FC = () => {
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  // Restore persisted reference image and extra prompt on mount
+  React.useEffect(() => {
+    if (!id) return;
+    const savedRef = localStorage.getItem(`refImg_${id}`);
+    const savedPrompt = localStorage.getItem(`extraPrompt_${id}`);
+    if (savedRef) setGlobalReference(savedRef);
+    if (savedPrompt) setGlobalExtraPrompt(savedPrompt);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save reference image to localStorage whenever it changes
+  React.useEffect(() => {
+    if (!id) return;
+    if (globalReference) localStorage.setItem(`refImg_${id}`, globalReference);
+    else localStorage.removeItem(`refImg_${id}`);
+  }, [globalReference, id]);
+
+  // Save extra prompt to localStorage whenever it changes
+  React.useEffect(() => {
+    if (!id) return;
+    if (globalExtraPrompt) localStorage.setItem(`extraPrompt_${id}`, globalExtraPrompt);
+    else localStorage.removeItem(`extraPrompt_${id}`);
+  }, [globalExtraPrompt, id]);
+
   // Check for previous unfinished generation on mount
   React.useEffect(() => {
     const ts = localStorage.getItem('vertexGenerating');
