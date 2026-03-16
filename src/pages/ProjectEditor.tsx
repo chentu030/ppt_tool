@@ -89,6 +89,7 @@ export const ProjectEditor: React.FC = () => {
   const textSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [polishDirection, setPolishDirection] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
+  const [polishedPreview, setPolishedPreview] = useState<{ slideId: string; text: string } | null>(null);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -263,11 +264,13 @@ export const ProjectEditor: React.FC = () => {
   const handlePolishText = async (slideId: string, text: string) => {
     if (!text.trim() || isPolishing) return;
     setIsPolishing(true);
+    setPolishedPreview(null);
     try {
       const apiKey = localStorage.getItem('vertexApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '';
       const { polishTextWithAI } = await import('../utils/gemini');
       const polished = await polishTextWithAI(text, polishDirection, apiKey);
-      handleTextChange(slideId, polished);
+      // Show preview instead of directly replacing original text
+      setPolishedPreview({ slideId, text: polished });
     } catch (err: any) {
       console.error('Polish failed:', err);
       alert('AI 潤色失敗：' + (err?.message || '未知錯誤'));
@@ -1731,6 +1734,28 @@ export const ProjectEditor: React.FC = () => {
                     placeholder="在此輸入投影片內容，AI 將根據這段文字生成投影片圖片..."
                     style={{ flex: 1, resize: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.875rem', fontSize: '0.92rem', lineHeight: 1.8, fontFamily: 'inherit', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
                   />
+                  {/* AI 潤色 結果預覽 — 不會覆蓋原始文字，需手動套用 */}
+                  {polishedPreview && polishedPreview.slideId === activeSlideId && (
+                    <div style={{ border: '1px solid var(--accent-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', backgroundColor: 'rgba(var(--accent-rgb,99,102,241),0.08)', borderBottom: '1px solid var(--accent-color)' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-color)' }}><Sparkles size={12} style={{ display:'inline', marginRight:'0.3rem' }}/>AI 潤色結果（預覽）</span>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button onClick={() => { handleTextChange(activeSlideId, polishedPreview.text); setPolishedPreview(null); }}
+                            style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', backgroundColor: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 }}>
+                            套用
+                          </button>
+                          <button onClick={() => setPolishedPreview(null)}
+                            style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            放棄
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.88rem', lineHeight: 1.8, color: 'var(--text-primary)', maxHeight: '140px', overflowY: 'auto', whiteSpace: 'pre-wrap', backgroundColor: 'var(--bg-secondary)' }}>
+                        {polishedPreview.text}
+                      </div>
+                    </div>
+                  )}
+
                   {(() => {
                     const hist = textHistories.get(activeSlideId);
                     const canUndo = !!hist && hist.pos > 0;
