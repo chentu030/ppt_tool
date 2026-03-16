@@ -106,6 +106,14 @@ export const ProjectEditor: React.FC = () => {
   const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
+  const [appModal, setAppModal] = useState<{ title: string; body: React.ReactNode; type?: 'error' | 'success' | 'warning' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = React.useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    toastTimer.current = setTimeout(() => setToast(null), 4500);
+  }, []);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -1004,14 +1012,18 @@ export const ProjectEditor: React.FC = () => {
           // User cancelled — silent exit
         } else if (String(loopErr).includes('QUOTA_EXHAUSTED')) {
           const successCount = results.filter(Boolean).length;
-          alert(
-            `⚠️ API quota 已耗盡 (429 Resource Exhausted)\n\n` +
-            `成功：${successCount} 張 / 失敗：${failedSlides.length} 張\n\n` +
-            `解決方案：\n` +
-            `1. 明天 quota 重置後再試\n` +
-            `2. 在 Settings 換一組新的 Vertex AI API Key\n` +
-            `3. 在 Google Cloud Console 確認剩餘額度`
-          );
+          setAppModal({
+            type: 'error',
+            title: '429 錯誤：API 使用量過高',
+            body: (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <p style={{ margin: 0 }}>目前重試 3 次失敗，因為目前 Gemini API 使用者過多，請等待 5–10 分鐘再嘗試。</p>
+                <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.6rem 0.8rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  成功：{successCount} 張 ／ 失敗：{failedSlides.length} 張
+                </div>
+              </div>
+            )
+          });
         } else {
           throw loopErr;
         }
@@ -1033,7 +1045,7 @@ export const ProjectEditor: React.FC = () => {
       
     } catch (e) {
       console.error('Generation failed:', e);
-      alert('Failed to generate design.');
+      showToast('生成失敗，請稍後再試。', 'error');
     } finally {
       // Always reset any still-generating slides back to draft
       try {
@@ -1052,7 +1064,7 @@ export const ProjectEditor: React.FC = () => {
   const handleSaveToLocal = async (scope: 'all' | 'selected' = 'all') => {
     const baseSlides = scope === 'selected' ? slides.filter(s => selectedSlides.has(s.id)) : slides;
     const exportedSlides = baseSlides.filter(s => pendingImages.get(s.id) || s.generatedImage || s.originalImage);
-    if (exportedSlides.length === 0) return alert('No slides to save.');
+    if (exportedSlides.length === 0) { showToast('沒有可下載的投影片。', 'info'); return; }
 
     // HQ priority: Drive (original) → pendingImages (session) → Firestore compressed → original
     const getImgSrc = (slide: Slide) =>
@@ -1073,7 +1085,7 @@ export const ProjectEditor: React.FC = () => {
           await writable.write(blob);
           await writable.close();
         }
-        alert(`✓ Saved ${exportedSlides.length} slides to folder.`);
+        showToast(`✓ 已儲存 ${exportedSlides.length} 張投影片至資料夾。`, 'success');
         return;
       } catch (err: any) {
         if (err.name === 'AbortError') return;
@@ -1102,7 +1114,7 @@ export const ProjectEditor: React.FC = () => {
     try {
     const baseSlides = scope === 'selected' ? slides.filter(s => selectedSlides.has(s.id)) : slides;
     const exportedSlides = baseSlides.filter(s => s.originalImage || s.generatedImage);
-    if (exportedSlides.length === 0) return alert('No slides to export.');
+    if (exportedSlides.length === 0) { showToast('沒有可匯出的投影片。', 'info'); setIsExporting(false); return; }
 
     // Fetch all images + detect natural dimensions
     const slideImageData: { base64: string; natW: number; natH: number }[] = [];
@@ -1148,6 +1160,7 @@ export const ProjectEditor: React.FC = () => {
     }
     
     await pres.writeFile({ fileName: `Designt_${id}.pptx` });
+    showToast(`✓ PPTX 已匯出（${exportedSlides.length} 頁）。`, 'success');
     } finally {
       setIsExporting(false);
     }
@@ -1915,6 +1928,43 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </>)}
       </div>
+
+      {/* Custom App Modal (replaces browser alert) */}
+      {appModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => setAppModal(null)}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '420px', maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+              <span style={{ fontSize: '1.4rem', lineHeight: 1, flexShrink: 0 }}>
+                {appModal.type === 'error' ? '⚠️' : appModal.type === 'success' ? '✅' : appModal.type === 'warning' ? '⚠️' : 'ℹ️'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 0.1rem', fontSize: '1rem', fontWeight: 700, color: appModal.type === 'error' ? '#ef4444' : 'var(--text-primary)' }}>{appModal.title}</h3>
+              </div>
+              <button onClick={() => setAppModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px', flexShrink: 0 }}><X size={18}/></button>
+            </div>
+            <div style={{ fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text-secondary)', paddingLeft: '2.1rem' }}>{appModal.body}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingLeft: '2.1rem' }}>
+              <button onClick={() => setAppModal(null)}
+                style={{ padding: '0.5rem 1.5rem', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: appModal.type === 'error' ? '#ef4444' : 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+                確定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 10200, display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.75rem 1.1rem', borderRadius: 'var(--radius-md)', backgroundColor: toast.type === 'success' ? '#16a34a' : toast.type === 'error' ? '#dc2626' : '#2563eb', color: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', fontSize: '0.875rem', fontWeight: 500, maxWidth: '360px', animation: 'slideInRight 0.25s ease' }}>
+          <span style={{ fontSize: '1rem', flexShrink: 0 }}>
+            {toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'}
+          </span>
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.75)', padding: '2px', display: 'flex', flexShrink: 0 }}><X size={14}/></button>
+        </div>
+      )}
 
       {/* 下載範圍選擇 Modal */}
       {downloadScopeModal && (
