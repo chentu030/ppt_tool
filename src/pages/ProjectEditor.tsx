@@ -105,6 +105,7 @@ export const ProjectEditor: React.FC = () => {
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
+  const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -1048,8 +1049,9 @@ export const ProjectEditor: React.FC = () => {
     }
   };
 
-  const handleSaveToLocal = async () => {
-    const exportedSlides = slides.filter(s => pendingImages.get(s.id) || s.generatedImage || s.originalImage);
+  const handleSaveToLocal = async (scope: 'all' | 'selected' = 'all') => {
+    const baseSlides = scope === 'selected' ? slides.filter(s => selectedSlides.has(s.id)) : slides;
+    const exportedSlides = baseSlides.filter(s => pendingImages.get(s.id) || s.generatedImage || s.originalImage);
     if (exportedSlides.length === 0) return alert('No slides to save.');
 
     // HQ priority: Drive (original) → pendingImages (session) → Firestore compressed → original
@@ -1094,11 +1096,12 @@ export const ProjectEditor: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleExport = async () => {
+  const handleExport = async (scope: 'all' | 'selected' = 'all') => {
     if (isExporting) return;
     setIsExporting(true);
     try {
-    const exportedSlides = slides.filter(s => s.originalImage || s.generatedImage);
+    const baseSlides = scope === 'selected' ? slides.filter(s => selectedSlides.has(s.id)) : slides;
+    const exportedSlides = baseSlides.filter(s => s.originalImage || s.generatedImage);
     if (exportedSlides.length === 0) return alert('No slides to export.');
 
     // Fetch all images + detect natural dimensions
@@ -1350,9 +1353,9 @@ export const ProjectEditor: React.FC = () => {
               </div>
             );
           })()}
-          <Button icon={Download} onClick={handleSaveToLocal} variant="secondary">Save Images</Button>
-          <Button icon={Download} onClick={handleExport} disabled={isExporting}>
-            {isExporting ? '匯出中...' : 'Export PPTX'}
+          <Button icon={Download} onClick={() => setDownloadScopeModal('save')} variant="secondary">下載圖片</Button>
+          <Button icon={Download} onClick={() => setDownloadScopeModal('export')} disabled={isExporting}>
+            {isExporting ? '匯出中...' : '匯出 PPTX'}
           </Button>
         </div>
       </div>
@@ -1461,7 +1464,7 @@ export const ProjectEditor: React.FC = () => {
                 if (selectedSlides.size === slides.length) setSelectedSlides(new Set());
                 else setSelectedSlides(new Set(slides.map(s => s.id)));
               }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                {selectedSlides.size === slides.length ? 'Deselect All' : 'Select All'}
+                {selectedSlides.size === slides.length ? '取消全選' : '全選'}
               </Button>
               <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} />新增頁面</Button>
             </div>
@@ -1729,7 +1732,7 @@ export const ProjectEditor: React.FC = () => {
                 <h3 style={{ fontSize: '1rem', margin: 0 }}>Slides Gallery</h3>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <Button size="sm" variant="ghost" onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                    {selectedSlides.size === slides.length ? 'Deselect All' : 'Select All'}
+                    {selectedSlides.size === slides.length ? '取消全選' : '全選'}
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
                 </div>
@@ -1912,6 +1915,42 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </>)}
       </div>
+
+      {/* 下載範圍選擇 Modal */}
+      {downloadScopeModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setDownloadScopeModal(null)}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: '1.75rem', width: '340px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>
+                {downloadScopeModal === 'save' ? '下載圖片' : '匯出 PPTX'}
+              </h3>
+              <button onClick={() => setDownloadScopeModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: '2px' }}><X size={18}/></button>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>要{downloadScopeModal === 'save' ? '下載' : '匯出'}哪些頁面？</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <button onClick={() => { setDownloadScopeModal(null); downloadScopeModal === 'save' ? handleSaveToLocal('all') : handleExport('all'); }}
+                style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>📋</span>
+                <div>
+                  <div style={{ fontWeight: 600 }}>全部頁面</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>共 {slides.length} 頁</div>
+                </div>
+              </button>
+              <button onClick={() => { setDownloadScopeModal(null); downloadScopeModal === 'save' ? handleSaveToLocal('selected') : handleExport('selected'); }}
+                style={{ padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: selectedSlides.size === 0 ? 'not-allowed' : 'pointer', textAlign: 'left', fontSize: '0.875rem', color: selectedSlides.size === 0 ? 'var(--text-secondary)' : 'var(--text-primary)', opacity: selectedSlides.size === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                disabled={selectedSlides.size === 0}>
+                <span style={{ fontSize: '1.2rem' }}>✅</span>
+                <div>
+                  <div style={{ fontWeight: 600 }}>已勾選的頁面</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>共 {selectedSlides.size} 頁已勾選</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 新增頁面 Modal */}
       {showAddSlideModal && (
