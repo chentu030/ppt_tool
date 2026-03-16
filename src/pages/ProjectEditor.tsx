@@ -196,9 +196,12 @@ export const ProjectEditor: React.FC = () => {
 
   // Auth State
   const [userId, setUserId] = useState<string | null>(null);
+  const authNullTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      // Cancel any pending logout-navigation (guards against brief cross-tab null blips)
+      if (authNullTimer.current) { clearTimeout(authNullTimer.current); authNullTimer.current = null; }
       if (user) {
         setUserId(user.uid);
         // Optional: Verify ownership
@@ -209,11 +212,18 @@ export const ProjectEditor: React.FC = () => {
            }
         }
       } else {
-        setUserId(null);
-        navigate('/');
+        // Debounce: wait 2.5s before treating null as a real logout.
+        // Firebase can briefly emit null during cross-tab token refresh.
+        authNullTimer.current = setTimeout(() => {
+          setUserId(null);
+          navigate('/');
+        }, 2500);
       }
     });
-    return () => unsubAuth();
+    return () => {
+      unsubAuth();
+      if (authNullTimer.current) clearTimeout(authNullTimer.current);
+    };
   }, [navigate, id]);
 
   const activeSlide = slides.find(s => s.id === activeSlideId);
