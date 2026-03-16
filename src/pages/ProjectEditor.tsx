@@ -386,7 +386,6 @@ export const ProjectEditor: React.FC = () => {
   defaultPromptRef.current = defaultPrompt;
   activeSlideIdRef.current = activeSlideId;
   retryModal429Ref.current = retryModal429;
-  handleGenerateRef.current = handleGenerate;
 
   // Post-generate auto-retry logic
   React.useEffect(() => {
@@ -1234,6 +1233,8 @@ export const ProjectEditor: React.FC = () => {
       setIsExporting(false);
     }
   };
+
+  handleGenerateRef.current = handleGenerate;
 
   const startAutoRetry = () => {
     if (!retryModal429) return;
