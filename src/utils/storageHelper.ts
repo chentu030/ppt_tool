@@ -34,6 +34,27 @@ export function compressImage(base64Input: string, maxWidth = 800, quality = 0.6
 }
 
 /**
+ * Compress aggressively until the result is under Firestore's ~900KB safe limit.
+ * Tries progressively smaller dimensions and lower quality.
+ */
+export async function compressForFirestore(base64Input: string): Promise<string> {
+  const LIMIT = 900 * 1024; // 900KB in base64 chars (~675KB binary)
+  const steps = [
+    { maxWidth: 1200, quality: 0.7 },
+    { maxWidth: 900,  quality: 0.65 },
+    { maxWidth: 700,  quality: 0.6 },
+    { maxWidth: 500,  quality: 0.55 },
+    { maxWidth: 400,  quality: 0.5 },
+  ];
+  for (const { maxWidth, quality } of steps) {
+    const result = await compressImage(base64Input, maxWidth, quality);
+    if (result.length < LIMIT) return result;
+  }
+  // Last resort: smallest possible
+  return compressImage(base64Input, 300, 0.45);
+}
+
+/**
  * "Upload" an image — actually compresses it and returns a data URL directly.
  * Firebase Storage has CORS issues, so we bypass it entirely and store
  * compressed images inline in Firestore.

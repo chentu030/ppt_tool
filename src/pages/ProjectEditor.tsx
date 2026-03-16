@@ -7,7 +7,7 @@ import JSZip from 'jszip';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, orderBy, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, uploadToDrive } from '../utils/storageHelper';
+import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, compressForFirestore, uploadToDrive } from '../utils/storageHelper';
 
 interface Slide {
   id: string;
@@ -533,7 +533,7 @@ export const ProjectEditor: React.FC = () => {
         const chunk = unbacked.slice(i, i + 2);
         const uploaded = await Promise.all(chunk.map(async ([slideId, base64img]) => {
           // Use higher quality compression for Firestore backup (2048px / 0.92)
-          const genUrl = await compressImage(base64img, 1200, 0.7);
+          const genUrl = await compressForFirestore(base64img);
           const genHQUrl = await uploadHQToStorage(id, slideId, 'generatedImage', base64img);
           return { slideId, genUrl, genHQUrl };
         }));
@@ -611,7 +611,7 @@ export const ProjectEditor: React.FC = () => {
     }
     // Compress each entry for Firestore (avoid 1MB limit from 2K images)
     const firestoreStack = await Promise.all(
-      newStack.map(s => s.startsWith('data:') ? compressImage(s, 600, 0.6) : Promise.resolve(s))
+      newStack.map(s => s.startsWith('data:') ? compressForFirestore(s) : Promise.resolve(s))
     );
     await updateDoc(doc(db, 'projects', id, 'slides', slideId), {
       imageHistory: firestoreStack,
