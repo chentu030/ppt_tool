@@ -102,6 +102,9 @@ export const ProjectEditor: React.FC = () => {
   const [polishDirection, setPolishDirection] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishedPreview, setPolishedPreview] = useState<{ slideId: string; text: string } | null>(null);
+  const [showAddSlideModal, setShowAddSlideModal] = useState(false);
+  const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
+  const [addSlideCount, setAddSlideCount] = useState(1);
 
   // Prompt local draft state to avoid IME composition feedback loop
   const [promptDraft, setPromptDraft] = useState('');
@@ -447,15 +450,26 @@ export const ProjectEditor: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const addSlide = async () => {
+  const addSlide = async (type: 'image' | 'text' = 'image', count: number = 1) => {
     if (!id) return;
-    const newId = Math.random().toString(36).substr(2, 9);
-    const maxOrder = slides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
-    await setDoc(doc(db, 'projects', id, 'slides', newId), {
-       originalImage: null, generatedImage: null, maskImage: null, prompt: '', status: 'empty', createdAt: Date.now(), order: maxOrder + 1000
-    });
-    setActiveSlideId(newId);
-    setSelectedSlides(prev => new Set(prev).add(newId));
+    let maxOrder = slides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
+    let lastId = '';
+    for (let i = 0; i < count; i++) {
+      const newId = Math.random().toString(36).substr(2, 9);
+      maxOrder += 1000;
+      await setDoc(doc(db, 'projects', id, 'slides', newId), {
+        originalImage: null, generatedImage: null, maskImage: null,
+        prompt: '',
+        status: type === 'text' ? 'draft' : 'empty',
+        createdAt: Date.now() + i,
+        order: maxOrder
+      });
+      lastId = newId;
+    }
+    if (lastId) {
+      setActiveSlideId(lastId);
+      setSelectedSlides(prev => new Set(prev).add(lastId));
+    }
   };
 
   const deleteSlide = async (e: React.MouseEvent, slideId: string) => {
@@ -1449,7 +1463,7 @@ export const ProjectEditor: React.FC = () => {
               }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                 {selectedSlides.size === slides.length ? 'Deselect All' : 'Select All'}
               </Button>
-              <Button size="sm" variant="secondary" onClick={addSlide} style={{ padding: '0.25rem 0.5rem' }}><Plus size={14} /></Button>
+              <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} />新增頁面</Button>
             </div>
 
             {/* Show Preview */}
@@ -1717,7 +1731,7 @@ export const ProjectEditor: React.FC = () => {
                   <Button size="sm" variant="ghost" onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                     {selectedSlides.size === slides.length ? 'Deselect All' : 'Select All'}
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={addSlide} style={{ padding: '0.25rem 0.5rem' }}><Plus size={16} /></Button>
+                  <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
@@ -1898,6 +1912,62 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </>)}
       </div>
+
+      {/* 新增頁面 Modal */}
+      {showAddSlideModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowAddSlideModal(false)}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: '1.75rem', width: '360px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>新增頁面</h3>
+              <button onClick={() => setShowAddSlideModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: '2px' }}><X size={18}/></button>
+            </div>
+
+            {/* Type selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>頁面類型</span>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {([['image', '🖼️', '圖片投影片', '上傳或生成圖片'], ['text', '📝', '文字頁', '純文字編輯頁']] as const).map(([type, emoji, label, desc]) => (
+                  <button key={type} onClick={() => setAddSlideType(type)}
+                    style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: `2px solid ${addSlideType === type ? 'var(--accent-color)' : 'var(--border-color)'}`, background: addSlideType === type ? 'rgba(var(--accent-rgb,99,102,241),0.07)' : 'var(--bg-secondary)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', transition: 'border-color 0.15s' }}>
+                    <span style={{ fontSize: '1.5rem' }}>{emoji}</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: addSlideType === type ? 'var(--accent-color)' : 'var(--text-primary)' }}>{label}</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Count input */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>新增頁數</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button onClick={() => setAddSlideCount(c => Math.max(1, c - 1))}
+                  style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>−</button>
+                <input type="number" min={1} max={20} value={addSlideCount}
+                  onChange={e => setAddSlideCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                  style={{ width: '56px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', fontSize: '0.95rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+                <button onClick={() => setAddSlideCount(c => Math.min(20, c + 1))}
+                  style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>+</button>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>頁（最多 20）</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAddSlideModal(false)}
+                style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                取消
+              </button>
+              <button onClick={async () => { setShowAddSlideModal(false); await addSlide(addSlideType, addSlideCount); }}
+                style={{ padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Plus size={14}/> 新增 {addSlideCount} 頁
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rubber-band selection overlay */}
       {dragBox && (
