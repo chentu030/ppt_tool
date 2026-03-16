@@ -30,13 +30,18 @@ export const ProjectEditor: React.FC = () => {
 
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [resolution, setResolution] = useState('1K');
+  const [fontFamily, setFontFamily] = useState('Noto Sans');
+  const [mainColor, setMainColor] = useState('黑色');
+  const [highlightColor, setHighlightColor] = useState('金黃色');
+  const [specialMark, setSpecialMark] = useState('');
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
   const [slides, setSlides] = useState<Slide[]>([]);
   const [activeSlideId, setActiveSlideId] = useState<string>('');
   const [globalReference, setGlobalReference] = useState<string | null>(null);
 
-  const defaultPrompt = `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用noto sans系列字體，黑色(主體)、金黃色(重點字)字體，適當排版，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
+  const defaultPrompt = `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
   const [parsingProgress, setParsingProgress] = useState<{current: number, total: number} | null>(null);
@@ -1374,6 +1379,60 @@ export const ProjectEditor: React.FC = () => {
             </button>
           </div>
 
+          {/* 進階設定 compact collapsible */}
+          {(() => {
+            const inputS: React.CSSProperties = { padding: '0.3rem 0.55rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' };
+            const selectS: React.CSSProperties = { ...inputS, cursor: 'pointer' };
+            return (
+              <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden', flexShrink: 0 }}>
+                <button onClick={() => setShowAdvancedSettings(v => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.82rem' }}>
+                  <span>進階設定</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{showAdvancedSettings ? '▲ 收合' : '▼ 展開'}</span>
+                </button>
+                {showAdvancedSettings && (
+                  <div style={{ padding: '0.5rem 0.9rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', borderTop: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
+                      <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
+                        <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
+                      <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
+                        <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
+                      <input style={{ ...inputS, width: '120px' }} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>主要顏色</span>
+                      <input style={{ ...inputS, width: '90px' }} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>重點標示顏色</span>
+                      <input style={{ ...inputS, width: '100px' }} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '180px' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記（選填）</span>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input style={{ ...inputS, flex: 1, minWidth: '120px' }} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：螢光筆、underline" />
+                        {['螢光筆', 'underline', '粗體'].map(tag => (
+                          <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
+                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Google Drive-style grid */}
           <div ref={gridRef} onMouseDown={handleGridMouseDown} style={{ flex: 1, overflowY: 'auto', padding: '0.25rem', userSelect: 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -1456,6 +1515,73 @@ export const ProjectEditor: React.FC = () => {
                 </label>
               )}
             </div>
+
+            {/* 進階設定 */}
+            {(() => {
+              const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
+              const labelStyle: React.CSSProperties = { fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' };
+              const inputStyle: React.CSSProperties = { width: '100%', padding: '0.35rem 0.6rem', fontSize: '0.82rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' };
+              const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+              return (
+                <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                  <button onClick={() => setShowAdvancedSettings(v => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 1rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.9rem' }}>
+                    <span>進階設定</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{showAdvancedSettings ? '▲ 收合' : '▼ 展開'}</span>
+                  </button>
+                  {showAdvancedSettings && (
+                    <div style={{ padding: '0 1rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', paddingTop: '0.75rem' }}>
+                        <div style={rowStyle}>
+                          <label style={labelStyle}>比例</label>
+                          <select style={selectStyle} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
+                            <option value="16:9">16:9</option>
+                            <option value="9:16">9:16</option>
+                            <option value="1:1">1:1</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                            <option value="3:2">3:2</option>
+                          </select>
+                        </div>
+                        <div style={rowStyle}>
+                          <label style={labelStyle}>解析度</label>
+                          <select style={selectStyle} value={resolution} onChange={e => setResolution(e.target.value)}>
+                            <option value="1K">1K</option>
+                            <option value="2K">2K</option>
+                            <option value="4K">4K</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={rowStyle}>
+                        <label style={labelStyle}>字體（提示詞）</label>
+                        <input style={inputStyle} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div style={rowStyle}>
+                          <label style={labelStyle}>主要顏色</label>
+                          <input style={inputStyle} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
+                        </div>
+                        <div style={rowStyle}>
+                          <label style={labelStyle}>重點標示顏色</label>
+                          <input style={inputStyle} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
+                        </div>
+                      </div>
+                      <div style={rowStyle}>
+                        <label style={labelStyle}>特殊標記（選填）</label>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.3rem' }}>
+                          {['淺鴨黃色螢光筆', 'underline', '粗體重點', '紅色底線'].map(tag => (
+                            <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
+                              style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              + {tag}
+                            </button>
+                          ))}
+                        </div>
+                        <input style={inputStyle} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：淺鴨黃色螢光筆、underline（可自行輸入）" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* PPT Upload Area */}
             <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '1rem' }}>
