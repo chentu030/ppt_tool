@@ -5,6 +5,7 @@ import { Landing } from './pages/Landing';
 import { Home } from './pages/Home';
 import { ProjectEditor } from './pages/ProjectEditor';
 import { Settings } from './pages/Settings';
+import { ConvertPage } from './pages/ConvertPage';
 
 function App() {
   useEffect(() => {
@@ -23,6 +24,7 @@ function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/project/:id" element={<ProjectEditor />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/convert" element={<ConvertPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
