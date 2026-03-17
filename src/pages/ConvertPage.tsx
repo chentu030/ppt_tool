@@ -128,9 +128,26 @@ export function ConvertPage() {
 
     // Poll status
     if (pollRef.current) clearInterval(pollRef.current);
+    let failCount = 0;
     pollRef.current = setInterval(async () => {
       try {
         const r = await fetch(`${OCR_SERVICE_URL}/status/${jobId}`);
+        if (r.status === 404) {
+          clearInterval(pollRef.current!);
+          setError('找不到任務（伺服器重啟，請重新上傳）');
+          setStep('error');
+          return;
+        }
+        if (!r.ok) {
+          failCount++;
+          if (failCount >= 5) {
+            clearInterval(pollRef.current!);
+            setError(`伺服器錯誤 ${r.status}，請稍後重試`);
+            setStep('error');
+          }
+          return;
+        }
+        failCount = 0;
         const d = await r.json();
         setProgress(d.progress ?? progress);
         if (d.status === 'done') {
@@ -141,7 +158,14 @@ export function ConvertPage() {
           setError(d.error ?? '處理失敗');
           setStep('error');
         }
-      } catch { /* network hiccup, retry next tick */ }
+      } catch {
+        failCount++;
+        if (failCount >= 5) {
+          clearInterval(pollRef.current!);
+          setError('無法連線至轉換服務，請確認網路後重試');
+          setStep('error');
+        }
+      }
     }, 1500);
   }, [jobId, slides.length, svgDecisions, useInpaint, inpaintQuality]);
 
