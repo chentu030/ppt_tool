@@ -58,6 +58,7 @@ export function ConvertPage() {
   const [slides, setSlides] = useState<SlideAnalysis[]>([]);
   const [svgDecisions, setSvgDecisions] = useState<Record<number, boolean>>({});
   const [useInpaint, setUseInpaint] = useState(true);
+  const [inpaintQuality, setInpaintQuality] = useState<'fast' | 'high'>('fast');
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
@@ -106,6 +107,7 @@ export function ConvertPage() {
     const body = {
       job_id: jobId,
       use_inpaint: useInpaint,
+      inpaint_quality: inpaintQuality,
       svg_decisions: Object.entries(svgDecisions).map(([idx, use_svg]) => ({
         index: Number(idx), use_svg,
       })),
@@ -141,7 +143,7 @@ export function ConvertPage() {
         }
       } catch { /* network hiccup, retry next tick */ }
     }, 1500);
-  }, [jobId, slides.length, svgDecisions, useInpaint]);
+  }, [jobId, slides.length, svgDecisions, useInpaint, inpaintQuality]);
 
   // ── Download ─────────────────────────────────────────────────────────────────
 
@@ -236,15 +238,27 @@ export function ConvertPage() {
               <input type="checkbox" checked={useInpaint}
                 onChange={e => setUseInpaint(e.target.checked)}
                 style={{ width: 15, height: 15 }} />
-              <span>
-                <strong>修補背景</strong>
-                <span style={{ color: 'var(--text-secondary)' }}>
-                  {' '}— 用 AI (LaMa) 移除文字殘留，較慢但品質佳
-                </span>
-              </span>
+              <span><strong>修補背景</strong><span style={{ color: 'var(--text-secondary)' }}> — 移除文字殘留，還原乾淨底圖</span></span>
             </label>
-            <p style={{ margin: '0.6rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              不勾選則直接使用原始圖片背景（速度最快）
+            {useInpaint && (
+              <div style={{ marginTop: '0.6rem', marginLeft: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+                {([['fast', '⚡ 快速模式', '~0.5秒/張（OpenCV）'], ['high', '✨ 高品質', '~30秒/張（AI LaMa）']] as const).map(
+                  ([val, label, desc]) => (
+                    <button key={val} onClick={() => setInpaintQuality(val)}
+                      style={{ padding: '0.35rem 0.85rem', borderRadius: 'var(--radius-sm)',
+                        border: `1px solid ${inpaintQuality === val ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                        background: inpaintQuality === val ? 'var(--accent-color)' : 'none',
+                        color: inpaintQuality === val ? '#fff' : 'var(--text-secondary)',
+                        cursor: 'pointer', fontSize: '0.8rem', textAlign: 'left' as const }}>
+                      <div style={{ fontWeight: 600 }}>{label}</div>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.85 }}>{desc}</div>
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+            <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              不勾選則直接使用原始圖片背景（最快）
             </p>
           </Card>
 
