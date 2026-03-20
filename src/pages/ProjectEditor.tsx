@@ -981,17 +981,25 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const handleGenerate = async (skipRefCheck = false) => {
-    if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
-    if (!skipRefCheck && !globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
-    const hasContent = Array.from(selectedSlides).some(sid => {
-      const s = slides.find(sl => sl.id === sid);
-      return s?.originalImage || s?.prompt;
-    });
-    if (!hasContent) return alert('Please upload a PPT, image, or Word/TXT file first before generating.');
-    
+    // In auto-retry mode: only retry the previously-failed slides, skip all other checks
+    const isAutoRetry = skipRefCheck && !!autoRetryConfigRef.current;
+    if (!isAutoRetry) {
+      if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
+      if (!skipRefCheck && !globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
+      const hasContent = Array.from(selectedSlides).some(sid => {
+        const s = slides.find(sl => sl.id === sid);
+        return s?.originalImage || s?.prompt;
+      });
+      if (!hasContent) return alert('Please upload a PPT, image, or Word/TXT file first before generating.');
+    }
+
     const abort = new AbortController();
     generateAbortController.current = abort;
-    const total = selectedSlides.size;
+    // Auto-retry: only process the slides that actually failed last time
+    const slideIds = isAutoRetry
+      ? [...autoRetryConfigRef.current!.toRetrySlides]
+      : Array.from(selectedSlides);
+    const total = slideIds.length;
     setGenerateProgress({ current: 0, total });
     setIsGenerating(true);
     localStorage.setItem('vertexGenerating', Date.now().toString());
@@ -999,7 +1007,7 @@ export const ProjectEditor: React.FC = () => {
     try {
       // Set initiating state using batch
       const initialBatch = writeBatch(db);
-      selectedSlides.forEach(slideId => {
+      slideIds.forEach(slideId => {
          initialBatch.update(doc(db, 'projects', id, 'slides', slideId), { status: 'generating' });
       });
       await initialBatch.commit();
@@ -1010,7 +1018,6 @@ export const ProjectEditor: React.FC = () => {
       let completedCount = 0;
 
       const results: ({ slideId: string; genUrl: string } | null)[] = [];
-      const slideIds = Array.from(selectedSlides);
       const INTER_REQUEST_DELAY_MS = 3000; // avoid 429 RESOURCE_EXHAUSTED
 
       const failedSlides: { slideId: string; error: string }[] = [];
@@ -1459,13 +1466,18 @@ export const ProjectEditor: React.FC = () => {
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-            <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(true)} icon={Sparkles} disabled={isGenerating || !globalReference}
-              style={{ opacity: !globalReference ? 0.5 : 1 }}>
+            <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(true)} icon={Sparkles} disabled={isGenerating || !globalReference || !!autoRetryStatus}
+              style={{ opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
               {generateProgress ? `生成中... ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
             </Button>
             {isGenerating && (
               <Button variant="ghost" onClick={handleCancelGenerate} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
                 取消
+              </Button>
+            )}
+            {!isGenerating && !!autoRetryStatus && (
+              <Button variant="ghost" onClick={stopAutoRetry} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
+                停止重試
               </Button>
             )}
           </div>
