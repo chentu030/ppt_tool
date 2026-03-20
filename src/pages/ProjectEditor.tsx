@@ -28,24 +28,12 @@ export const ProjectEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [aspectRatio, setAspectRatio] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.aspectRatio || '16:9'; } catch { return '16:9'; }
-  });
-  const [resolution, setResolution] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.resolution || '1K'; } catch { return '1K'; }
-  });
-  const [fontFamily, setFontFamily] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.fontFamily || 'Noto Sans'; } catch { return 'Noto Sans'; }
-  });
-  const [mainColor, setMainColor] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.mainColor || '黑色'; } catch { return '黑色'; }
-  });
-  const [highlightColor, setHighlightColor] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.highlightColor || '金黃色'; } catch { return '金黃色'; }
-  });
-  const [specialMark, setSpecialMark] = useState<string>(() => {
-    try { const s = JSON.parse(localStorage.getItem('advancedSettings') || '{}'); return s.specialMark ?? ''; } catch { return ''; }
-  });
+  const [aspectRatio, setAspectRatio] = useState<string>('16:9');
+  const [resolution, setResolution] = useState<string>('1K');
+  const [fontFamily, setFontFamily] = useState<string>('Noto Sans');
+  const [mainColor, setMainColor] = useState<string>('黑色');
+  const [highlightColor, setHighlightColor] = useState<string>('金黃色');
+  const [specialMark, setSpecialMark] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
@@ -181,13 +169,22 @@ export const ProjectEditor: React.FC = () => {
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // Restore persisted reference image and extra prompt on mount
+  // Restore persisted reference image, extra prompt, and per-project advanced settings on mount
   React.useEffect(() => {
     if (!id) return;
     const savedRef = localStorage.getItem(`refImg_${id}`);
     const savedPrompt = localStorage.getItem(`extraPrompt_${id}`);
     if (savedRef) setGlobalReference(savedRef);
     if (savedPrompt) setGlobalExtraPrompt(savedPrompt);
+    try {
+      const s = JSON.parse(localStorage.getItem(`advancedSettings_${id}`) || '{}');
+      if (s.aspectRatio) setAspectRatio(s.aspectRatio);
+      if (s.resolution) setResolution(s.resolution);
+      if (s.fontFamily) setFontFamily(s.fontFamily);
+      if (s.mainColor) setMainColor(s.mainColor);
+      if (s.highlightColor) setHighlightColor(s.highlightColor);
+      if (s.specialMark !== undefined) setSpecialMark(s.specialMark);
+    } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save reference image to localStorage whenever it changes
@@ -204,10 +201,11 @@ export const ProjectEditor: React.FC = () => {
     else localStorage.removeItem(`extraPrompt_${id}`);
   }, [globalExtraPrompt, id]);
 
-  // Persist all advanced settings (user-level preferences, not project-specific)
+  // Persist advanced settings per-project so each project has independent settings
   React.useEffect(() => {
-    localStorage.setItem('advancedSettings', JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark }));
-  }, [aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark]);
+    if (!id) return;
+    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark }));
+  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark]);
 
   // Check for previous unfinished generation on mount
   React.useEffect(() => {
@@ -1048,9 +1046,11 @@ export const ProjectEditor: React.FC = () => {
             base64Mask = await fetchImageAsBase64(slide.maskImage);
           }
           // For local modify: use only the toolbar prompt, no globalExtraPrompt
+          // For full generation: always use defaultPromptRef (reflects current font/color/settings)
+          // rather than slide.prompt which was baked in at slide creation time
           const finalPrompt = isLocalModify
             ? (capturedPrompt || 'Edit the masked area.')
-            : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + slide.prompt);
+            : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
           const generatedImg = await generateImageDesign(
             base64Original, base64Ref, base64Mask,
