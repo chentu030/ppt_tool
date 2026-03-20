@@ -981,10 +981,11 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const handleGenerate = async (skipRefCheck = false) => {
+    if (!id) return;
     // In auto-retry mode: only retry the previously-failed slides, skip all other checks
     const isAutoRetry = skipRefCheck && !!autoRetryConfigRef.current;
     if (!isAutoRetry) {
-      if (selectedSlides.size === 0 || !id) return alert('Please select at least one slide to modify.');
+      if (selectedSlides.size === 0) return alert('Please select at least one slide to modify.');
       if (!skipRefCheck && !globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
       const hasContent = Array.from(selectedSlides).some(sid => {
         const s = slides.find(sl => sl.id === sid);
