@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import TemplateGalleryModal, { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
 import JSZip from 'jszip';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, orderBy, getDoc } from 'firebase/firestore';
@@ -90,6 +91,7 @@ export const ProjectEditor: React.FC = () => {
   const [polishDirection, setPolishDirection] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishedPreview, setPolishedPreview] = useState<{ slideId: string; text: string } | null>(null);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
@@ -514,6 +516,18 @@ export const ProjectEditor: React.FC = () => {
     });
     return () => unsubscribe();
   }, [id, userId]);  // Only re-subscribe when project/auth changes
+
+  const handleTemplateApply = ({ imageUrl, settings, resolvedExtraPrompt }: ApplyParams) => {
+    setShowTemplateGallery(false);
+    setGlobalReference(imageUrl);
+    if (settings) {
+      if (settings.fontFamily) setFontFamily(settings.fontFamily);
+      if (settings.mainColor) setMainColor(settings.mainColor);
+      if (settings.highlightColor) setHighlightColor(settings.highlightColor);
+      if (settings.specialMark !== undefined) setSpecialMark(settings.specialMark);
+    }
+    if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'slide' | 'reference') => {
     const file = e.target.files?.[0];
@@ -1296,6 +1310,13 @@ export const ProjectEditor: React.FC = () => {
 
   return (
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column' }}>
+      {showTemplateGallery && (
+        <TemplateGalleryModal
+          currentExtraPrompt={globalExtraPrompt}
+          onClose={() => setShowTemplateGallery(false)}
+          onApply={handleTemplateApply}
+        />
+      )}
       {/* Exit Confirmation Modal */}
       {showGenerateConfirmModal && (() => {
         const allSorted = [...slides].sort((a,b)=>(a.order??0)-(b.order??0));
@@ -1531,16 +1552,15 @@ export const ProjectEditor: React.FC = () => {
               <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>風格參考</span>
               {globalReference ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <div style={{ width: '40px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                  <div onClick={() => setShowTemplateGallery(true)} style={{ width: '40px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)', cursor: 'pointer' }} title="更換風格圖">
                     <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={12}/></button>
                 </div>
               ) : (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', border: '1px dashed var(--border-color)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                  <ImageIcon size={12} /> 上傳風格圖（選填）
-                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'reference')} style={{ display: 'none' }} />
-                </label>
+                <button onClick={() => setShowTemplateGallery(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', border: '1px dashed var(--border-color)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.75rem', background: 'none' }}>
+                  <ImageIcon size={12} /> 風格參考
+                </button>
               )}
             </div>
 
@@ -1751,11 +1771,10 @@ export const ProjectEditor: React.FC = () => {
                   <img src={globalReference} alt="Reference" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               ) : (
-                <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '2rem 1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+                <button onClick={() => setShowTemplateGallery(true)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '2rem 1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
                   <ImageIcon size={24} style={{ marginBottom: '0.5rem' }} />
-                  <span style={{ fontSize: '0.875rem' }}>Upload Style Ref</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'reference')} style={{ display: 'none' }} />
-                </label>
+                  <span style={{ fontSize: '0.875rem' }}>選擇/上傳風格圖</span>
+                </button>
               )}
             </div>
 
