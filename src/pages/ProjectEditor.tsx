@@ -530,25 +530,6 @@ export const ProjectEditor: React.FC = () => {
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64Data = event.target?.result as string;
-      try {
-        if (activeSlideId) {
-          const imgUrl = await uploadImageToStorage(id, activeSlideId, 'originalImage', base64Data);
-          await updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { originalImage: imgUrl, maskImage: null, status: 'draft' });
-        }
-      } catch (err) {
-        console.error('Upload failed:', err);
-        alert('Failed to upload image.');
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   const addSlide = async (type: 'image' | 'text' = 'image', count: number = 1) => {
     if (!id) return;
     let maxOrder = slides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
