@@ -113,7 +113,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   };
   const runGeminiAnalysis=async()=>{
     if(!geminiPending)return;
-    const apiKey=localStorage.getItem('vertexApiKey')||localStorage.getItem('geminiApiKey')||'';
+    const apiKey=localStorage.getItem('vertexApiKey')||localStorage.getItem('geminiApiKey')||import.meta.env.VITE_VERTEX_API_KEY||'';
     const bearerToken=await getValidBearerToken();
     if(!bearerToken&&!apiKey){setAnalyzeError('找不到 API Key（請先在設定中填入 Gemini API Key）');return;}
     setIsAnalyzing(true);setAnalyzeError(null);
