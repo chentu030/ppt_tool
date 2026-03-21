@@ -1,5 +1,6 @@
 ﻿import React, { useRef, useState } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock } from 'lucide-react';
+import { getValidBearerToken } from '../utils/auth';
 
 export interface TemplateSettings {
   fontFamily?: string;
@@ -113,7 +114,6 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const runGeminiAnalysis=async()=>{
     if(!geminiPending)return;
     const apiKey=localStorage.getItem('vertexApiKey')||localStorage.getItem('geminiApiKey')||'';
-    if(!apiKey){setAnalyzeError('找不到 API Key（請先在設定中填入 Gemini API Key）');return;}
     setIsAnalyzing(true);setAnalyzeError(null);
     try{
       let base64:string;let mimeType='image/jpeg';
@@ -125,9 +125,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
         base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
       }
       const prompt=`請仔細分析這張投影片或設計風格圖的視覺風格，以 JSON 格式回傳建議設定。只回傳 JSON：\n{"fontFamily":"字體（Noto Sans/襯線體/等寬長字/草寫體）","mainColor":"主文字顏色","highlightColor":"重點標示方式","specialMark":"特殊標記或無","extraPrompt":"風格視覺特點50~150字"}`;
-      const url=`https://generativelanguage.googleapis.com/v1beta/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
-      const body={contents:[{parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}],generationConfig:{responseMimeType:'application/json'}};
-      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const bearerToken=await getValidBearerToken();
+      const url=bearerToken
+        ?`https://aiplatform.googleapis.com/v1/projects/${localStorage.getItem('gcpProjectId')||''}/locations/${localStorage.getItem('vertexRegion')||'us-central1'}/publishers/google/models/${ANALYSIS_MODEL}:generateContent`
+        :`https://aiplatform.googleapis.com/v1beta1/publishers/google/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
+      const headers:Record<string,string>={'Content-Type':'application/json'};
+      if(bearerToken)headers['Authorization']=`Bearer ${bearerToken}`;
+      const body={contents:[{parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]};
+      const res=await fetch(url,{method:'POST',headers,body:JSON.stringify(body)});
       if(!res.ok){const t=await res.text();throw new Error(`Gemini API 錯誤 ${res.status}: ${t.slice(0,200)}`);}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
