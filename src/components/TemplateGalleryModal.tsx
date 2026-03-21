@@ -117,8 +117,8 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
           </div>
         )}
 
-        {/* Grid */}
-        <div style={{ overflowY: 'auto', padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
+        {/* Masonry grid — images at natural size like Pinterest */}
+        <div style={{ overflowY: 'auto', padding: '1rem 1.25rem', columnCount: 3, columnGap: '0.75rem' }}>
           {Array.from({ length: TOTAL }, (_, i) => i + 1).map(n => {
             const settings = TEMPLATE_SETTINGS[n] ?? null;
             const imgUrl = `/templates/${n}.jpg`;
@@ -126,16 +126,16 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
               <button
                 key={n}
                 onClick={() => tryApply(imgUrl, settings)}
-                style={{ padding: 0, border: '2px solid var(--border-color)', borderRadius: '0.6rem', cursor: 'pointer', background: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left', transition: 'border-color 0.15s', position: 'relative' }}
+                style={{ padding: 0, border: '2px solid var(--border-color)', borderRadius: '0.6rem', cursor: 'pointer', background: 'none', overflow: 'hidden', display: 'inline-flex', flexDirection: 'column', textAlign: 'left', transition: 'border-color 0.15s', width: '100%', marginBottom: '0.75rem', breakInside: 'avoid' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-color)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-color)')}>
-                <img src={imgUrl} alt={`範本 ${n}`} style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />
-                <div style={{ padding: '0.4rem 0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', width: '100%', boxSizing: 'border-box' }}>
-                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>範本 {n}</span>
+                <img src={imgUrl} alt={`範本 ${n}`} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                <div style={{ padding: '0.35rem 0.5rem', fontSize: '0.7rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', width: '100%', boxSizing: 'border-box' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{n}</span>
                   {settings ? (
-                    <span style={{ marginLeft: '0.4rem' }}>{settings.fontFamily} · {settings.highlightColor}</span>
+                    <span style={{ marginLeft: '0.3rem' }}>{settings.fontFamily} · {settings.highlightColor}</span>
                   ) : (
-                    <span style={{ marginLeft: '0.4rem', fontStyle: 'italic' }}>僅圖片</span>
+                    <span style={{ marginLeft: '0.3rem', fontStyle: 'italic' }}>僅圖片</span>
                   )}
                 </div>
               </button>
