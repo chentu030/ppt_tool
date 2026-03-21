@@ -210,7 +210,7 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
               <div style={{ flex: 1 }}>
                 <p style={{ margin: '0 0 0.4rem', fontWeight: 700, fontSize: '0.9rem' }}>
                   <Sparkles size={14} style={{ verticalAlign: 'middle', marginRight: '0.3rem', color: 'var(--accent-color)' }} />
-                  要用 Gemini 2.0 Flash 分析圖片並自動填入設定嗎？
+                  要用 gemini-3-flash-preview 分析圖片並自動填入設定嗎？
                 </p>
                 <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   {geminiPending?.existingSettings
