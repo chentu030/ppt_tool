@@ -25,7 +25,7 @@ const TEMPLATE_SETTINGS: Record<number, TemplateSettings> = {
 };
 
 const TOTAL = 36;
-const ANALYSIS_MODEL = 'gemini-2.0-flash';
+const ANALYSIS_MODEL = 'gemini-3-flash-preview';
 
 export interface ApplyParams {
   imageUrl: string;
