@@ -25,7 +25,7 @@ const TEMPLATE_SETTINGS: Record<number, TemplateSettings> = {
 };
 
 const TOTAL = 36;
-const ANALYSIS_MODEL = 'gemini-2.5-flash-preview-04-17';
+const ANALYSIS_MODEL = 'gemini-2.0-flash';
 
 export interface ApplyParams {
   imageUrl: string;
@@ -45,8 +45,8 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Conflict resolution for templates WITH preset extraPrompt
   const [conflictPending, setConflictPending] = useState<{ imageUrl: string; settings: TemplateSettings } | null>(null);
-  // Gemini prompt for templates WITHOUT settings or user-uploaded images
-  const [geminiPending, setGeminiPending] = useState<{ imageUrl: string } | null>(null);
+  // Gemini prompt for all templates and user-uploaded images
+  const [geminiPending, setGeminiPending] = useState<{ imageUrl: string; existingSettings: TemplateSettings | null } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
@@ -64,16 +64,10 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
     }
   };
 
-  // Entry point when a template is clicked
+  // Entry point when a template is clicked — always offer Gemini to fill in missing fields
   const handleTemplateClick = (imageUrl: string, settings: TemplateSettings | null) => {
     setAnalyzeError(null);
-    if (settings !== null) {
-      // Has preset settings — go straight to conflict check / apply
-      checkConflictAndApply(imageUrl, settings);
-    } else {
-      // No preset settings — ask about Gemini analysis
-      setGeminiPending({ imageUrl });
-    }
+    setGeminiPending({ imageUrl, existingSettings: settings });
   };
 
   // User uploaded their own image
@@ -84,15 +78,20 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
       setAnalyzeError(null);
-      setGeminiPending({ imageUrl: dataUrl });
+      setGeminiPending({ imageUrl: dataUrl, existingSettings: null });
     };
     reader.readAsDataURL(file);
   };
 
-  // Skip Gemini — just apply image without changing settings
+  // Skip Gemini — apply with preset settings only (or nothing for user uploads)
   const skipGemini = () => {
     if (!geminiPending) return;
-    finalizeApply(geminiPending.imageUrl, null, null);
+    const { imageUrl, existingSettings } = geminiPending;
+    if (existingSettings !== null) {
+      checkConflictAndApply(imageUrl, existingSettings);
+    } else {
+      finalizeApply(imageUrl, null, null);
+    }
   };
 
   // Call Gemini 2.5 Flash to analyse the image and suggest settings
@@ -109,7 +108,7 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
       // Convert URL to base64 if needed
       let base64: string;
       let mimeType = 'image/jpeg';
-      const { imageUrl } = geminiPending;
+      const { imageUrl, existingSettings } = geminiPending;
       if (imageUrl.startsWith('data:')) {
         const [header, data] = imageUrl.split(',');
         base64 = data;
@@ -148,10 +147,14 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
       }
       const json = await res.json();
       const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-      const settings: TemplateSettings = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      const geminiSettings: TemplateSettings = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      // Preset settings override Gemini's output for fields already defined
+      const merged: TemplateSettings = existingSettings
+        ? { ...geminiSettings, ...existingSettings }
+        : geminiSettings;
       setGeminiPending(null);
       setIsAnalyzing(false);
-      checkConflictAndApply(imageUrl, settings);
+      checkConflictAndApply(imageUrl, merged);
     } catch (err: any) {
       setIsAnalyzing(false);
       setAnalyzeError(String(err?.message ?? err));
@@ -207,10 +210,12 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
               <div style={{ flex: 1 }}>
                 <p style={{ margin: '0 0 0.4rem', fontWeight: 700, fontSize: '0.9rem' }}>
                   <Sparkles size={14} style={{ verticalAlign: 'middle', marginRight: '0.3rem', color: 'var(--accent-color)' }} />
-                  要用 Gemini 2.5 Flash 分析圖片並自動填入設定嗎？
+                  要用 Gemini 2.0 Flash 分析圖片並自動填入設定嗎？
                 </p>
                 <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Gemini 會根據圖片風格建議字體、顏色、重點標示方式及額外提示詞，並套用到進階設定。
+                  {geminiPending?.existingSettings
+                    ? 'Gemini 會補齊未設定的欄位（已有的預設設定會保留）。'
+                    : 'Gemini 會根據圖片風格建議字體、顏色、重點標示方式及額外提示詞。'}
                   {currentExtraPrompt.trim() && <><br />（已有額外提示詞，套用後會詢問是否合併）</>}
                 </p>
                 {analyzeError && (
@@ -270,7 +275,7 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
                     <span style={{ marginLeft: '0.3rem' }}>{settings.fontFamily} · {settings.highlightColor}</span>
                   ) : (
                     <span style={{ marginLeft: '0.3rem', color: 'var(--accent-color)', fontStyle: 'italic' }}>
-                      <Sparkles size={10} style={{ verticalAlign: 'middle', marginRight: '0.2rem' }} />AI 分析
+                      <Sparkles size={10} style={{ verticalAlign: 'middle', marginRight: '0.2rem' }} />僅圖片
                     </span>
                   )}
                 </div>
