@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, Sparkles, Loader } from 'lucide-react';
 
 export interface TemplateSettings {
   fontFamily?: string;
@@ -25,6 +25,7 @@ const TEMPLATE_SETTINGS: Record<number, TemplateSettings> = {
 };
 
 const TOTAL = 36;
+const ANALYSIS_MODEL = 'gemini-2.5-flash-preview-04-17';
 
 export interface ApplyParams {
   imageUrl: string;
@@ -42,39 +43,133 @@ type ConflictChoice = 'replace' | 'merge' | 'keep';
 
 const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, onApply }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pending, setPending] = useState<{ imageUrl: string; settings: TemplateSettings | null } | null>(null);
+  // Conflict resolution for templates WITH preset extraPrompt
+  const [conflictPending, setConflictPending] = useState<{ imageUrl: string; settings: TemplateSettings } | null>(null);
+  // Gemini prompt for templates WITHOUT settings or user-uploaded images
+  const [geminiPending, setGeminiPending] = useState<{ imageUrl: string } | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
-  const tryApply = (imageUrl: string, settings: TemplateSettings | null) => {
-    const hasNewPrompt = !!(settings?.extraPrompt);
-    const hasOldPrompt = !!currentExtraPrompt.trim();
-    if (hasNewPrompt && hasOldPrompt) {
-      setPending({ imageUrl, settings });
+  // --- helpers ---
+
+  const finalizeApply = (imageUrl: string, settings: TemplateSettings | null, extraPrompt: string | null) => {
+    onApply({ imageUrl, settings, resolvedExtraPrompt: extraPrompt });
+  };
+
+  const checkConflictAndApply = (imageUrl: string, settings: TemplateSettings) => {
+    if (settings.extraPrompt && currentExtraPrompt.trim()) {
+      setConflictPending({ imageUrl, settings });
     } else {
-      onApply({ imageUrl, settings, resolvedExtraPrompt: settings?.extraPrompt ?? null });
+      finalizeApply(imageUrl, settings, settings.extraPrompt ?? null);
     }
   };
 
-  const resolveConflict = (choice: ConflictChoice) => {
-    if (!pending) return;
-    const newPrompt = pending.settings?.extraPrompt ?? '';
-    let resolved: string;
-    if (choice === 'replace') resolved = newPrompt;
-    else if (choice === 'merge') resolved = currentExtraPrompt.trim() + '\n' + newPrompt;
-    else resolved = currentExtraPrompt;
-    onApply({ imageUrl: pending.imageUrl, settings: pending.settings, resolvedExtraPrompt: resolved });
+  // Entry point when a template is clicked
+  const handleTemplateClick = (imageUrl: string, settings: TemplateSettings | null) => {
+    setAnalyzeError(null);
+    if (settings !== null) {
+      // Has preset settings — go straight to conflict check / apply
+      checkConflictAndApply(imageUrl, settings);
+    } else {
+      // No preset settings — ask about Gemini analysis
+      setGeminiPending({ imageUrl });
+    }
   };
 
+  // User uploaded their own image
   const handleUploadOwn = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      onApply({ imageUrl: dataUrl, settings: null, resolvedExtraPrompt: null });
+      setAnalyzeError(null);
+      setGeminiPending({ imageUrl: dataUrl });
     };
     reader.readAsDataURL(file);
   };
 
+  // Skip Gemini — just apply image without changing settings
+  const skipGemini = () => {
+    if (!geminiPending) return;
+    finalizeApply(geminiPending.imageUrl, null, null);
+  };
+
+  // Call Gemini 2.5 Flash to analyse the image and suggest settings
+  const runGeminiAnalysis = async () => {
+    if (!geminiPending) return;
+    const apiKey = localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
+    if (!apiKey) {
+      setAnalyzeError('找不到 API Key（請先在設定中填入 Gemini API Key）');
+      return;
+    }
+    setIsAnalyzing(true);
+    setAnalyzeError(null);
+    try {
+      // Convert URL to base64 if needed
+      let base64: string;
+      let mimeType = 'image/jpeg';
+      const { imageUrl } = geminiPending;
+      if (imageUrl.startsWith('data:')) {
+        const [header, data] = imageUrl.split(',');
+        base64 = data;
+        mimeType = header.match(/data:([^;]+)/)?.[1] ?? 'image/jpeg';
+      } else {
+        const resp = await fetch(imageUrl);
+        const blob = await resp.blob();
+        mimeType = blob.type || 'image/jpeg';
+        base64 = await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res((fr.result as string).split(',')[1]);
+          fr.onerror = rej;
+          fr.readAsDataURL(blob);
+        });
+      }
+
+      const prompt = `請仔細分析這張投影片或設計風格圖的視覺風格，然後以 JSON 格式回傳建議的投影片設計設定。
+只回傳 JSON，不要有任何其他文字。格式如下：
+{
+  "fontFamily": "字體風格（如：Noto Sans、襯線體、等寬長字、草寫體）",
+  "mainColor": "主要文字顏色（如：黑色、白色、深藍色、灰色）",
+  "highlightColor": "重點標示方式（如：金黃色、黑底白字、黑字加底線、紫色、白字藍底）",
+  "specialMark": "特殊標記說明，若無則填「無」",
+  "extraPrompt": "描述這個設計風格的視覺特點，給 AI 生成投影片圖片使用（中文，50~150字）"
+}`;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
+      const body = {
+        contents: [{ parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' },
+      };
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Gemini API 錯誤 ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      const json = await res.json();
+      const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+      const settings: TemplateSettings = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      setGeminiPending(null);
+      setIsAnalyzing(false);
+      checkConflictAndApply(imageUrl, settings);
+    } catch (err: any) {
+      setIsAnalyzing(false);
+      setAnalyzeError(String(err?.message ?? err));
+    }
+  };
+
+  // Conflict resolution
+  const resolveConflict = (choice: ConflictChoice) => {
+    if (!conflictPending) return;
+    const newPrompt = conflictPending.settings?.extraPrompt ?? '';
+    let resolved: string;
+    if (choice === 'replace') resolved = newPrompt;
+    else if (choice === 'merge') resolved = currentExtraPrompt.trim() + '\n' + newPrompt;
+    else resolved = currentExtraPrompt;
+    finalizeApply(conflictPending.imageUrl, conflictPending.settings, resolved);
+  };
+
+  // --- styles ---
   const overlay: React.CSSProperties = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 2000,
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
@@ -88,6 +183,7 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
   return (
     <div style={overlay} onClick={onClose}>
       <div style={modal} onClick={e => e.stopPropagation()}>
+
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
           <span style={{ fontWeight: 700, fontSize: '1rem' }}>選擇風格範本</span>
@@ -102,22 +198,60 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
           </div>
         </div>
 
-        {/* Conflict dialog */}
-        {pending && (
+        {/* Gemini analysis prompt */}
+        {geminiPending && (
+          <div style={{ padding: '1rem 1.25rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+              {/* Preview */}
+              <img src={geminiPending.imageUrl} alt="preview" style={{ width: '90px', height: '60px', objectFit: 'cover', borderRadius: '0.4rem', border: '1px solid var(--border-color)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 0.4rem', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <Sparkles size={14} style={{ verticalAlign: 'middle', marginRight: '0.3rem', color: 'var(--accent-color)' }} />
+                  要用 Gemini 2.5 Flash 分析圖片並自動填入設定嗎？
+                </p>
+                <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Gemini 會根據圖片風格建議字體、顏色、重點標示方式及額外提示詞，並套用到進階設定。
+                  {currentExtraPrompt.trim() && <><br />（已有額外提示詞，套用後會詢問是否合併）</>}
+                </p>
+                {analyzeError && (
+                  <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', color: '#e53e3e', background: 'rgba(229,62,62,0.08)', borderRadius: '0.35rem', padding: '0.35rem 0.6rem' }}>
+                    ⚠ {analyzeError}
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={runGeminiAnalysis}
+                    disabled={isAnalyzing}
+                    style={conflictBtnStyle('var(--accent-color)', '#fff', isAnalyzing)}>
+                    {isAnalyzing
+                      ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite', marginRight: '0.3rem', verticalAlign: 'middle' }} />分析中...</>
+                      : <><Sparkles size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />是，自動分析</>}
+                  </button>
+                  <button onClick={skipGemini} disabled={isAnalyzing} style={conflictBtnStyle('var(--bg-primary)', 'var(--text-secondary)', isAnalyzing)}>
+                    不用，直接套用圖片
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Conflict dialog (extraPrompt clash) */}
+        {conflictPending && (
           <div style={{ padding: '0.9rem 1.25rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
             <p style={{ margin: '0 0 0.6rem', fontSize: '0.88rem', fontWeight: 600 }}>你已有額外提示詞，要怎麼處理？</p>
             <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              <strong>範本提示詞：</strong>{pending.settings?.extraPrompt}
+              <strong>新提示詞：</strong>{conflictPending.settings?.extraPrompt}
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button onClick={() => resolveConflict('replace')} style={conflictBtnStyle('var(--accent-color)', '#fff')}>取代（使用範本提示詞）</button>
-              <button onClick={() => resolveConflict('merge')}   style={conflictBtnStyle('var(--bg-primary)', 'var(--text-primary)')}>合併（原本 + 範本）</button>
+              <button onClick={() => resolveConflict('replace')} style={conflictBtnStyle('var(--accent-color)', '#fff')}>取代（使用新提示詞）</button>
+              <button onClick={() => resolveConflict('merge')}   style={conflictBtnStyle('var(--bg-primary)', 'var(--text-primary)')}>合併（原本 + 新）</button>
               <button onClick={() => resolveConflict('keep')}    style={conflictBtnStyle('var(--bg-primary)', 'var(--text-secondary)')}>保留原本</button>
             </div>
           </div>
         )}
 
-        {/* Masonry grid — images at natural size like Pinterest */}
+        {/* Masonry grid */}
         <div style={{ overflowY: 'auto', padding: '1rem 1.25rem', columnCount: 3, columnGap: '0.75rem' }}>
           {Array.from({ length: TOTAL }, (_, i) => i + 1).map(n => {
             const settings = TEMPLATE_SETTINGS[n] ?? null;
@@ -125,7 +259,7 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
             return (
               <button
                 key={n}
-                onClick={() => tryApply(imgUrl, settings)}
+                onClick={() => handleTemplateClick(imgUrl, settings)}
                 style={{ padding: 0, border: '2px solid var(--border-color)', borderRadius: '0.6rem', cursor: 'pointer', background: 'none', overflow: 'hidden', display: 'inline-flex', flexDirection: 'column', textAlign: 'left', transition: 'border-color 0.15s', width: '100%', marginBottom: '0.75rem', breakInside: 'avoid' }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-color)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-color)')}>
@@ -135,7 +269,9 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
                   {settings ? (
                     <span style={{ marginLeft: '0.3rem' }}>{settings.fontFamily} · {settings.highlightColor}</span>
                   ) : (
-                    <span style={{ marginLeft: '0.3rem', fontStyle: 'italic' }}>僅圖片</span>
+                    <span style={{ marginLeft: '0.3rem', color: 'var(--accent-color)', fontStyle: 'italic' }}>
+                      <Sparkles size={10} style={{ verticalAlign: 'middle', marginRight: '0.2rem' }} />AI 分析
+                    </span>
                   )}
                 </div>
               </button>
@@ -147,9 +283,10 @@ const TemplateGalleryModal: React.FC<Props> = ({ currentExtraPrompt, onClose, on
   );
 };
 
-const conflictBtnStyle = (bg: string, color: string): React.CSSProperties => ({
+const conflictBtnStyle = (bg: string, color: string, disabled = false): React.CSSProperties => ({
   padding: '0.4rem 0.85rem', fontSize: '0.8rem', fontWeight: 600, borderRadius: '0.45rem',
-  border: '1px solid var(--border-color)', background: bg, color, cursor: 'pointer',
+  border: '1px solid var(--border-color)', background: bg, color, cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.6 : 1, display: 'inline-flex', alignItems: 'center',
 });
 
 export default TemplateGalleryModal;
