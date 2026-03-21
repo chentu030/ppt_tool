@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
-import TemplateGalleryModal, { ApplyParams } from '../components/TemplateGalleryModal';
+import TemplateGalleryModal from '../components/TemplateGalleryModal';
+import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
 import JSZip from 'jszip';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, orderBy, getDoc } from 'firebase/firestore';
@@ -529,23 +530,16 @@ export const ProjectEditor: React.FC = () => {
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'slide' | 'reference') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       const base64Data = event.target?.result as string;
       try {
-        if (type === 'reference') {
-          // Compress and store reference only in React state — no Firestore write
-          const refUrl = await uploadImageToStorage(id, '_shared', 'referenceStyle', base64Data);
-          setGlobalReference(refUrl);
-        } else {
-           if (activeSlideId) {
-              const imgUrl = await uploadImageToStorage(id, activeSlideId, 'originalImage', base64Data);
-              await updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { originalImage: imgUrl, maskImage: null, status: 'draft' });
-           }
+        if (activeSlideId) {
+          const imgUrl = await uploadImageToStorage(id, activeSlideId, 'originalImage', base64Data);
+          await updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { originalImage: imgUrl, maskImage: null, status: 'draft' });
         }
       } catch (err) {
         console.error('Upload failed:', err);
