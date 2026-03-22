@@ -354,6 +354,8 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
       const geminiSettings:TemplateSettings=JSON.parse(raw.replace(/```json|```/g,'').trim());
+      const AI_PROMPT_PREFIX='原圖只是參考，還是要結合投影片的內容來設計，';
+      if(geminiSettings.extraPrompt)geminiSettings.extraPrompt=AI_PROMPT_PREFIX+geminiSettings.extraPrompt;
       const merged=existingSettings?{...geminiSettings,...existingSettings}:geminiSettings;
       setGeminiPending(null);setIsAnalyzing(false);
       checkConflictAndApply(imageUrl,merged,label);

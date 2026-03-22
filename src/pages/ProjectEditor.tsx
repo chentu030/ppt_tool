@@ -108,7 +108,7 @@ export const ProjectEditor: React.FC = () => {
 
   // 429 auto-retry state
   const [retryModal429, setRetryModal429] = useState<{ successCount: number; toRetrySlides: string[] } | null>(null);
-  const [retryIntervalMin, setRetryIntervalMin] = useState(5);
+  const [retryIntervalSec, setRetryIntervalSec] = useState(5);
   const [retryStopCond, setRetryStopCond] = useState<'success' | 'retries' | 'time'>('success');
   const [retryMaxTimes, setRetryMaxTimes] = useState(3);
   const [retryUntilTime, setRetryUntilTime] = useState(() => {
@@ -1049,10 +1049,33 @@ export const ProjectEditor: React.FC = () => {
             ? (capturedPrompt || 'Edit the masked area.')
             : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
-          const generatedImg = await generateImageDesign(
-            base64Original, base64Ref, base64Mask,
-            finalPrompt, apiKey, model, finalAspectRatio, resolution, abort.signal
-          );
+          // Auto-retry every 5 s on 429 for up to 60 s before escalating to modal
+          let generatedImg = '';
+          {
+            const RETRY_INTERVAL = 5_000;
+            const RETRY_DEADLINE = Date.now() + 60_000;
+            let lastErr: unknown;
+            while (true) {
+              try {
+                generatedImg = await generateImageDesign(
+                  base64Original, base64Ref, base64Mask,
+                  finalPrompt, apiKey, model, finalAspectRatio, resolution, abort.signal
+                );
+                break;
+              } catch (e: unknown) {
+                if ((e as {name?:string})?.name === 'AbortError') throw e;
+                lastErr = e;
+                const is429 = String((e as {message?:string})?.message ?? e).includes('429');
+                if (!is429 || Date.now() >= RETRY_DEADLINE) { throw lastErr; }
+                console.warn('[429] 5 秒後自動重試...');
+                await new Promise<void>(r => {
+                  const t = setTimeout(r, RETRY_INTERVAL);
+                  abort.signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+                });
+                if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+              }
+            }
+          }
           if (isLocalModify && canvasRef.current) {
             const ctx = canvasRef.current.getContext('2d');
             if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -1241,14 +1264,14 @@ export const ProjectEditor: React.FC = () => {
 
   const startAutoRetry = () => {
     if (!retryModal429) return;
-    const intervalSec = Math.max(1, retryIntervalMin) * 60;
+    const intervalSec = Math.max(1, retryIntervalSec);
     const cfg = {
       toRetrySlides: [...retryModal429.toRetrySlides],
       intervalSec, stopCond: retryStopCond,
       maxTimes: retryMaxTimes, untilTime: retryUntilTime, doneCount: 0,
     };
     autoRetryConfigRef.current = cfg;
-    console.log(`[AutoRetry] 啟動自動重試：每 ${retryIntervalMin} 分鐘，待重試投影片 ${cfg.toRetrySlides.length} 張，停止條件：${retryStopCond}`);
+    console.log(`[AutoRetry] 啟動自動重試：每 ${retryIntervalSec} 秒，待重試投影片 ${cfg.toRetrySlides.length} 張，停止條件：${retryStopCond}`);
     setRetryModal429(null);
     let cd = intervalSec;
     setAutoRetryStatus({ countdown: cd, doneCount: 0 });
@@ -2085,10 +2108,10 @@ export const ProjectEditor: React.FC = () => {
               {/* Interval */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
                 <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>每</span>
-                <input type="number" min={1} max={60} value={retryIntervalMin}
-                  onChange={e => setRetryIntervalMin(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
-                  style={{ width: '52px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', fontSize: '0.875rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>分鐘自動重試一次</span>
+                <input type="number" min={5} max={3600} value={retryIntervalSec}
+                  onChange={e => setRetryIntervalSec(Math.max(5, Math.min(3600, Number(e.target.value) || 5)))}
+                  style={{ width: '64px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', fontSize: '0.875rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+                <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>秒自動重試一次</span>
               </div>
               {/* Stop condition */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
