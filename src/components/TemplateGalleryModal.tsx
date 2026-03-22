@@ -50,15 +50,18 @@ async function compressImageUrl(imageUrl:string,maxW=200):Promise<string>{
 
 // ─── Firebase helpers (sync across devices) ───────────────────────────────────
 async function fbSave(starred:Set<string>,history:HistoryEntry[]){
+  // Write to localStorage IMMEDIATELY (uncompressed) so re-open always has latest data
+  lsSaveStarred(starred);
+  lsSaveHistory(history.slice(0,MAX_HISTORY));
+  // Then compress data URLs and write to Firestore asynchronously
   const user=auth.currentUser;if(!user)return;
   try{
-    // Compress data URLs in history before storing (Firestore 1MB limit)
     const safeHistory=await Promise.all(history.slice(0,MAX_HISTORY).map(async e=>({
       ...e,imageUrl:await compressImageUrl(e.imageUrl),
     })));
     await setDoc(doc(db,'users',user.uid,'templateGallery','data'),
       {starred:[...starred],history:safeHistory},{merge:false});
-    lsSaveStarred(starred);lsSaveHistory(safeHistory);
+    lsSaveHistory(safeHistory); // update localStorage with compressed versions
   }catch(err){console.warn('[Firebase] templateGallery save failed:',err);}
 }
 async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|null>{
