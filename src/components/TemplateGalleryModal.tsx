@@ -207,28 +207,49 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       imageUrl:t.url,
       settings:t.settings,
     });
+    const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
     setDriveLoading(true);
-    // Step 1: load from Firestore (instant if cached)
-    loadIndexFromFirestore().then(cached=>{
+    // Step 1: Firestore index (instant on repeat visits)
+    loadIndexFromFirestore().then(async cached=>{
       if(cached.length>0){
         setAllItems(shuffleArray(cached.map(toItem)));
         setVisibleCount(15);
         setDriveLoading(false);
       }
-      // Step 2: background sync Drive → Firebase Storage (upload new files)
-      const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
-      if(!scriptUrl){if(cached.length===0)setDriveLoading(false);return;}
+      // Step 2a: Firestore empty → immediately show Drive thumbnails as fallback
+      if(cached.length===0&&scriptUrl){
+        try{
+          const[listRes,settingsTxt]=await Promise.all([
+            fetch(`${scriptUrl}?action=listTemplates`).then(r=>r.json()).catch(()=>[]),
+            fetch(`${scriptUrl}?action=getTemplateSettings`).then(r=>r.text()).catch(()=>''),
+          ]);
+          const files:Array<{id:string;name:string}>=Array.isArray(listRes)?listRes:[];
+          if(files.length>0){
+            const ps=parseSettingsTxt(settingsTxt);
+            setAllItems(shuffleArray(files.filter(f=>f?.id&&f?.name).map(f=>({
+              id:f.id,
+              label:/^\d+\./.test(f.name)?`範本 ${f.name.split('.')[0]}`:f.name.replace(/\.[^.]+$/,'').slice(0,10),
+              imageUrl:`https://drive.google.com/thumbnail?id=${f.id}&sz=w600`,
+              settings:ps[f.name]??null,
+            }))));
+            setVisibleCount(15);
+          }
+        }catch(e){console.warn('[templates] Drive fallback failed:',e);}
+        setDriveLoading(false);
+      }else if(cached.length===0){
+        setDriveLoading(false);
+      }
+      // Step 2b: background sync Drive → Firebase Storage (future fast loads)
+      if(!scriptUrl)return;
       syncDriveToFirebase(scriptUrl,(done,total)=>{
         setSyncProgress({done,total});
       }).then(all=>{
-        setAllItems(shuffleArray(all.map(toItem)));
+        if(all.length>0)setAllItems(shuffleArray(all.map(toItem)));
         setVisibleCount(15);
         setSyncProgress(null);
-        setDriveLoading(false);
       }).catch((err:unknown)=>{
         console.warn('[sync] Drive→Firebase failed:',err);
         setSyncProgress(null);
-        if(cached.length===0)setDriveLoading(false);
       });
     });
   },[]);
