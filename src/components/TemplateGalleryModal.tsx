@@ -3,7 +3,7 @@ import { X, Upload, Sparkles, Loader, Star, Clock } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
 
 export interface TemplateSettings {
   fontFamily?: string; mainColor?: string; highlightColor?: string;
@@ -331,6 +331,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
         const proxy=await fetch(`${scriptUrl}?fileId=${fileId}`).then(r=>r.json());
         if(!proxy.ok)throw new Error('Drive proxy 錯誤: '+proxy.error);
         base64=proxy.data;mimeType=proxy.mimeType||'image/jpeg';
+      }else if(imageUrl.includes('firebasestorage.googleapis.com')){
+        // Firebase Storage URLs block CORS on plain fetch — use SDK getBlob instead
+        const pathMatch=imageUrl.match(/\/o\/(.+?)(?:\?|$)/);
+        if(!pathMatch)throw new Error('無法解析 Firebase Storage 路徑');
+        const sRef=ref(storage,decodeURIComponent(pathMatch[1]));
+        const blob=await getBlob(sRef);
+        mimeType=blob.type||'image/jpeg';
+        base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
       }else{
         const resp=await fetch(imageUrl);const blob=await resp.blob();mimeType=blob.type||'image/jpeg';
         base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
