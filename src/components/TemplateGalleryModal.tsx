@@ -354,7 +354,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
       const geminiSettings:TemplateSettings=JSON.parse(raw.replace(/```json|```/g,'').trim());
-      const AI_PROMPT_PREFIX='原圖只是參考，還是要結合投影片的內容來設計，有字的地方背景就要單純一點，字多的投影片背景圖就少一點，風格參考圖若有跟投影片不相關的文字就不要放進去，以投影片的內容為主，';
+      const AI_PROMPT_PREFIX='原圖只是參考，還是要結合投影片的內容來設計，有字的地方背景就要單純一點，字多的投影片背景圖就少一點，文字要排版(不要疊在一起，不要交錯雜亂，要梳理過)，風格參考圖若有跟投影片不相關的文字就不要放進去，以投影片的內容為主，';
       if(geminiSettings.extraPrompt)geminiSettings.extraPrompt=AI_PROMPT_PREFIX+geminiSettings.extraPrompt;
       const merged=existingSettings?{...geminiSettings,...existingSettings}:geminiSettings;
       setGeminiPending(null);setIsAnalyzing(false);
