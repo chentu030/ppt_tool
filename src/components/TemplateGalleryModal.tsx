@@ -99,11 +99,12 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const scrollRef=useRef<HTMLDivElement>(null);
   const sentinelRef=useRef<HTMLDivElement>(null);
   const scrollTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const historyRef=useRef<HistoryEntry[]>([]);
 
   const [tab,setTab]=useState<Tab>('all');
   // Initial state from localStorage (instant); Firebase will overwrite when ready
   const [starred,setStarred]=useState<Set<string>>(lsLoadStarred);
-  const [history,setHistory]=useState<HistoryEntry[]>(lsLoadHistory);
+  const [history,setHistory]=useState<HistoryEntry[]>(()=>{const h=lsLoadHistory();historyRef.current=h;return h;});
   const [hoveredCard,setHoveredCard]=useState<string|null>(null);
 
   const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
@@ -116,19 +117,30 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const [isAnalyzing,setIsAnalyzing]=useState(false);
   const [analyzeError,setAnalyzeError]=useState<string|null>(null);
 
-  // ── 1) Firebase load (fast, preloads history images after resolve) ──────────
+  // Keep historyRef in sync with latest history state
+  useEffect(()=>{historyRef.current=history;},[history]);
+
+  // ── 1) Preload history images immediately from localStorage, then Firebase ───
   useEffect(()=>{
+    // Instant: preload from localStorage (already in state)
+    historyRef.current.forEach(entry=>{
+      if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
+        const img=new Image();img.src=entry.imageUrl;
+      }
+    });
+    // Async: overwrite with Firebase data when ready
     fbLoad().then(data=>{
       if(!data)return;
       setStarred(data.starred);
       setHistory(data.history);
-      // Preload history images now that we have the Firebase data
+      historyRef.current=data.history;
       data.history.forEach(entry=>{
         if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
           const img=new Image();img.src=entry.imageUrl;
         }
       });
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   // ── 2) Drive template list (background, slow) ─────────────────────────────
@@ -179,13 +191,13 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   // ── Apply flow ────────────────────────────────────────────────────────────
   const finalizeApply=useCallback((imageUrl:string,settings:TemplateSettings|null,extraPrompt:string|null,label:string)=>{
     const entry:HistoryEntry={id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label};
-    setHistory(prev=>{
-      const next=[entry,...prev.filter(h=>h.imageUrl!==imageUrl)].slice(0,MAX_HISTORY);
-      fbSave(starred,next); // save starred+history to Firebase (and localStorage)
-      return next;
-    });
+    // Compute next synchronously using ref (not inside updater) so fbSave runs
+    // BEFORE onApply closes the modal and unmounts the component
+    const next=[entry,...historyRef.current.filter(h=>h.imageUrl!==imageUrl)].slice(0,MAX_HISTORY);
+    historyRef.current=next;
+    fbSave(starred,next); // writes localStorage immediately (sync part runs before onApply)
+    setHistory(next);
     onApply({imageUrl,settings,resolvedExtraPrompt:extraPrompt});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[starred,onApply]);
 
   const checkConflictAndApply=(imageUrl:string,settings:TemplateSettings,label:string)=>{
