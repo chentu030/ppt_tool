@@ -103,6 +103,16 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   // Reset visible count when switching tabs
   useEffect(()=>{setVisibleCount(15);},[tab]);
 
+  // Preload history images on mount so they display instantly when switching tabs
+  useEffect(()=>{
+    history.forEach(entry=>{
+      if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
+        const img=new Image();img.src=entry.imageUrl;
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   // ── Infinite scroll (debounced — deps:[tab] prevents rapid-fire on re-render) ──
   const scrollTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
   useEffect(()=>{
