@@ -20,19 +20,8 @@ interface TemplateItem {
   settings: TemplateSettings | null;
 }
 
-// ─── Hardcoded presets for numbered local fallback templates ─────────────────
-const LOCAL_PRESET: Record<number, TemplateSettings> = {
-  1: { fontFamily: '襯線體',    mainColor: '黑色', highlightColor: '黑底白字' },
-  2: { fontFamily: 'Noto Sans', mainColor: '黑色', highlightColor: '黑字加底線', extraPrompt: '真實照片風景圖去背加文字，圖可以有山、植物、樹、森林、葉子、花朵、種子、動植物等等' },
-  3: { fontFamily: 'Noto Sans', mainColor: '黑色', highlightColor: '黑底白字',   extraPrompt: '3d物體用真實的植物或相關物品(跟該投影片相關，元素不要太多，不要太複雜太花俏)(例如只要一個樹枝或葉子或花或果實或種子，任何植物都可以，碳匯、esg元素也可以，用有顏色的，不要全純黑)，小插圖用純黑色線條，不准出現任何香蕉(或有香蕉的元素)' },
-};
-
-// ─── Local fallback: only the 36 numbered templates (no hash filenames needed) ──
-const LOCAL_TEMPLATES: TemplateItem[] = Array.from({length:36},(_,i)=>({
-  id:`${i+1}.jpg`, label:`範本 ${i+1}`,
-  imageUrl:`/templates/${i+1}.jpg`,
-  settings:LOCAL_PRESET[i+1]??null,
-}));
+// ─── No local templates — all loaded from Google Drive ─────────────────────
+const LOCAL_TEMPLATES: TemplateItem[] = [];
 
 const STARRED_KEY='templateGalleryStarred', HISTORY_KEY='styleRefHistory', MAX_HISTORY=30, ANALYSIS_MODEL='gemini-3-flash-preview';
 function loadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_KEY)||'[]'));}catch{return new Set();}}
@@ -114,17 +103,27 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   // Reset visible count when switching tabs
   useEffect(()=>{setVisibleCount(15);},[tab]);
 
-  // ── Infinite scroll ───────────────────────────────────────────────────────
+  // ── Infinite scroll (debounced — deps:[tab] prevents rapid-fire on re-render) ──
+  const scrollTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
   useEffect(()=>{
     const sentinel=sentinelRef.current;const scroller=scrollRef.current;
-    if(!sentinel||!scroller)return;
+    if(!sentinel||!scroller||tab==='history')return;
     const obs=new IntersectionObserver(
-      ([entry])=>{if(entry.isIntersecting)setVisibleCount(v=>v+15);},
-      {root:scroller,rootMargin:'200px'}
+      ([entry])=>{
+        if(!entry.isIntersecting||scrollTimerRef.current)return;
+        scrollTimerRef.current=setTimeout(()=>{
+          scrollTimerRef.current=null;
+          setVisibleCount(v=>v+15);
+        },200);
+      },
+      {root:scroller,rootMargin:'150px',threshold:0}
     );
     obs.observe(sentinel);
-    return()=>obs.disconnect();
-  });
+    return()=>{
+      obs.disconnect();
+      if(scrollTimerRef.current){clearTimeout(scrollTimerRef.current);scrollTimerRef.current=null;}
+    };
+  },[tab]);
 
   // ── Apply flow ────────────────────────────────────────────────────────────
   const finalizeApply=(imageUrl:string,settings:TemplateSettings|null,extraPrompt:string|null,label:string)=>{
