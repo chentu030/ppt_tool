@@ -99,7 +99,7 @@ async function syncDriveToFirebase(
       const batch=newFiles.slice(i,i+BATCH);
       const results=await Promise.allSettled(batch.map(async file=>{
         const proxy=await fetch(`${scriptUrl}?action=getThumbnail&fileId=${file.id}`).then(r=>r.json());
-        if(!proxy.ok)throw new Error(proxy.error);
+        if(!proxy.ok)throw new Error(`getThumbnail failed for ${file.name}: ${proxy.error}`);
         const bytes=Uint8Array.from(atob(proxy.data),c=>c.charCodeAt(0));
         const blob=new Blob([bytes],{type:proxy.mimeType||'image/jpeg'});
         const storageRef=ref(storage,`templates/${file.name}`);
@@ -109,14 +109,22 @@ async function syncDriveToFirebase(
       }));
       done+=BATCH;
       onProgress(Math.min(done,newFiles.length),newFiles.length);
-      results.forEach(r=>r.status==='fulfilled'&&allTemplates.push(r.value));
+      results.forEach(r=>{
+        if(r.status==='fulfilled')allTemplates.push(r.value);
+        else console.warn('[sync] upload failed:',r.reason);
+      });
     }
   }
-  // Save updated index to Firestore
-  try{
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await setDoc(TMPL_INDEX,{templates:allTemplates as any[],updatedAt:Date.now()});
-  }catch(err){console.warn('[Firestore] templateGalleryIndex save failed:',err);}
+  // Save updated index to Firestore (only if we have templates — never overwrite with empty)
+  if(allTemplates.length>0){
+    try{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await setDoc(TMPL_INDEX,{templates:allTemplates as any[],updatedAt:Date.now()});
+      console.log(`[sync] Saved ${allTemplates.length} templates to Firestore`);
+    }catch(err){console.warn('[Firestore] templateGalleryIndex save failed:',err);}
+  }else{
+    console.warn('[sync] 0 templates uploaded — Firestore NOT updated. Check Firebase Storage rules.');
+  }
   return allTemplates;
 }
 
