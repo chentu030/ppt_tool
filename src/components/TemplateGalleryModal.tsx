@@ -1,6 +1,8 @@
-﻿import React, { useRef, useState, useEffect } from 'react';
+﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
+import { db, auth } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export interface TemplateSettings {
   fontFamily?: string; mainColor?: string; highlightColor?: string;
@@ -14,34 +16,71 @@ interface HistoryEntry {
   resolvedExtraPrompt: string | null; timestamp: number; label: string;
 }
 interface TemplateItem {
-  id: string;        // unique key (local filename or Drive file ID)
-  label: string;
-  imageUrl: string;  // ready-to-use image URL
-  settings: TemplateSettings | null;
+  id: string; label: string; imageUrl: string; settings: TemplateSettings | null;
 }
 
 // ─── No local templates — all loaded from Google Drive ─────────────────────
 const LOCAL_TEMPLATES: TemplateItem[] = [];
 
-const STARRED_KEY='templateGalleryStarred', HISTORY_KEY='styleRefHistory', MAX_HISTORY=30, ANALYSIS_MODEL='gemini-3-flash-preview';
-function loadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_KEY)||'[]'));}catch{return new Set();}}
-function saveStarred(s:Set<string>){localStorage.setItem(STARRED_KEY,JSON.stringify([...s]));}
-function loadHistory():HistoryEntry[]{try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');}catch{return[];}}
-function pushToHistory(e:HistoryEntry){const p=loadHistory().filter(h=>h.imageUrl!==e.imageUrl);localStorage.setItem(HISTORY_KEY,JSON.stringify([e,...p].slice(0,MAX_HISTORY)));}
+const STARRED_LS='templateGalleryStarred', HISTORY_LS='styleRefHistory', MAX_HISTORY=30, ANALYSIS_MODEL='gemini-3-flash-preview';
+
+// ─── localStorage helpers (instant initial state + offline fallback) ─────────
+function lsLoadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_LS)||'[]'));}catch{return new Set();}}
+function lsSaveStarred(s:Set<string>){localStorage.setItem(STARRED_LS,JSON.stringify([...s]));}
+function lsLoadHistory():HistoryEntry[]{try{return JSON.parse(localStorage.getItem(HISTORY_LS)||'[]');}catch{return[];}}
+function lsSaveHistory(h:HistoryEntry[]){localStorage.setItem(HISTORY_LS,JSON.stringify(h));}
+
+// ─── Compress data URL to small thumbnail before storing in Firestore ────────
+async function compressImageUrl(imageUrl:string,maxW=200):Promise<string>{
+  if(!imageUrl.startsWith('data:'))return imageUrl; // Drive/Storage URLs stay as-is
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const ratio=Math.min(maxW/img.width,1);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*ratio);
+      canvas.height=Math.round(img.height*ratio);
+      canvas.getContext('2d')?.drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL('image/jpeg',0.6));
+    };
+    img.onerror=()=>resolve(imageUrl);
+    img.src=imageUrl;
+  });
+}
+
+// ─── Firebase helpers (sync across devices) ───────────────────────────────────
+async function fbSave(starred:Set<string>,history:HistoryEntry[]){
+  const user=auth.currentUser;if(!user)return;
+  try{
+    // Compress data URLs in history before storing (Firestore 1MB limit)
+    const safeHistory=await Promise.all(history.slice(0,MAX_HISTORY).map(async e=>({
+      ...e,imageUrl:await compressImageUrl(e.imageUrl),
+    })));
+    await setDoc(doc(db,'users',user.uid,'templateGallery','data'),
+      {starred:[...starred],history:safeHistory},{merge:false});
+    lsSaveStarred(starred);lsSaveHistory(safeHistory);
+  }catch(err){console.warn('[Firebase] templateGallery save failed:',err);}
+}
+async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|null>{
+  const user=auth.currentUser;if(!user)return null;
+  try{
+    const snap=await getDoc(doc(db,'users',user.uid,'templateGallery','data'));
+    if(!snap.exists())return null;
+    const d=snap.data();
+    return{starred:new Set(d.starred??[]),history:d.history??[]};
+  }catch(err){console.warn('[Firebase] templateGallery load failed:',err);return null;}
+}
+
 function shuffleArray<T>(arr:T[]):T[]{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
   const result:Record<string,TemplateSettings>={};
   txt.split('\n').slice(1).forEach(line=>{
     const trim=line.trim();if(!trim)return;
     const dot=trim.indexOf('.');if(dot<0)return;
-    const key=trim.slice(0,dot);
-    const parts=trim.slice(dot+1).split('/');
-    const s:TemplateSettings={};
-    const[font,main,hi,mark,ep]=parts;
-    if(font&&font!=='無')s.fontFamily=font;
-    if(main&&main!=='無')s.mainColor=main;
-    if(hi&&hi!=='無')s.highlightColor=hi;
-    if(mark&&mark!=='無')s.specialMark=mark;
+    const key=trim.slice(0,dot);const parts=trim.slice(dot+1).split('/');
+    const s:TemplateSettings={};const[font,main,hi,mark,ep]=parts;
+    if(font&&font!=='無')s.fontFamily=font;if(main&&main!=='無')s.mainColor=main;
+    if(hi&&hi!=='無')s.highlightColor=hi;if(mark&&mark!=='無')s.specialMark=mark;
     if(ep&&ep.trim()&&ep.trim()!=='無')s.extraPrompt=ep.trim();
     result[`${key}.jpg`]=s;
   });
@@ -56,13 +95,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const fileInputRef=useRef<HTMLInputElement>(null);
   const scrollRef=useRef<HTMLDivElement>(null);
   const sentinelRef=useRef<HTMLDivElement>(null);
+  const scrollTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const [tab,setTab]=useState<Tab>('all');
-  const [starred,setStarred]=useState<Set<string>>(loadStarred);
-  const [history,setHistory]=useState<HistoryEntry[]>(loadHistory);
+  // Initial state from localStorage (instant); Firebase will overwrite when ready
+  const [starred,setStarred]=useState<Set<string>>(lsLoadStarred);
+  const [history,setHistory]=useState<HistoryEntry[]>(lsLoadHistory);
   const [hoveredCard,setHoveredCard]=useState<string|null>(null);
 
-  // allItems: starts as shuffled local fallback, replaced when Drive loads
   const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
   const [driveLoading,setDriveLoading]=useState(false);
   const [driveError,setDriveError]=useState<string|null>(null);
@@ -73,7 +113,22 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const [isAnalyzing,setIsAnalyzing]=useState(false);
   const [analyzeError,setAnalyzeError]=useState<string|null>(null);
 
-  // ── Load from Drive on mount ──────────────────────────────────────────────
+  // ── 1) Firebase load (fast, preloads history images after resolve) ──────────
+  useEffect(()=>{
+    fbLoad().then(data=>{
+      if(!data)return;
+      setStarred(data.starred);
+      setHistory(data.history);
+      // Preload history images now that we have the Firebase data
+      data.history.forEach(entry=>{
+        if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
+          const img=new Image();img.src=entry.imageUrl;
+        }
+      });
+    });
+  },[]);
+
+  // ── 2) Drive template list (background, slow) ─────────────────────────────
   useEffect(()=>{
     const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
     if(!scriptUrl)return;
@@ -97,50 +152,39 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       setAllItems(shuffleArray(items));
       setVisibleCount(15);
       setDriveLoading(false);
-    }).catch(()=>{setDriveError('無法載入 Drive 模板，顯示本機模板');setDriveLoading(false);});
+    }).catch(()=>{setDriveError('無法載入 Drive 模板');setDriveLoading(false);});
   },[]);
 
-  // Reset visible count when switching tabs
+  // ── Reset visible count on tab change ─────────────────────────────────────
   useEffect(()=>{setVisibleCount(15);},[tab]);
 
-  // Preload history images on mount so they display instantly when switching tabs
-  useEffect(()=>{
-    history.forEach(entry=>{
-      if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
-        const img=new Image();img.src=entry.imageUrl;
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
-
-  // ── Infinite scroll (debounced — deps:[tab] prevents rapid-fire on re-render) ──
-  const scrollTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+  // ── Infinite scroll (debounced, [tab] dep prevents rapid-fire) ────────────
   useEffect(()=>{
     const sentinel=sentinelRef.current;const scroller=scrollRef.current;
     if(!sentinel||!scroller||tab==='history')return;
     const obs=new IntersectionObserver(
       ([entry])=>{
         if(!entry.isIntersecting||scrollTimerRef.current)return;
-        scrollTimerRef.current=setTimeout(()=>{
-          scrollTimerRef.current=null;
-          setVisibleCount(v=>v+15);
-        },200);
+        scrollTimerRef.current=setTimeout(()=>{scrollTimerRef.current=null;setVisibleCount(v=>v+15);},200);
       },
       {root:scroller,rootMargin:'150px',threshold:0}
     );
     obs.observe(sentinel);
-    return()=>{
-      obs.disconnect();
-      if(scrollTimerRef.current){clearTimeout(scrollTimerRef.current);scrollTimerRef.current=null;}
-    };
+    return()=>{obs.disconnect();if(scrollTimerRef.current){clearTimeout(scrollTimerRef.current);scrollTimerRef.current=null;}};
   },[tab]);
 
   // ── Apply flow ────────────────────────────────────────────────────────────
-  const finalizeApply=(imageUrl:string,settings:TemplateSettings|null,extraPrompt:string|null,label:string)=>{
-    pushToHistory({id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label});
-    setHistory(loadHistory());
+  const finalizeApply=useCallback((imageUrl:string,settings:TemplateSettings|null,extraPrompt:string|null,label:string)=>{
+    const entry:HistoryEntry={id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label};
+    setHistory(prev=>{
+      const next=[entry,...prev.filter(h=>h.imageUrl!==imageUrl)].slice(0,MAX_HISTORY);
+      fbSave(starred,next); // save starred+history to Firebase (and localStorage)
+      return next;
+    });
     onApply({imageUrl,settings,resolvedExtraPrompt:extraPrompt});
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[starred,onApply]);
+
   const checkConflictAndApply=(imageUrl:string,settings:TemplateSettings,label:string)=>{
     if(settings.extraPrompt&&currentExtraPrompt.trim())setConflictPending({imageUrl,settings,label});
     else finalizeApply(imageUrl,settings,settings.extraPrompt??null,label);
@@ -206,9 +250,13 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
     else finalizeApply(entry.imageUrl,entry.settings,entry.resolvedExtraPrompt,entry.label);
   };
   const toggleStar=(id:string,e:React.MouseEvent)=>{
-    e.stopPropagation();const next=new Set(starred);
-    if(next.has(id))next.delete(id);else next.add(id);
-    setStarred(next);saveStarred(next);
+    e.stopPropagation();
+    setStarred(prev=>{
+      const next=new Set(prev);
+      if(next.has(id))next.delete(id);else next.add(id);
+      fbSave(next,history); // persist to Firebase + localStorage
+      return next;
+    });
   };
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -336,9 +384,8 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
           <div style={{columnCount:3,columnGap:'0.75rem'}}>
             {tab==='history'
               ?(history.length>0?history.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
-              :(visibleItems.length>0?visibleItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無收藏</p>)}
+              :(visibleItems.length>0?visibleItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':'Drive 模板載入中…'}</p>)}
           </div>
-          {/* Infinite scroll sentinel */}
           {hasMore&&tab!=='history'&&<div ref={sentinelRef} style={{height:'40px',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <Loader size={16} style={{animation:'spin 1s linear infinite',color:'var(--text-secondary)'}}/>
           </div>}
