@@ -231,6 +231,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       const{imageUrl,existingSettings,label}=geminiPending;
       if(imageUrl.startsWith('data:')){
         const[header,data]=imageUrl.split(',');base64=data;mimeType=header.match(/data:([^;]+)/)?.[1]??'image/jpeg';
+      }else if(imageUrl.includes('drive.google.com/thumbnail')){
+        // Drive thumbnails block CORS fetch — use Apps Script proxy instead
+        const fileId=new URL(imageUrl).searchParams.get('id')||'';
+        const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
+        if(!fileId||!scriptUrl)throw new Error('無法取得 Drive fileId 或 Apps Script URL');
+        const proxy=await fetch(`${scriptUrl}?fileId=${fileId}`).then(r=>r.json());
+        if(!proxy.ok)throw new Error('Drive proxy 錯誤: '+proxy.error);
+        base64=proxy.data;mimeType=proxy.mimeType||'image/jpeg';
       }else{
         const resp=await fetch(imageUrl);const blob=await resp.blob();mimeType=blob.type||'image/jpeg';
         base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
