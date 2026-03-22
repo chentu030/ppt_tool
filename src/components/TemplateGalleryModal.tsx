@@ -1,75 +1,63 @@
-﻿import React, { useRef, useState } from 'react';
+﻿import React, { useRef, useState, useEffect } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 
 export interface TemplateSettings {
-  fontFamily?: string;
-  mainColor?: string;
-  highlightColor?: string;
-  specialMark?: string;
-  extraPrompt?: string;
+  fontFamily?: string; mainColor?: string; highlightColor?: string;
+  specialMark?: string; extraPrompt?: string;
 }
 export interface ApplyParams {
-  imageUrl: string;
-  settings: TemplateSettings | null;
-  resolvedExtraPrompt: string | null;
+  imageUrl: string; settings: TemplateSettings | null; resolvedExtraPrompt: string | null;
 }
 interface HistoryEntry {
   id: string; imageUrl: string; settings: TemplateSettings | null;
   resolvedExtraPrompt: string | null; timestamp: number; label: string;
 }
-interface TemplateItem { filename: string; label: string; settings: TemplateSettings | null; }
+interface TemplateItem {
+  id: string;        // unique key (local filename or Drive file ID)
+  label: string;
+  imageUrl: string;  // ready-to-use image URL
+  settings: TemplateSettings | null;
+}
 
-const TEMPLATE_SETTINGS: Record<number, TemplateSettings> = {
+// ─── Hardcoded presets for numbered local fallback templates ─────────────────
+const LOCAL_PRESET: Record<number, TemplateSettings> = {
   1: { fontFamily: '襯線體',    mainColor: '黑色', highlightColor: '黑底白字' },
   2: { fontFamily: 'Noto Sans', mainColor: '黑色', highlightColor: '黑字加底線', extraPrompt: '真實照片風景圖去背加文字，圖可以有山、植物、樹、森林、葉子、花朵、種子、動植物等等' },
   3: { fontFamily: 'Noto Sans', mainColor: '黑色', highlightColor: '黑底白字',   extraPrompt: '3d物體用真實的植物或相關物品(跟該投影片相關，元素不要太多，不要太複雜太花俏)(例如只要一個樹枝或葉子或花或果實或種子，任何植物都可以，碳匯、esg元素也可以，用有顏色的，不要全純黑)，小插圖用純黑色線條，不准出現任何香蕉(或有香蕉的元素)' },
 };
 
-const HASH_TEMPLATES: string[] = [
-  '053b0d4c16c9d987afe735c9fdc5c03f.jpg','065f97edbcf0a57c14599098c397cf04.jpg',
-  '084bd8b724458c37e461913b6106197d.jpg','0b2fdeb0032f2c86db30ac47dbc0cb3d.jpg',
-  '0d62cafb6688af3d3d61c47244a373c8.jpg','12fb3f36e01bbdef44b5ca8769f06a9f.jpg',
-  '137afa0569a5df03b43cae92b613e1ba.jpg','143f61a426b173395d0a22f21f1fc632.jpg',
-  '169715054f5878657a21cc8139c280bc.jpg','17f7e67ccb97d3ee079132d7a3bcd959.jpg',
-  '18e031810593ac3db0aa2173d76d85b6.jpg','1a8052630216f0a0d899ba28485a4dd5.jpg',
-  '20870d65e19659b9a5a9d355d7cd7ecc.jpg','223d135a216e5ff2276d4497d771d918.jpg',
-  '29c22a5590a831ca538f738d761ae431.jpg','2ab16516050fd6d275dec25cb0805c34.jpg',
-  '302d5389d127fdeba88cbe9488c517ff.jpg','34a22b5716248554c72013a04e58242a.jpg',
-  '35aa948ac1ed67b21618523f674bd3c4.jpg','42cef390987bfe3cd68e4d54d189d629.jpg',
-  '436ba48e32cb401863b82113295c8cb6.jpg','472a3e1b07d55aecdb7d207a14b23a7b.jpg',
-  '4c3a0a3d3643742304e5344d98d11ec9.jpg','4c73da5e0063a94cd80b1634ca0c0609.jpg',
-  '534f407e9c135c1dd5a49739f30731ce.jpg','558b7374890e7eae8ee1f27df0402ddd.jpg',
-  '5810879c155d516833e11684027f5bdf.jpg','5a93753dbe5530093c136381a8133710.jpg',
-  '5f0519f3770bc2075dc988272be1afcd.jpg','616b9771b3f2a3dbc21f76742f102f41.jpg',
-  '66873b2dc885c4a8f8117ee85de189e3.jpg','69d1791ead945fad886ed68b43509283.jpg',
-  '6ca7a9e23367a0ce90c0c0a302d39934.jpg','70da481ecfdd0c33212c180d79295c3c.jpg',
-  '736a333006c1c88e1a9055c8b7799e39.jpg','77db7a19102ce7d87f43edcc031d46ac.jpg',
-  '7da210f55a5e799ffeeb20570d76677b.jpg','80232e7afc00496e2de25b2cfec30df7.jpg',
-  '840e70eebd994817ff2154f663c53e8e.jpg','8423a2f3bc39bfe517e0b781be8ee706.jpg',
-  '8838abf50031496eb6e9020437c8c06f.jpg','8b44c09efd198d7e6bb7b024719f80da.jpg',
-  '8f40e426cb0a740dfc85c23c19a28b4a.jpg','9015377b3984d10b481469657f37cd81.jpg',
-  '91fb25dd72755e37c7b47dfb8c485dac.jpg','9c4b4d9bf39029523a887d05f351130c.jpg',
-  '9ef822a08f6d15a20713969691a5dbf5.jpg','a0fe191ee30fbcc9f1152838623f51f4.jpg',
-  'a47d4af5b8cec4354e294fcd55d2a424.jpg','abb448a28ba5ffc4306bdcc67ddc4871.jpg',
-  'aef3e2d37f691415539e1db510174b9d.jpg','aff9b83b8febf5850f3fb18108088548.jpg',
-  'b60d41f2fb2fc35c6d9cb75a3e054f18.jpg','b6e0443bf06e9bd60b2e06914965f30b.jpg',
-  'b6ef4f9bb6149238fd6c42ff318783a0.jpg','bda4cfe8890cf01622307686cbf3cc6a.jpg',
-  'bffa576b4b654f5042a2ee300d0e642c.jpg','c3dbb5f75c8176531863a310eaf7614e.jpg',
-  'c5680b9da0762e7db9b1be57704e5c6a.jpg','c83a9c5b0bed3711023cce52ca195256.jpg',
-  'ca1ccaa4298e7159d84d9ffbeb2d82f0.jpg','ccb0abed7227b5c712ebf90c3265c1f6.jpg',
-  'dc90cbd5bb988054db83a6548e7816d0.jpg','e1212c0f6b3beff3e45ab1b598c8bfc9.jpg',
-  'ece66cf099a023e6258528f96c968f40.jpg','f1c4cf0f66736db24f4368f9959bc450.jpg',
-];
-const NUMBERED: TemplateItem[] = Array.from({length:36},(_,i)=>({filename:`${i+1}.jpg`,label:`範本 ${i+1}`,settings:TEMPLATE_SETTINGS[i+1]??null}));
-const HASH: TemplateItem[] = HASH_TEMPLATES.map(f=>({filename:f,label:f.slice(0,8),settings:null}));
-const ALL_TEMPLATES: TemplateItem[] = [...NUMBERED, ...HASH];
+// ─── Local fallback: only the 36 numbered templates (no hash filenames needed) ──
+const LOCAL_TEMPLATES: TemplateItem[] = Array.from({length:36},(_,i)=>({
+  id:`${i+1}.jpg`, label:`範本 ${i+1}`,
+  imageUrl:`/templates/${i+1}.jpg`,
+  settings:LOCAL_PRESET[i+1]??null,
+}));
 
 const STARRED_KEY='templateGalleryStarred', HISTORY_KEY='styleRefHistory', MAX_HISTORY=30, ANALYSIS_MODEL='gemini-3-flash-preview';
 function loadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_KEY)||'[]'));}catch{return new Set();}}
 function saveStarred(s:Set<string>){localStorage.setItem(STARRED_KEY,JSON.stringify([...s]));}
 function loadHistory():HistoryEntry[]{try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');}catch{return[];}}
 function pushToHistory(e:HistoryEntry){const p=loadHistory().filter(h=>h.imageUrl!==e.imageUrl);localStorage.setItem(HISTORY_KEY,JSON.stringify([e,...p].slice(0,MAX_HISTORY)));}
+function shuffleArray<T>(arr:T[]):T[]{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
+  const result:Record<string,TemplateSettings>={};
+  txt.split('\n').slice(1).forEach(line=>{
+    const trim=line.trim();if(!trim)return;
+    const dot=trim.indexOf('.');if(dot<0)return;
+    const key=trim.slice(0,dot);
+    const parts=trim.slice(dot+1).split('/');
+    const s:TemplateSettings={};
+    const[font,main,hi,mark,ep]=parts;
+    if(font&&font!=='無')s.fontFamily=font;
+    if(main&&main!=='無')s.mainColor=main;
+    if(hi&&hi!=='無')s.highlightColor=hi;
+    if(mark&&mark!=='無')s.specialMark=mark;
+    if(ep&&ep.trim()&&ep.trim()!=='無')s.extraPrompt=ep.trim();
+    result[`${key}.jpg`]=s;
+  });
+  return result;
+}
 
 type Tab='all'|'starred'|'history';
 type ConflictChoice='replace'|'merge'|'keep';
@@ -77,18 +65,71 @@ interface Props{currentExtraPrompt:string;onClose:()=>void;onApply:(p:ApplyParam
 
 const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply})=>{
   const fileInputRef=useRef<HTMLInputElement>(null);
+  const scrollRef=useRef<HTMLDivElement>(null);
+  const sentinelRef=useRef<HTMLDivElement>(null);
+
   const [tab,setTab]=useState<Tab>('all');
   const [starred,setStarred]=useState<Set<string>>(loadStarred);
   const [history,setHistory]=useState<HistoryEntry[]>(loadHistory);
   const [hoveredCard,setHoveredCard]=useState<string|null>(null);
+
+  // allItems: starts as shuffled local fallback, replaced when Drive loads
+  const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
+  const [driveLoading,setDriveLoading]=useState(false);
+  const [driveError,setDriveError]=useState<string|null>(null);
+  const [visibleCount,setVisibleCount]=useState(15);
+
   const [conflictPending,setConflictPending]=useState<{imageUrl:string;settings:TemplateSettings;label:string}|null>(null);
   const [geminiPending,setGeminiPending]=useState<{imageUrl:string;existingSettings:TemplateSettings|null;label:string}|null>(null);
   const [isAnalyzing,setIsAnalyzing]=useState(false);
   const [analyzeError,setAnalyzeError]=useState<string|null>(null);
 
+  // ── Load from Drive on mount ──────────────────────────────────────────────
+  useEffect(()=>{
+    const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
+    if(!scriptUrl)return;
+    setDriveLoading(true);setDriveError(null);
+    Promise.allSettled([
+      fetch(`${scriptUrl}?action=listTemplates`).then(r=>{if(!r.ok)throw new Error(r.status.toString());return r.json();}),
+      fetch(`${scriptUrl}?action=getTemplateSettings`).then(r=>r.text()),
+    ]).then(([listRes,txtRes])=>{
+      const files:Array<{id:string;name:string}>=listRes.status==='fulfilled'?listRes.value:[];
+      const txt:string=txtRes.status==='fulfilled'?txtRes.value:'';
+      if(!Array.isArray(files)||files.length===0){setDriveLoading(false);return;}
+      const parsedSettings=parseSettingsTxt(txt);
+      const items:TemplateItem[]=files
+        .filter(f=>f?.id&&f?.name)
+        .map(f=>({
+          id:f.id,
+          label:/^\d+\./.test(f.name)?`範本 ${f.name.split('.')[0]}`:f.name.slice(0,8),
+          imageUrl:`https://drive.google.com/thumbnail?id=${f.id}&sz=w600`,
+          settings:parsedSettings[f.name]??null,
+        }));
+      setAllItems(shuffleArray(items));
+      setVisibleCount(15);
+      setDriveLoading(false);
+    }).catch(()=>{setDriveError('無法載入 Drive 模板，顯示本機模板');setDriveLoading(false);});
+  },[]);
+
+  // Reset visible count when switching tabs
+  useEffect(()=>{setVisibleCount(15);},[tab]);
+
+  // ── Infinite scroll ───────────────────────────────────────────────────────
+  useEffect(()=>{
+    const sentinel=sentinelRef.current;const scroller=scrollRef.current;
+    if(!sentinel||!scroller)return;
+    const obs=new IntersectionObserver(
+      ([entry])=>{if(entry.isIntersecting)setVisibleCount(v=>v+15);},
+      {root:scroller,rootMargin:'200px'}
+    );
+    obs.observe(sentinel);
+    return()=>obs.disconnect();
+  });
+
+  // ── Apply flow ────────────────────────────────────────────────────────────
   const finalizeApply=(imageUrl:string,settings:TemplateSettings|null,extraPrompt:string|null,label:string)=>{
-    const entry:HistoryEntry={id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label};
-    pushToHistory(entry);setHistory(loadHistory());
+    pushToHistory({id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label});
+    setHistory(loadHistory());
     onApply({imageUrl,settings,resolvedExtraPrompt:extraPrompt});
   };
   const checkConflictAndApply=(imageUrl:string,settings:TemplateSettings,label:string)=>{
@@ -97,12 +138,12 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   };
   const handleTemplateClick=(item:TemplateItem)=>{
     setAnalyzeError(null);
-    setGeminiPending({imageUrl:`/templates/${item.filename}`,existingSettings:item.settings,label:item.label});
+    setGeminiPending({imageUrl:item.imageUrl,existingSettings:item.settings,label:item.label});
   };
   const handleUploadOwn=(e:React.ChangeEvent<HTMLInputElement>)=>{
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=(ev)=>{const dataUrl=ev.target?.result as string;setAnalyzeError(null);setGeminiPending({imageUrl:dataUrl,existingSettings:null,label:'自訂圖片'});};
+    reader.onload=(ev)=>{setAnalyzeError(null);setGeminiPending({imageUrl:ev.target?.result as string,existingSettings:null,label:'自訂圖片'});};
     reader.readAsDataURL(file);
   };
   const skipGemini=()=>{
@@ -130,15 +171,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       const url=bearerToken
         ?`https://aiplatform.googleapis.com/v1/projects/${localStorage.getItem('gcpProjectId')||''}/locations/${localStorage.getItem('vertexRegion')||'us-central1'}/publishers/google/models/${ANALYSIS_MODEL}:generateContent`
         :`https://aiplatform.googleapis.com/v1beta1/publishers/google/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
-      const headers:Record<string,string>={'Content-Type':'application/json'};
-      if(bearerToken)headers['Authorization']=`Bearer ${bearerToken}`;
-      const body={contents:[{role:'user',parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]};
-      const res=await fetch(url,{method:'POST',headers,body:JSON.stringify(body)});
+      const hdrs:Record<string,string>={'Content-Type':'application/json'};
+      if(bearerToken)hdrs['Authorization']=`Bearer ${bearerToken}`;
+      const res=await fetch(url,{method:'POST',headers:hdrs,body:JSON.stringify({contents:[{role:'user',parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]})});
       if(!res.ok){const t=await res.text();throw new Error(`Gemini API 錯誤 ${res.status}: ${t.slice(0,200)}`);}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
       const geminiSettings:TemplateSettings=JSON.parse(raw.replace(/```json|```/g,'').trim());
-      const merged:TemplateSettings=existingSettings?{...geminiSettings,...existingSettings}:geminiSettings;
+      const merged=existingSettings?{...geminiSettings,...existingSettings}:geminiSettings;
       setGeminiPending(null);setIsAnalyzing(false);
       checkConflictAndApply(imageUrl,merged,label);
     }catch(err:any){setIsAnalyzing(false);setAnalyzeError(String(err?.message??err));}
@@ -152,36 +192,36 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   };
   const applyFromHistory=(entry:HistoryEntry)=>{
     setAnalyzeError(null);
-    if(entry.resolvedExtraPrompt&&currentExtraPrompt.trim()){
-      const fs:TemplateSettings={...(entry.settings||{}),extraPrompt:entry.resolvedExtraPrompt};
-      setConflictPending({imageUrl:entry.imageUrl,settings:fs,label:entry.label});
-    }else finalizeApply(entry.imageUrl,entry.settings,entry.resolvedExtraPrompt,entry.label);
+    if(entry.resolvedExtraPrompt&&currentExtraPrompt.trim())
+      setConflictPending({imageUrl:entry.imageUrl,settings:{...(entry.settings||{}),extraPrompt:entry.resolvedExtraPrompt},label:entry.label});
+    else finalizeApply(entry.imageUrl,entry.settings,entry.resolvedExtraPrompt,entry.label);
   };
-  const toggleStar=(filename:string,e:React.MouseEvent)=>{
+  const toggleStar=(id:string,e:React.MouseEvent)=>{
     e.stopPropagation();const next=new Set(starred);
-    if(next.has(filename))next.delete(filename);else next.add(filename);
+    if(next.has(id))next.delete(id);else next.add(id);
     setStarred(next);saveStarred(next);
   };
 
+  // ── Render helpers ────────────────────────────────────────────────────────
+
   const renderTemplateCard=(item:TemplateItem)=>{
-    const imgUrl=`/templates/${item.filename}`;
-    const isStarred=starred.has(item.filename);
-    const isHovered=hoveredCard===item.filename;
+    const isStarred=starred.has(item.id);
+    const isHovered=hoveredCard===item.id;
     return(
-      <div key={item.filename} style={{position:'relative',display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}
-        onMouseEnter={()=>setHoveredCard(item.filename)} onMouseLeave={()=>setHoveredCard(null)}>
+      <div key={item.id} style={{position:'relative',display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}
+        onMouseEnter={()=>setHoveredCard(item.id)} onMouseLeave={()=>setHoveredCard(null)}>
         <button onClick={()=>handleTemplateClick(item)}
           style={{padding:0,border:`2px solid ${isHovered?'var(--accent-color)':'var(--border-color)'}`,borderRadius:'0.6rem',cursor:'pointer',background:'none',overflow:'hidden',display:'flex',flexDirection:'column',textAlign:'left',width:'100%',transition:'border-color 0.15s'}}>
-          <img src={imgUrl} alt={item.label} style={{width:'100%',height:'auto',display:'block'}}/>
+          <img src={item.imageUrl} alt={item.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
           <div style={{padding:'0.35rem 0.5rem',fontSize:'0.7rem',color:'var(--text-secondary)',background:'var(--bg-secondary)',width:'100%',boxSizing:'border-box'}}>
             <span style={{fontWeight:700,color:'var(--text-primary)'}}>{item.label}</span>
             {item.settings
-              ?<span style={{marginLeft:'0.3rem'}}>{item.settings.fontFamily} · {item.settings.highlightColor}</span>
+              ?<span style={{marginLeft:'0.3rem'}}>{item.settings.fontFamily}{item.settings.highlightColor?` · ${item.settings.highlightColor}`:''}</span>
               :<span style={{marginLeft:'0.3rem',color:'var(--accent-color)',fontStyle:'italic'}}><Sparkles size={9} style={{verticalAlign:'middle'}}/> AI 分析</span>}
           </div>
         </button>
         {(isHovered||isStarred)&&(
-          <button onClick={(e)=>toggleStar(item.filename,e)}
+          <button onClick={(e)=>toggleStar(item.id,e)}
             style={{position:'absolute',top:'0.3rem',right:'0.3rem',background:'rgba(0,0,0,0.5)',border:'none',borderRadius:'50%',width:'24px',height:'24px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
             <Star size={13} fill={isStarred?'#f6c90e':'none'} color={isStarred?'#f6c90e':'#fff'}/>
           </button>
@@ -207,9 +247,12 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
     </div>
   );
 
-  const starredItems=ALL_TEMPLATES.filter(t=>starred.has(t.filename));
-  const tabItems=tab==='all'?ALL_TEMPLATES:starredItems;
+  const starredItems=allItems.filter(t=>starred.has(t.id));
+  const tabItems=tab==='all'?allItems:tab==='starred'?starredItems:[];
+  const visibleItems=tabItems.slice(0,visibleCount);
+  const hasMore=visibleCount<tabItems.length;
 
+  // ── JSX ──────────────────────────────────────────────────────────────────
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:2000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}} onClick={onClose}>
       <div style={{background:'var(--bg-primary)',borderRadius:'1.1rem',width:'100%',maxWidth:'900px',maxHeight:'90vh',display:'flex',flexDirection:'column',overflow:'hidden',boxShadow:'0 16px 50px rgba(0,0,0,0.35)'}} onClick={e=>e.stopPropagation()}>
@@ -222,7 +265,10 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
               {(['all','starred','history'] as Tab[]).map(t=>(
                 <button key={t} onClick={()=>setTab(t)}
                   style={{padding:'0.28rem 0.7rem',fontSize:'0.78rem',fontWeight:tab===t?700:400,borderRadius:'0.4rem',border:'none',cursor:'pointer',background:tab===t?'var(--accent-color)':'transparent',color:tab===t?'#fff':'var(--text-secondary)'}}>
-                  {t==='all'?`範本 (${ALL_TEMPLATES.length})`:t==='starred'?<><Star size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>收藏 ({starredItems.length})</>:<><Clock size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>歷史 ({history.length})</>}
+                  {t==='all'
+                    ?<>{driveLoading?<Loader size={10} style={{verticalAlign:'middle',marginRight:'0.3rem',animation:'spin 1s linear infinite'}}/>:null}範本{driveLoading?' (載入中…)':`(${allItems.length})`}</>
+                    :t==='starred'?<><Star size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>收藏 ({starredItems.length})</>
+                    :<><Clock size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>歷史 ({history.length})</>}
                 </button>
               ))}
             </div>
@@ -236,6 +282,8 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
             <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-secondary)',padding:'0.25rem'}}><X size={18}/></button>
           </div>
         </div>
+
+        {driveError&&<div style={{padding:'0.5rem 1.25rem',fontSize:'0.76rem',color:'#b7791f',background:'#fffbeb',borderBottom:'1px solid var(--border-color)',flexShrink:0}}>⚠ {driveError}</div>}
 
         {/* Gemini prompt */}
         {geminiPending&&(
@@ -274,11 +322,17 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
           </div>
         )}
 
-        {/* Grid */}
-        <div style={{overflowY:'auto',padding:'1rem 1.25rem',columnCount:3,columnGap:'0.75rem'}}>
-          {tab==='history'
-            ?(history.length>0?history.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
-            :(tabItems.length>0?tabItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無收藏</p>)}
+        {/* Scrollable grid */}
+        <div ref={scrollRef} style={{overflowY:'auto',padding:'1rem 1.25rem',flex:1}}>
+          <div style={{columnCount:3,columnGap:'0.75rem'}}>
+            {tab==='history'
+              ?(history.length>0?history.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
+              :(visibleItems.length>0?visibleItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無收藏</p>)}
+          </div>
+          {/* Infinite scroll sentinel */}
+          {hasMore&&tab!=='history'&&<div ref={sentinelRef} style={{height:'40px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <Loader size={16} style={{animation:'spin 1s linear infinite',color:'var(--text-secondary)'}}/>
+          </div>}
         </div>
 
       </div>
