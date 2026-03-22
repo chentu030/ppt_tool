@@ -91,7 +91,7 @@ async function syncDriveToFirebase(
   const existingNames=new Set(existing.map(t=>t.name));
   const newFiles=driveFiles.filter(f=>f?.id&&f?.name&&!existingNames.has(f.name));
   // Update settings for existing templates (in case txt changed)
-  let allTemplates=existing.map(t=>({...t,settings:parsedSettings[t.name]??t.settings}));
+  let allTemplates:StoredTemplate[]=existing.map(t=>({...t,settings:(parsedSettings[t.name]??t.settings) as TemplateSettings|null}));
   if(newFiles.length>0){
     let done=0;
     const BATCH=5;
