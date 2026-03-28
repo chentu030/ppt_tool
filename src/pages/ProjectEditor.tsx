@@ -1045,9 +1045,14 @@ export const ProjectEditor: React.FC = () => {
           // For local modify: use only the toolbar prompt, no globalExtraPrompt
           // For full generation: always use defaultPromptRef (reflects current font/color/settings)
           // rather than slide.prompt which was baked in at slide creation time
+          // Exception: text-only slides (no original image) — must include slide.prompt as the content
+          const isTextSlide = !slide.originalImage && !capturedBase && !isLocalModify;
+          const slideTextContent = isTextSlide && slide.prompt?.trim()
+            ? `以下是投影片的文字內容，請根據這段文字來生成投影片圖片：\n${slide.prompt.trim()}\n\n`
+            : '';
           const finalPrompt = isLocalModify
             ? (capturedPrompt || 'Edit the masked area.')
-            : ((globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
+            : (slideTextContent + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
           // Auto-retry every 5 s on 429 for up to 60 s before escalating to modal
           let generatedImg = '';
