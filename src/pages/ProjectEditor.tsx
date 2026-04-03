@@ -36,6 +36,7 @@ export const ProjectEditor: React.FC = () => {
   const [mainColor, setMainColor] = useState<string>('黑色');
   const [highlightColor, setHighlightColor] = useState<string>('金黃色');
   const [specialMark, setSpecialMark] = useState<string>('');
+  const [backgroundColor, setBackgroundColor] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
@@ -43,7 +44,7 @@ export const ProjectEditor: React.FC = () => {
   const [activeSlideId, setActiveSlideId] = useState<string>('');
   const [globalReference, setGlobalReference] = useState<string | null>(null);
 
-  const defaultPrompt = `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
+  const defaultPrompt = `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
   const [parsingProgress, setParsingProgress] = useState<{current: number, total: number} | null>(null);
@@ -187,6 +188,7 @@ export const ProjectEditor: React.FC = () => {
       if (s.mainColor) setMainColor(s.mainColor);
       if (s.highlightColor) setHighlightColor(s.highlightColor);
       if (s.specialMark !== undefined) setSpecialMark(s.specialMark);
+      if (s.backgroundColor !== undefined) setBackgroundColor(s.backgroundColor);
     } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -207,8 +209,8 @@ export const ProjectEditor: React.FC = () => {
   // Persist advanced settings per-project so each project has independent settings
   React.useEffect(() => {
     if (!id) return;
-    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark }));
-  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark]);
+    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor }));
+  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor]);
 
   // Check for previous unfinished generation on mount
   React.useEffect(() => {
@@ -526,6 +528,7 @@ export const ProjectEditor: React.FC = () => {
       if (settings.mainColor) setMainColor(settings.mainColor);
       if (settings.highlightColor) setHighlightColor(settings.highlightColor);
       if (settings.specialMark !== undefined) setSpecialMark(settings.specialMark);
+      if (settings.backgroundColor) setBackgroundColor(settings.backgroundColor);
     }
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
   };
@@ -1050,9 +1053,10 @@ export const ProjectEditor: React.FC = () => {
           const slideTextContent = isTextSlide && slide.prompt?.trim()
             ? `以下是投影片的文字內容，請根據這段文字來生成投影片圖片：\n${slide.prompt.trim()}\n\n`
             : '';
+          const bgColorPrompt = backgroundColor.trim() ? `背景色：${backgroundColor.trim()}\n` : '';
           const finalPrompt = isLocalModify
             ? (capturedPrompt || 'Edit the masked area.')
-            : (slideTextContent + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
+            : (slideTextContent + bgColorPrompt + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
           // Auto-retry every 5 s on 429 for up to 60 s before escalating to modal
           let generatedImg = '';
@@ -1362,6 +1366,7 @@ export const ProjectEditor: React.FC = () => {
                   <span><strong>主要顏色：</strong>{mainColor}</span>
                   <span style={{ gridColumn: 'span 2' }}><strong>重點標示顏色：</strong>{highlightColor}</span>
                   {specialMark && <span style={{ gridColumn: 'span 2' }}><strong>特殊標記：</strong>{specialMark}</span>}
+                  {backgroundColor && <span style={{ gridColumn: 'span 2' }}><strong>背景色：</strong>{backgroundColor}</span>}
                 </div>
               </div>
 
@@ -1693,6 +1698,10 @@ export const ProjectEditor: React.FC = () => {
                         ))}
                       </div>
                     </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
+                      <input style={{ ...inputS, width: '100px' }} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1841,6 +1850,10 @@ export const ProjectEditor: React.FC = () => {
                           ))}
                         </div>
                         <input style={inputStyle} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：淺鴨黃色螢光筆、underline（可自行輸入）" />
+                      </div>
+                      <div style={rowStyle}>
+                        <label style={labelStyle}>背景色（選填）</label>
+                        <input style={inputStyle} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色、淺灰色、深藍色" />
                       </div>
                     </div>
                   )}

@@ -7,7 +7,7 @@ import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
 
 export interface TemplateSettings {
   fontFamily?: string; mainColor?: string; highlightColor?: string;
-  specialMark?: string; extraPrompt?: string;
+  specialMark?: string; extraPrompt?: string; backgroundColor?: string;
 }
 export interface ApplyParams {
   imageUrl: string; settings: TemplateSettings | null; resolvedExtraPrompt: string | null;
@@ -145,10 +145,11 @@ function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
     const trim=line.trim();if(!trim)return;
     const dot=trim.indexOf('.');if(dot<0)return;
     const key=trim.slice(0,dot);const parts=trim.slice(dot+1).split('/');
-    const s:TemplateSettings={};const[font,main,hi,mark,ep]=parts;
+    const s:TemplateSettings={};const[font,main,hi,mark,ep,bg]=parts;
     if(font&&font!=='無')s.fontFamily=font;if(main&&main!=='無')s.mainColor=main;
     if(hi&&hi!=='無')s.highlightColor=hi;if(mark&&mark!=='無')s.specialMark=mark;
     if(ep&&ep.trim()&&ep.trim()!=='無')s.extraPrompt=ep.trim();
+    if(bg&&bg.trim()&&bg.trim()!=='無')s.backgroundColor=bg.trim();
     result[`${key}.jpg`]=s;
   });
   return result;
@@ -343,7 +344,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
         const resp=await fetch(imageUrl);const blob=await resp.blob();mimeType=blob.type||'image/jpeg';
         base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
       }
-      const prompt=`請仔細分析這張投影片或設計風格圖的視覺風格，以 JSON 格式回傳建議設定。只回傳 JSON：\n{"fontFamily":"字體（Noto Sans/襯線體/等寬長字/草寫體）","mainColor":"主文字顏色","highlightColor":"重點標示方式","specialMark":"特殊標記或無","extraPrompt":"風格視覺特點50~150字"}`;
+      const prompt=`請仔細分析這張投影片或設計風格圖的視覺風格，以 JSON 格式回傳建議設定。只回傳 JSON：\n{"fontFamily":"字體（Noto Sans/襯線體/等寬長字/草寫體）","mainColor":"主文字顏色","highlightColor":"重點標示方式","specialMark":"特殊標記或無","backgroundColor":"背景色（白色/淺灰色/深藍色等）","extraPrompt":"風格視覺特點50~150字"}`;
       const url=bearerToken
         ?`https://aiplatform.googleapis.com/v1/projects/${localStorage.getItem('gcpProjectId')||''}/locations/${localStorage.getItem('vertexRegion')||'us-central1'}/publishers/google/models/${ANALYSIS_MODEL}:generateContent`
         :`https://aiplatform.googleapis.com/v1beta1/publishers/google/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
@@ -354,7 +355,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
       const geminiSettings:TemplateSettings=JSON.parse(raw.replace(/```json|```/g,'').trim());
-      const AI_PROMPT_PREFIX='原圖只是參考，還是要結合投影片的內容來設計，有字的地方背景就要單純一點，字多的投影片背景圖就少一點，文字要排版(不要疊在一起，不要交錯雜亂，要梳理過)，風格參考圖若有跟投影片不相關的文字就不要放進去，以投影片的內容為主，';
+      const AI_PROMPT_PREFIX='不要太花俏，插圖適量就好!!!原圖只是參考，還是要結合投影片的內容來設計，有字的地方背景就要單純一點，字多的投影片背景圖就少一點，文字要排版(不要疊在一起，不要交錯雜亂，要梳理過)，風格參考圖若有跟投影片不相關的文字就不要放進去，以投影片的內容為主，';
       if(geminiSettings.extraPrompt)geminiSettings.extraPrompt=AI_PROMPT_PREFIX+geminiSettings.extraPrompt;
       const merged=existingSettings?{...geminiSettings,...existingSettings}:geminiSettings;
       setGeminiPending(null);setIsAnalyzing(false);
