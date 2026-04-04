@@ -178,8 +178,33 @@ export const AIChatPage: React.FC = () => {
       if (m.role === 'user') {
         const p: GeminiChatMessage['parts'] = [];
         if (m.text) p.push({ text: m.text });
-        for (const a of m.attachments) { const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl; p.push({ inlineData: { mimeType: a.mimeType, data: b64 } }); }
+        for (const a of m.attachments) {
+          // Skip truncated/invalid attachments (saved conversations truncate to ~200 chars)
+          if (a.dataUrl.length < 500) continue;
+          const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl;
+          p.push({ inlineData: { mimeType: a.mimeType, data: b64 } });
+        }
         if (p.length) h.push({ role: 'user', parts: p });
+      } else { if (m.text) h.push({ role: 'model', parts: [{ text: m.text }] }); }
+    }
+    h.push({ role: 'user', parts: userParts });
+    return h;
+  }, []);
+
+  // Text-only history (no attachments) for plan generation to avoid re-sending large files
+  const buildTextHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string): GeminiChatMessage[] => {
+    let sys = '你是專業設計助手，根據之前的對話內容來規劃簡報。用繁體中文回答。';
+    if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
+    const h: GeminiChatMessage[] = [
+      { role: 'user', parts: [{ text: sys }] },
+      { role: 'model', parts: [{ text: '好的，我會根據對話內容來規劃。' }] },
+    ];
+    for (const m of msgs) {
+      if (m.role === 'user') {
+        const parts: GeminiChatMessage['parts'] = [];
+        if (m.text) parts.push({ text: m.text });
+        if (m.attachments.length > 0 && !m.text) parts.push({ text: `[已上傳 ${m.attachments.length} 個檔案]` });
+        if (parts.length) h.push({ role: 'user', parts });
       } else { if (m.text) h.push({ role: 'model', parts: [{ text: m.text }] }); }
     }
     h.push({ role: 'user', parts: userParts });
@@ -222,7 +247,7 @@ export const AIChatPage: React.FC = () => {
     setIsPlanLoading(true);
     try {
       const req = `根據我們的對話內容，請規劃 ${pageCount} 頁簡報，每頁包含標題和內容文字。回覆純 JSON 陣列格式，不要加任何說明：[{"title":"標題","content":"內容文字"}]。內容要具體、簡潔，適合放在投影片上。`;
-      const history = buildHistory(messages, [{ text: req }], stylePrompt || undefined);
+      const history = buildTextHistory(messages, [{ text: req }], stylePrompt || undefined);
       const resp = await chatWithGemini(history, apiKey, { generateImage: false });
       // Parse JSON from response
       const jsonMatch = resp.text.match(/\[[\s\S]*\]/);
