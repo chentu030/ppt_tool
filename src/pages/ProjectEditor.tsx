@@ -1516,21 +1516,21 @@ export const ProjectEditor: React.FC = () => {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Button variant="ghost" size="sm" onClick={handleBack} style={{ padding: '0.4rem' }}>
-            <ArrowLeft size={18} />
-          </Button>
-          <span style={{ fontSize: '0.9rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Project Editor</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button onClick={handleBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+            <ArrowLeft size={15} />
+          </button>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>專案編輯器</span>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.875rem' }}>Ratio:</label>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>比例</label>
             <select 
               value={aspectRatio} 
               onChange={(e) => setAspectRatio(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'inherit' }}
+              style={{ padding: '0.2rem 0.3rem', fontSize: '0.72rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
             >
               <option value="16:9">16:9</option>
               <option value="4:3">4:3</option>
@@ -1538,12 +1538,12 @@ export const ProjectEditor: React.FC = () => {
               <option value="1:1">1:1</option>
             </select>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.875rem' }}>Res:</label>
+          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>解析度</label>
             <select 
               value={resolution} 
               onChange={(e) => setResolution(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'inherit' }}
+              style={{ padding: '0.2rem 0.3rem', fontSize: '0.72rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
             >
               <option value="1K">1K</option>
               <option value="2K">2K</option>
@@ -1552,44 +1552,48 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-            <Button variant="secondary" onClick={() => setShowGenerateConfirmModal(true)} icon={Sparkles} disabled={isGenerating || !globalReference || !!autoRetryStatus}
-              style={{ opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
-              {generateProgress ? `生成中... ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
-            </Button>
+        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
+            <button onClick={() => setShowGenerateConfirmModal(true)} disabled={isGenerating || !globalReference || !!autoRetryStatus}
+              style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: (!globalReference || !!autoRetryStatus) ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
+              <Sparkles size={12} /> {generateProgress ? `生成中 ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
+            </button>
             {isGenerating && (
-              <Button variant="ghost" onClick={handleCancelGenerate} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
-                取消
-              </Button>
+              <button onClick={handleCancelGenerate} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.7rem' }}>
+                <X size={12} /> 取消
+              </button>
             )}
             {!isGenerating && !!autoRetryStatus && (
-              <Button variant="ghost" onClick={stopAutoRetry} icon={X} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>
-                停止重試
-              </Button>
+              <button onClick={stopAutoRetry} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.7rem' }}>
+                <X size={12} /> 停止重試
+              </button>
             )}
           </div>
           {pendingImages.size > 0 && (() => {
             const unbackedCount = pendingImages.size - backedUpIds.size;
             return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 {unbackedCount > 0 ? (
-                  <Button variant="secondary" onClick={handleBackup} disabled={isBackingUp}
-                    style={{ backgroundColor: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1 }}>
+                  <button onClick={handleBackup} disabled={isBackingUp}
+                    style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
                     {isBackingUp ? '備份中...' : `備份 (${unbackedCount})`}
-                  </Button>
+                  </button>
                 ) : (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
                     ✓ 已備份 {lastBackupTime?.toLocaleTimeString()}
                   </span>
                 )}
               </div>
             );
           })()}
-          <Button icon={Download} onClick={() => setDownloadScopeModal('save')} variant="secondary">下載圖片</Button>
-          <Button icon={Download} onClick={() => setDownloadScopeModal('export')} disabled={isExporting}>
-            {isExporting ? '匯出中...' : '匯出 PPTX'}
-          </Button>
+          <button onClick={() => setDownloadScopeModal('save')}
+            style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+            <Download size={12} /> 下載圖片
+          </button>
+          <button onClick={() => setDownloadScopeModal('export')} disabled={isExporting}
+            style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isExporting ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={12} /> {isExporting ? '匯出中...' : '匯出 PPTX'}
+          </button>
         </div>
       </div>
 
@@ -1599,23 +1603,23 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE A: Preview Hidden ??Compact bar + Grid ===== */}
         {!previewOpen && (<>
           {/* Combined controls + extra prompt row */}
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
             {/* Extra prompt — flex:1 to fill remaining space */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '160px', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>額外提示詞</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: '160px', backgroundColor: 'var(--bg-primary)', borderRadius: '0.35rem', border: '1px solid var(--border-color)', padding: '0.35rem 0.6rem' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>額外提示詞</span>
               <input
                 value={globalExtraPrompt}
                 onChange={e => setGlobalExtraPrompt(e.target.value)}
                 placeholder="額外指令（選填）"
-                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', minWidth: 0 }}
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '0.78rem', color: 'var(--text-primary)', minWidth: 0 }}
               />
               {globalExtraPrompt && (
-                <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={14}/></button>
+                <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={12}/></button>
               )}
             </div>
             {/* Reference Style compact */}
-            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>風格參考</span>
+            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '0.35rem', border: '1px solid var(--border-color)', padding: '0.35rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>風格參考</span>
               {globalReference ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <div onClick={() => setShowTemplateGallery(true)} style={{ width: '40px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)', cursor: 'pointer' }} title="更換風格圖">

@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
-import { Plus, LayoutTemplate, Trash2, Edit2, Presentation, BookOpen, FileText, BarChart3, PieChart, Target, Lightbulb, Rocket, Globe, Briefcase } from 'lucide-react';
+import { Plus, LayoutTemplate, Trash2, Edit2, Presentation, BookOpen, FileText, BarChart3, PieChart, Target, Lightbulb, Rocket, Globe, Briefcase, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
@@ -170,8 +166,8 @@ export const Home: React.FC = () => {
   ) => (
     <>
       <div>
-        <label className="input-label">Icon</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>圖示</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
           {ICON_OPTIONS.map(opt => {
             const IconComp = opt.icon;
             return (
@@ -179,34 +175,34 @@ export const Home: React.FC = () => {
                 key={opt.name}
                 onClick={() => onIconChange(opt.name)}
                 style={{
-                  width: '40px', height: '40px', borderRadius: '10px',
+                  width: '30px', height: '30px', borderRadius: '0.25rem',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: 'pointer',
-                  backgroundColor: selectedIcon === opt.name ? `${selectedColor}20` : 'var(--bg-secondary)',
-                  border: selectedIcon === opt.name ? `2px solid ${selectedColor}` : '2px solid transparent',
+                  backgroundColor: selectedIcon === opt.name ? `${selectedColor}18` : 'var(--bg-secondary)',
+                  border: selectedIcon === opt.name ? `1.5px solid ${selectedColor}` : '1.5px solid transparent',
                   color: selectedIcon === opt.name ? selectedColor : 'var(--text-secondary)',
                   transition: 'all 0.15s ease'
                 }}
               >
-                <IconComp size={20} />
+                <IconComp size={14} />
               </div>
             );
           })}
         </div>
       </div>
       <div>
-        <label className="input-label">Color</label>
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>顏色</label>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
           {COLOR_OPTIONS.map(color => (
             <div 
               key={color}
               onClick={() => onColorChange(color)}
               style={{ 
-                width: '32px', height: '32px', borderRadius: '50%', backgroundColor: color, 
+                width: '24px', height: '24px', borderRadius: '50%', backgroundColor: color, 
                 cursor: 'pointer', border: selectedColor === color ? '2px solid var(--text-primary)' : '2px solid transparent',
-                boxShadow: selectedColor === color ? '0 0 0 2px var(--bg-primary) inset' : 'none',
+                boxShadow: selectedColor === color ? '0 0 0 1.5px var(--bg-primary) inset' : 'none',
                 transition: 'transform 0.15s ease',
-                transform: selectedColor === color ? 'scale(1.15)' : 'scale(1)'
+                transform: selectedColor === color ? 'scale(1.1)' : 'scale(1)'
               }}
             />
           ))}
@@ -218,77 +214,92 @@ export const Home: React.FC = () => {
   if (authLoading) return null; // Wait for auth state to resolve before rendering or redirecting
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+    <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0.5rem 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Your Projects</h1>
-          <p>Manage and design your presentations</p>
+          <h1 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.15rem', color: 'var(--text-primary)' }}>專案列表</h1>
+          <p style={{ fontSize: '0.75rem', margin: 0 }}>管理與設計你的簡報</p>
         </div>
-        <Button icon={Plus} onClick={() => setIsModalOpen(true)}>New Project</Button>
+        <button onClick={() => setIsModalOpen(true)}
+          style={{ padding: '0.4rem 0.8rem', fontSize: '0.78rem', fontWeight: 600, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <Plus size={14} /> 新增專案
+        </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.75rem' }}>
         {projects.map((project) => {
           const ProjectIcon = getIconComponent(project.icon);
           return (
-            <Card 
-              key={project.id} 
-              style={{ cursor: 'pointer', position: 'relative' }} 
+            <div
+              key={project.id}
+              style={{ cursor: 'pointer', position: 'relative', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', padding: '0.85rem 1rem', transition: 'box-shadow 0.2s, border-color 0.2s' }}
               onClick={() => navigate(`/project/${project.id}`)}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--text-secondary)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-color)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3rem' }}>
-                <div style={{ 
-                  width: '48px', height: '48px', borderRadius: '12px', 
-                  backgroundColor: `${project.color}20`, color: project.color,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '0.35rem',
+                  backgroundColor: `${project.color}18`, color: project.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <ProjectIcon size={24} />
+                  <ProjectIcon size={16} />
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <Button variant="ghost" size="sm" style={{ padding: '0.25rem', color: 'var(--text-secondary)' }} onClick={(e) => startEdit(e, project)}>
-                    <Edit2 size={18} />
-                  </Button>
-                  <Button variant="ghost" size="sm" style={{ padding: '0.25rem', color: '#ef4444' }} onClick={(e) => handleDelete(e, project.id)}>
-                    <Trash2 size={18} />
-                  </Button>
+                <div style={{ display: 'flex', gap: '0.2rem' }}>
+                  <button onClick={(e) => startEdit(e, project)} title="編輯" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', opacity: 0.5 }}><Edit2 size={13} /></button>
+                  <button onClick={(e) => handleDelete(e, project.id)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: '#ef4444', opacity: 0.5 }}><Trash2 size={13} /></button>
                 </div>
               </div>
-
-              <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{project.name}</h3>
-              <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Edited {project.date}</p>
-            </Card>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>編輯於 {project.date}</div>
+            </div>
           );
         })}
       </div>
 
       {/* Create New Project Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Project">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <Input 
-            label="Project Name" 
-            placeholder="e.g. Q4 Business Review" 
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            autoFocus
-          />
-          {renderIconColorPicker(newProjectIcon, setNewProjectIcon, newProjectColor, setNewProjectColor)}
-          <Button fullWidth onClick={handleCreateProject} style={{ marginTop: '1rem' }}>Create Project</Button>
+      {isModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setIsModalOpen(false)}>
+          <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.6rem', padding: '1.25rem', width: '400px', maxWidth: '90vw', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>新增專案</span>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={15} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>專案名稱</label>
+              <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="例如：Q4 營運報告" autoFocus
+                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.82rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            {renderIconColorPicker(newProjectIcon, setNewProjectIcon, newProjectColor, setNewProjectColor)}
+            <button onClick={handleCreateProject}
+              style={{ width: '100%', padding: '0.5rem', fontSize: '0.82rem', fontWeight: 600, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff' }}>
+              建立專案
+            </button>
+          </div>
         </div>
-      </Modal>
+      )}
 
       {/* Edit Project Modal */}
-      <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setEditingProject(null); }} title="Edit Project">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <Input 
-            label="Project Name" 
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            autoFocus
-          />
-          {renderIconColorPicker(editIcon, setEditIcon, editColor, setEditColor)}
-          <Button fullWidth onClick={saveEdit} style={{ marginTop: '1rem' }}>Save Changes</Button>
+      {editModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => { setEditModalOpen(false); setEditingProject(null); }}>
+          <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.6rem', padding: '1.25rem', width: '400px', maxWidth: '90vw', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>編輯專案</span>
+              <button onClick={() => { setEditModalOpen(false); setEditingProject(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={15} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>專案名稱</label>
+              <input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus
+                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.82rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            {renderIconColorPicker(editIcon, setEditIcon, editColor, setEditColor)}
+            <button onClick={saveEdit}
+              style={{ width: '100%', padding: '0.5rem', fontSize: '0.82rem', fontWeight: 600, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff' }}>
+              儲存變更
+            </button>
+          </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 };

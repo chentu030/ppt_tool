@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Home, Settings, LogOut, Presentation, Pin, PinOff, MessageSquareText } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 
-const COLLAPSED_WIDTH = '60px';
-const EXPANDED_WIDTH = '280px';
+const COLLAPSED_WIDTH = '48px';
+const EXPANDED_WIDTH = '200px';
 
 export const Sidebar: React.FC = () => {
   const [pinned, setPinned] = useState(false);
@@ -14,10 +13,10 @@ export const Sidebar: React.FC = () => {
   const expanded = pinned || hovered;
 
   const navItems = [
-    { icon: Home, label: 'Projects', path: '/home' },
+    { icon: Home, label: '專案列表', path: '/home' },
     // { icon: FileOutput, label: '圖片轉可編輯', path: '/convert' },  // Hidden for now
     { icon: MessageSquareText, label: 'AI 對話', path: '/ai-chat' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: Settings, label: '設定', path: '/settings' },
   ];
 
   const handleSignOut = async () => {
@@ -30,10 +29,7 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <motion.div 
-      className="sidebar"
-      initial={{ x: -20, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
+    <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -41,49 +37,49 @@ export const Sidebar: React.FC = () => {
         minWidth: expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
         height: '100vh',
         borderRight: '1px solid var(--border-color)',
-        padding: expanded ? '2rem 1.5rem' : '2rem 0.5rem',
+        padding: expanded ? '0.75rem 0.6rem' : '0.75rem 0.35rem',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--bg-primary)',
         position: 'sticky',
         top: 0,
-        transition: 'width 0.25s ease, min-width 0.25s ease, padding 0.25s ease',
+        transition: 'width 0.2s ease, min-width 0.2s ease, padding 0.2s ease',
         overflow: 'hidden',
+        flexShrink: 0,
       }}
     >
       {/* Logo + Pin */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3rem', minHeight: '36px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ 
-            backgroundColor: 'var(--accent-color)', color: 'var(--accent-text)', 
-            padding: '0.5rem', borderRadius: 'var(--radius-sm)',
-            flexShrink: 0,
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: expanded ? '0.3rem 0.4rem' : '0.3rem 0', minHeight: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+          <div style={{
+            backgroundColor: 'var(--accent-color)', color: 'var(--accent-text)',
+            padding: '0.3rem', borderRadius: '0.3rem',
+            flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Presentation size={24} />
+            <Presentation size={16} />
           </div>
           {expanded && (
-            <h2 style={{ fontSize: '1.25rem', margin: 0, whiteSpace: 'nowrap' }}>Designt.io</h2>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>Designt.io</span>
           )}
         </div>
         {expanded && (
           <button
             onClick={() => setPinned(!pinned)}
-            title={pinned ? 'Unpin sidebar' : 'Pin sidebar'}
+            title={pinned ? '取消釘選' : '釘選側邊欄'}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '0.35rem', borderRadius: 'var(--radius-sm)',
+              padding: '3px', borderRadius: '0.2rem',
               color: pinned ? 'var(--accent-color)' : 'var(--text-secondary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-              transition: 'color 0.15s ease',
+              flexShrink: 0, opacity: 0.7,
             }}
           >
-            {pinned ? <Pin size={16} /> : <PinOff size={16} />}
+            {pinned ? <Pin size={13} /> : <PinOff size={13} />}
           </button>
         )}
       </div>
 
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -92,41 +88,42 @@ export const Sidebar: React.FC = () => {
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
-              gap: '0.75rem',
-              padding: expanded ? '0.75rem 1rem' : '0.75rem',
-              borderRadius: 'var(--radius-md)',
-              color: isActive ? 'var(--accent-text)' : 'var(--text-secondary)',
+              gap: '0.5rem',
+              padding: expanded ? '0.45rem 0.6rem' : '0.45rem',
+              borderRadius: '0.35rem',
+              color: isActive ? '#fff' : 'var(--text-secondary)',
               backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
-              fontWeight: 500,
-              transition: 'all 0.2s ease',
+              fontSize: '0.78rem',
+              fontWeight: isActive ? 600 : 500,
+              transition: 'all 0.15s ease',
               justifyContent: expanded ? 'flex-start' : 'center',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
             })}
           >
-            <item.icon size={20} style={{ flexShrink: 0 }} />
+            <item.icon size={15} style={{ flexShrink: 0 }} />
             {expanded && item.label}
           </NavLink>
         ))}
       </nav>
 
-      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-        <button 
+      <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
+        <button
           onClick={handleSignOut}
-          title={!expanded ? 'Sign out' : undefined}
-          style={{ 
-            display: 'flex', alignItems: 'center', gap: '0.75rem', 
-            padding: expanded ? '0.75rem 1rem' : '0.75rem',
-            width: '100%', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)',
+          title={!expanded ? '登出' : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: expanded ? '0.45rem 0.6rem' : '0.45rem',
+            width: '100%', borderRadius: '0.35rem', color: 'var(--text-secondary)',
             background: 'none', border: 'none', cursor: 'pointer',
             justifyContent: expanded ? 'flex-start' : 'center',
-            whiteSpace: 'nowrap', overflow: 'hidden',
+            whiteSpace: 'nowrap', overflow: 'hidden', fontSize: '0.78rem',
           }}
         >
-          <LogOut size={20} style={{ flexShrink: 0 }} />
-          {expanded && 'Sign out'}
+          <LogOut size={15} style={{ flexShrink: 0 }} />
+          {expanded && '登出'}
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
