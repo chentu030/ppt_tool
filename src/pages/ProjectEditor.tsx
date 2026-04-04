@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { showAlert, showConfirm } from '../utils/dialog';
+import { showAlert } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
