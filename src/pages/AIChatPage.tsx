@@ -26,9 +26,10 @@ interface SlidePlan {
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 const LS_KEY = 'ai_chat_conversations';
-const LS_SLIDES_KEY = 'ai_slide_plans';
-const loadSlidePlans = (): SlidePlan[] => { try { return JSON.parse(localStorage.getItem(LS_SLIDES_KEY) || '[]'); } catch { return []; } };
-const saveSlidePlans = (plans: SlidePlan[]) => { try { const lite = plans.map(p => ({ ...p, generatedImage: p.generatedImage?.slice(0, 300), templateImage: p.templateImage?.slice(0, 300) })); localStorage.setItem(LS_SLIDES_KEY, JSON.stringify(lite)); } catch { /* quota */ } };
+const slidesKey = (id: string | null) => id ? `ai_slide_plans_${id}` : null;
+const loadSlidePlans = (id: string | null): SlidePlan[] => { const k = slidesKey(id); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+const saveSlidePlans = (plans: SlidePlan[], id: string | null) => { const k = slidesKey(id); if (!k) return; try { const lite = plans.map(p => ({ ...p, generatedImage: p.generatedImage?.slice(0, 300), templateImage: p.templateImage?.slice(0, 300) })); localStorage.setItem(k, JSON.stringify(lite)); } catch { /* quota */ } };
+const deleteSlidePlans = (id: string) => { try { localStorage.removeItem(`ai_slide_plans_${id}`); } catch { /* ignore */ } };
 const loadConversations = (): Conversation[] => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; } };
 const saveConversations = (c: Conversation[]) => {
   const lite = c.map(conv => ({
@@ -94,7 +95,7 @@ export const AIChatPage: React.FC = () => {
   const [rightTab, setRightTab] = useState<'images' | 'files'>('images');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   // Slide plan state
-  const [slidePlans, setSlidePlans] = useState<SlidePlan[]>(loadSlidePlans);
+  const [slidePlans, setSlidePlans] = useState<SlidePlan[]>([]);
   const [isPlanLoading, setIsPlanLoading] = useState(false);
   const [planPageCount, setPlanPageCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -160,19 +161,19 @@ export const AIChatPage: React.FC = () => {
     });
   }, [messages]);
 
-  // Persist slide plans & auto-show when plans exist
+  // Persist slide plans under current conversation ID
   useEffect(() => {
-    saveSlidePlans(slidePlans);
+    saveSlidePlans(slidePlans, activeId);
     if (slidePlans.length > 0) setSlidePlanVisible(true);
-  }, [slidePlans]);
+  }, [slidePlans, activeId]);
 
-  // Init: auto-show if persisted plans exist
+  // Load slide plans when active conversation changes
   useEffect(() => {
-    if (loadSlidePlans().length > 0) {
-      setSlidePlanVisible(true);
-      setActiveSlideId(loadSlidePlans()[0]?.id || null);
-    }
-  }, []);
+    const plans = loadSlidePlans(activeId);
+    setSlidePlans(plans);
+    setSlidePlanVisible(plans.length > 0);
+    setActiveSlideId(plans[0]?.id || null);
+  }, [activeId]);
 
   // Drag-to-resize slide plan panel
   const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -286,10 +287,16 @@ export const AIChatPage: React.FC = () => {
     }, 1000);
   }, [isGenerating]);
 
-  const loadConversation = (conv: Conversation) => { setActiveId(conv.id); setMessages(conv.messages); setInput(''); setAttachments([]); setGalleryImages([]); setSlidePlans([]); };
+  const loadConversation = (conv: Conversation) => {
+    setActiveId(conv.id);
+    setMessages(conv.messages);
+    setInput(''); setAttachments([]); setGalleryImages([]);
+    // slides are loaded by the activeId useEffect
+  };
   const newConversation = () => { setActiveId(null); setMessages([]); setInput(''); setAttachments([]); setGalleryImages([]); setSlidePlans([]); };
   const deleteConversation = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    deleteSlidePlans(id);
     setConversations(prev => { const u = prev.filter(c => c.id !== id); saveConversations(u); return u; });
     if (activeId === id) newConversation();
   };
