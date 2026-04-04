@@ -2094,7 +2094,7 @@ export const ProjectEditor: React.FC = () => {
             {globalReference && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                 <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>風格參考圖</label>
-                <img src={globalReference} alt="Reference" style={{ width: '120px', height: 'auto', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
+                <img src={globalReference} alt="Reference" style={{ width: '120px', maxHeight: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
               </div>
             )}
 
