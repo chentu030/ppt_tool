@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye } from 'lucide-react';
 import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
@@ -26,6 +26,9 @@ interface SlidePlan {
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 const LS_KEY = 'ai_chat_conversations';
+const LS_SLIDES_KEY = 'ai_slide_plans';
+const loadSlidePlans = (): SlidePlan[] => { try { return JSON.parse(localStorage.getItem(LS_SLIDES_KEY) || '[]'); } catch { return []; } };
+const saveSlidePlans = (plans: SlidePlan[]) => { try { const lite = plans.map(p => ({ ...p, generatedImage: p.generatedImage?.slice(0, 300), templateImage: p.templateImage?.slice(0, 300) })); localStorage.setItem(LS_SLIDES_KEY, JSON.stringify(lite)); } catch { /* quota */ } };
 const loadConversations = (): Conversation[] => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; } };
 const saveConversations = (c: Conversation[]) => {
   const lite = c.map(conv => ({
@@ -91,7 +94,7 @@ export const AIChatPage: React.FC = () => {
   const [rightTab, setRightTab] = useState<'images' | 'files'>('images');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   // Slide plan state
-  const [slidePlans, setSlidePlans] = useState<SlidePlan[]>([]);
+  const [slidePlans, setSlidePlans] = useState<SlidePlan[]>(loadSlidePlans);
   const [isPlanLoading, setIsPlanLoading] = useState(false);
   const [planPageCount, setPlanPageCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,6 +104,11 @@ export const AIChatPage: React.FC = () => {
   const [showAddPages, setShowAddPages] = useState(false);
   const [addPagesCount, setAddPagesCount] = useState(1);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
+  const [slidePlanVisible, setSlidePlanVisible] = useState(false);
+  const [slidePlanHeight, setSlidePlanHeight] = useState(45);
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const dragHandleRef = useRef<{ startY: number; startHeight: number } | null>(null);
   // 429 auto-retry state
   const [retryModal429, setRetryModal429] = useState<{ successCount: number; toRetryIds: string[] } | null>(null);
   const [retryIntervalSec, setRetryIntervalSec] = useState(30);
@@ -147,6 +155,36 @@ export const AIChatPage: React.FC = () => {
       return updated;
     });
   }, [messages]);
+
+  // Persist slide plans & auto-show when plans exist
+  useEffect(() => {
+    saveSlidePlans(slidePlans);
+    if (slidePlans.length > 0) setSlidePlanVisible(true);
+  }, [slidePlans]);
+
+  // Init: auto-show if persisted plans exist
+  useEffect(() => {
+    if (loadSlidePlans().length > 0) {
+      setSlidePlanVisible(true);
+      setActiveSlideId(loadSlidePlans()[0]?.id || null);
+    }
+  }, []);
+
+  // Drag-to-resize slide plan panel
+  const onDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const containerH = (e.currentTarget.closest('[data-chat-center]') as HTMLElement)?.offsetHeight ?? window.innerHeight;
+    dragHandleRef.current = { startY: e.clientY, startHeight: slidePlanHeight };
+    const onMove = (me: MouseEvent) => {
+      if (!dragHandleRef.current) return;
+      const delta = dragHandleRef.current.startY - me.clientY;
+      const deltaVh = (delta / containerH) * 100;
+      setSlidePlanHeight(h => Math.min(85, Math.max(20, dragHandleRef.current!.startHeight + deltaVh)));
+    };
+    const onUp = () => { dragHandleRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [slidePlanHeight]);
 
   // Keep ref in sync for callbacks
   retryModal429Ref.current = retryModal429;
@@ -240,9 +278,13 @@ export const AIChatPage: React.FC = () => {
     if (imageUrl && !imageUrl.startsWith('data:')) { setReferenceImage(await urlToBase64(imageUrl)); } else { setReferenceImage(imageUrl); }
   };
 
-  const buildHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string): GeminiChatMessage[] => {
+  const buildHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string, currentSlides?: SlidePlan[]): GeminiChatMessage[] => {
     let sys = '你是專業設計助手，可以整理文件、規劃圖卡內容、回答問題。用繁體中文回答。不要自己生成圖片，圖片生成由系統另外處理。';
     if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
+    if (currentSlides && currentSlides.length > 0) {
+      const slidesJson = JSON.stringify(currentSlides.map(s => ({ pageNum: s.pageNum, title: s.title, content: s.content })));
+      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改投影片內容，請在回覆末尾附上以下格式（僅包含需要修改的投影片）：\n[SLIDE_UPDATE]\n[{"pageNum":1,"title":"...","content":"..."}]\n[/SLIDE_UPDATE]`;
+    }
     const h: GeminiChatMessage[] = [
       { role: 'user', parts: [{ text: sys }] },
       { role: 'model', parts: [{ text: '好的！我會幫你規劃圖卡內容。請告訴我需求，確認後再由你啟動生成。' }] },
@@ -300,9 +342,27 @@ export const AIChatPage: React.FC = () => {
       const parts: GeminiChatMessage['parts'] = [];
       if (trimmed) parts.push({ text: trimmed });
       for (const a of userMsg.attachments) { const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl; parts.push({ inlineData: { mimeType: a.mimeType, data: b64 } }); }
-      const history = buildHistory(messages, parts, stylePrompt || undefined);
+      const history = buildHistory(messages, parts, stylePrompt || undefined, slidePlans.length > 0 ? slidePlans : undefined);
       const resp = await chatWithGemini(history, apiKey, { generateImage: false }, ctrl.signal);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: [], attachments: [], timestamp: Date.now() }]);
+      // Detect [SLIDE_UPDATE] block in response
+      const updateMatch = resp.text.match(/\[SLIDE_UPDATE\]([\s\S]*?)\[\/SLIDE_UPDATE\]/);
+      let displayText = resp.text;
+      if (updateMatch) {
+        try {
+          const updates = JSON.parse(updateMatch[1].trim()) as { pageNum: number; title?: string; content?: string }[];
+          setSlidePlans(prev => {
+            const updated = [...prev];
+            for (const u of updates) {
+              const idx = updated.findIndex(s => s.pageNum === u.pageNum);
+              if (idx >= 0) { if (u.title !== undefined) updated[idx] = { ...updated[idx], title: u.title }; if (u.content !== undefined) updated[idx] = { ...updated[idx], content: u.content }; }
+            }
+            return updated;
+          });
+          displayText = resp.text.replace(/\[SLIDE_UPDATE\][\s\S]*?\[\/SLIDE_UPDATE\]/g, '').trim();
+          displayText += `\n\n✏️ 已更新 ${updates.length} 頁投影片內容。`;
+        } catch { /* ignore parse error */ }
+      }
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: displayText, images: [], attachments: [], timestamp: Date.now() }]);
       if (isNew && trimmed) {
         generateChatTitle(trimmed, apiKey).then(title => {
           setConversations(prev => { const u = prev.map(c => c.id === convId ? { ...c, title } : c); saveConversations(u); return u; });
@@ -592,33 +652,47 @@ export const AIChatPage: React.FC = () => {
     <div style={{ display: 'flex', height: '100vh', margin: '-1.5rem', overflow: 'hidden' }}>
 
       {/* ── Left Sidebar: History ── */}
-      <div style={{ width: '220px', minWidth: '220px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
-        <div style={{ ...panelHeader, justifyContent: 'space-between' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}><MessageSquare size={14} /> 歷史對話</span>
-          <button onClick={newConversation} title="新對話" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)' }}><Plus size={16} /></button>
+      <div style={{ width: leftSidebarOpen ? '220px' : '36px', minWidth: leftSidebarOpen ? '220px' : '36px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden' }}>
+        <div style={{ ...panelHeader, justifyContent: 'space-between', minWidth: 0 }}>
+          {leftSidebarOpen && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', overflow: 'hidden' }}><MessageSquare size={14} /> 歷史對話</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginLeft: leftSidebarOpen ? 'auto' : 0 }}>
+            {leftSidebarOpen && <button onClick={newConversation} title="新對話" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)' }}><Plus size={15} /></button>}
+            <button onClick={() => setLeftSidebarOpen(o => !o)} title={leftSidebarOpen ? '收起' : '展開歷史'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}>
+              {leftSidebarOpen ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
+            </button>
+          </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.3rem' }}>
-          {conversations.length === 0 && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0.5rem' }}>尚無歷史紀錄</p>}
-          {conversations.map(conv => (
-            <div key={conv.id} onClick={() => loadConversation(conv)}
-              style={{ padding: '0.5rem 0.6rem', borderRadius: '0.4rem', cursor: 'pointer', marginBottom: '2px', background: conv.id === activeId ? 'var(--accent-color)' : 'transparent', color: conv.id === activeId ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem' }}>
-              <div style={{ flex: 1, overflow: 'hidden' }}>
-                <div style={{ fontSize: '0.76rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.title}</div>
-                <div style={{ fontSize: '0.62rem', opacity: 0.7, marginTop: '1px' }}>{new Date(conv.updatedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} · {conv.messages.length} 則</div>
+        {leftSidebarOpen && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.3rem' }}>
+            {conversations.length === 0 && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0.5rem' }}>尚無歷史紀錄</p>}
+            {conversations.map(conv => (
+              <div key={conv.id} onClick={() => loadConversation(conv)}
+                style={{ padding: '0.5rem 0.6rem', borderRadius: '0.4rem', cursor: 'pointer', marginBottom: '2px', background: conv.id === activeId ? 'var(--accent-color)' : 'transparent', color: conv.id === activeId ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem' }}>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <div style={{ fontSize: '0.76rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.title}</div>
+                  <div style={{ fontSize: '0.62rem', opacity: 0.7, marginTop: '1px' }}>{new Date(conv.updatedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} · {conv.messages.length} 則</div>
+                </div>
+                <button onClick={e => deleteConversation(conv.id, e)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: conv.id === activeId ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', flexShrink: 0 }}><Trash2 size={12} /></button>
               </div>
-              <button onClick={e => deleteConversation(conv.id, e)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: conv.id === activeId ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', flexShrink: 0 }}><Trash2 size={12} /></button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Center: Chat ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-secondary)' }}>
+      <div data-chat-center="1" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-secondary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 1rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-primary)' }}>
           <h2 style={{ margin: 0, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
             <Sparkles size={18} color="var(--accent-color)" /> AI 協作
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            {slidePlans.length > 0 && (
+              <button onClick={() => setSlidePlanVisible(v => !v)}
+                title={slidePlanVisible ? '隱藏投影片規劃' : '顯示投影片規劃'}
+                style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', cursor: 'pointer', background: slidePlanVisible ? 'var(--bg-tertiary)' : 'var(--accent-color)', color: slidePlanVisible ? 'var(--text-secondary)' : '#fff', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.2s' }}>
+                {slidePlanVisible ? <EyeOff size={12} /> : <Eye size={12} />} 投影片規劃 ({slidePlans.length})
+              </button>
+            )}
             {referenceImage && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.4rem', fontSize: '0.7rem' }}>
                 <img src={referenceImage} alt="ref" style={{ width: '24px', height: '14px', objectFit: 'cover', borderRadius: '2px' }} />
@@ -678,8 +752,12 @@ export const AIChatPage: React.FC = () => {
         </div>
 
         {/* ── Slide Plan Module (Split View) ── */}
-        {slidePlans.length > 0 && (
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', height: '45vh', minHeight: '300px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: '0 -4px 12px rgba(0,0,0,0.02)' }}>
+        {slidePlans.length > 0 && slidePlanVisible && (
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', height: `${slidePlanHeight}vh`, minHeight: '240px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: '0 -4px 12px rgba(0,0,0,0.02)' }}>
+            {/* Drag handle */}
+            <div onMouseDown={onDragHandleMouseDown} style={{ height: '6px', cursor: 'ns-resize', background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}>
+              <div style={{ width: '32px', height: '3px', borderRadius: '2px', background: 'var(--border-color)' }} />
+            </div>
             {/* Header */}
             <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -711,7 +789,8 @@ export const AIChatPage: React.FC = () => {
                 <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.2rem 0.3rem', fontSize: '0.65rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                   <option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option>
                 </select>
-                <button onClick={() => { setSlidePlans([]); setActiveSlideId(null); }} title="清除全部" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', opacity: 0.6 }}><X size={13} /></button>
+                <button onClick={() => setSlidePlanVisible(false)} title="隱藏規劃框" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', opacity: 0.6 }}><X size={13} /></button>
+                <button onClick={() => { if (window.confirm('確定清除所有投影片規劃？')) { setSlidePlans([]); setActiveSlideId(null); } }} title="清除全部" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: '#e74c3c', opacity: 0.6 }}><Trash2 size={12} /></button>
               </div>
             </div>
 
@@ -859,19 +938,25 @@ export const AIChatPage: React.FC = () => {
       </div>
 
       {/* ── Right Panel: Gallery ── */}
-      <div style={{ width: '300px', minWidth: '300px', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+      <div style={{ width: rightSidebarOpen ? '300px' : '36px', minWidth: rightSidebarOpen ? '300px' : '36px', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', flexShrink: 0, minWidth: 0 }}>
+          <button onClick={() => setRightSidebarOpen(o => !o)} title={rightSidebarOpen ? '收起' : '展開畫廊'}
+            style={{ padding: '0.55rem 0.5rem', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            {rightSidebarOpen ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+          {rightSidebarOpen && <>
           <button onClick={() => setRightTab('images')}
-            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'images' ? 700 : 400, border: 'none', borderBottom: rightTab === 'images' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'images' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'images' ? 700 : 400, border: 'none', borderBottom: rightTab === 'images' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'images' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
             <Images size={13} /> 生成圖片 ({galleryImages.length})
           </button>
           <button onClick={() => setRightTab('files')}
-            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'files' ? 700 : 400, border: 'none', borderBottom: rightTab === 'files' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'files' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'files' ? 700 : 400, border: 'none', borderBottom: rightTab === 'files' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'files' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
             <FileText size={13} /> 檔案 ({allFiles.length})
           </button>
+          </>}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+        {rightSidebarOpen && <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
           {rightTab === 'images' ? (
             galleryImages.length === 0 ? (
               <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0.5rem' }}>使用投影片規劃模塊生成圖片後<br />會顯示在這裡</p>
@@ -927,7 +1012,7 @@ export const AIChatPage: React.FC = () => {
               ))
             )
           )}
-        </div>
+        </div>}
       </div>
 
       {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt="" onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
