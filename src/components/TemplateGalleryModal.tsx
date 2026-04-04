@@ -1,6 +1,7 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
+import { showConfirm } from '../utils/dialog';
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
@@ -448,7 +449,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
     if(result)setCommunityItems(prev=>prev.map(t=>t.id===tid?{...t,avgRating:result.avg,ratingCount:result.count,ratings:{...t.ratings,[auth.currentUser?.uid||'']:score}}:t));
   };
   const handleDeleteCommunity=async(tid:string)=>{
-    if(!confirm('確定要刪除這個社群模板嗎？'))return;
+    if(!await showConfirm('確定要刪除這個社群模板嗎？','刪除確認','刪除','取消'))return;
     const ok=await deleteCommunity(tid);
     if(ok)setCommunityItems(prev=>prev.filter(t=>t.id!==tid));
   };

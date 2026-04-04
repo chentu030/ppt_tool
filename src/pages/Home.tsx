@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { showAlert, showConfirm } from '../utils/dialog';
 import { Plus, LayoutTemplate, Trash2, Edit2, Presentation, BookOpen, FileText, BarChart3, PieChart, Target, Lightbulb, Rocket, Globe, Briefcase, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
@@ -101,7 +102,7 @@ export const Home: React.FC = () => {
       setProjects(projData);
     }, (error) => {
       console.error('[Home] Firestore error:', error.code, error.message);
-      alert(`Firestore error: ${error.code}\n${error.message}\n\nuserId: ${userId}`);
+      showAlert(`Firestore 發生錯誤：${error.code}\n${error.message}`, '錯誤');
     });
     return () => unsubscribe();
   }, [userId]);
@@ -155,7 +156,7 @@ export const Home: React.FC = () => {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    if (!await showConfirm('確定要刪除這個專案嗎？此操作無法復原。', '刪除專案', '刪除', '取消')) return;
     try {
       await deleteDoc(doc(db, 'projects', id));
     } catch (e) {

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { showAlert, showConfirm } from '../utils/dialog';
 import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings } from 'lucide-react';
 import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
@@ -362,7 +363,7 @@ export const AIChatPage: React.FC = () => {
     const files = e.target.files; if (!files) return;
     const arr: Attachment[] = [];
     for (const f of Array.from(files)) {
-      if (f.size > 20 * 1024 * 1024) { alert(`${f.name} 超過 20MB`); continue; }
+      if (f.size > 20 * 1024 * 1024) { showAlert(`${f.name} 超過 20MB，請選擇較小的檔案。`, '檔案過大'); continue; }
       arr.push({ name: f.name, mimeType: f.type || 'application/octet-stream', dataUrl: await fileToDataUrl(f) });
     }
     setAttachments(prev => [...prev, ...arr]);
@@ -487,7 +488,7 @@ export const AIChatPage: React.FC = () => {
 
   // ── Generate slide plan via AI ──
   const handleGeneratePlan = async (pageCount: number) => {
-    if (messages.length === 0) { alert('請先跟 AI 討論要生成的內容'); return; }
+    if (messages.length === 0) { showAlert('請先跟 AI 討論要生成的內容。', '提示'); return; }
     setIsPlanLoading(true);
     try {
       const req = `根據我們的對話內容，請規劃 ${pageCount} 頁簡報，每頁包含標題和內容文字。回覆純 JSON 陣列格式，不要加任何說明：[{"title":"標題","content":"內容文字"}]。內容要具體、簡潔，適合放在投影片上。`;
@@ -724,7 +725,7 @@ export const AIChatPage: React.FC = () => {
   // ── PPTX Export ──
   const handleExportPptx = async () => {
     const images = galleryImages.filter(Boolean);
-    if (images.length === 0) { alert('沒有可匯出的圖片'); return; }
+    if (images.length === 0) { showAlert('沒有可匯出的圖片。', '提示'); return; }
     setIsExporting(true);
     try {
       const pres = new pptxgen();
@@ -736,7 +737,7 @@ export const AIChatPage: React.FC = () => {
       pres.defineLayout({ name: 'AUTO', width: layoutW, height: layoutH }); pres.layout = 'AUTO';
       for (const img of images) { pres.addSlide().addImage({ data: img, x: 0, y: 0, w: layoutW, h: layoutH }); }
       await pres.writeFile({ fileName: `AI_Slides_${Date.now()}.pptx` });
-    } catch (err: any) { alert(`匯出失敗：${err.message}`); }
+    } catch (err: any) { showAlert(`匯出失敗：${err.message}`, '錯誤'); }
     finally { setIsExporting(false); }
   };
 
@@ -991,7 +992,7 @@ export const AIChatPage: React.FC = () => {
                   <option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option>
                 </select>
                 <button onClick={() => setSlidePlanVisible(false)} title="隱藏規劃框" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', opacity: 0.6 }}><X size={13} /></button>
-                <button onClick={() => { if (window.confirm('確定清除所有投影片規劃？')) { setSlidePlans([]); setActiveSlideId(null); } }} title="清除全部" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: '#e74c3c', opacity: 0.6 }}><Trash2 size={12} /></button>
+                <button onClick={async () => { if (await showConfirm('確定清除所有投影片規劃？', '清除確認', '清除', '取消')) { setSlidePlans([]); setActiveSlideId(null); } }} title="清除全部" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: '#e74c3c', opacity: 0.6 }}><Trash2 size={12} /></button>
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { showAlert, showConfirm } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
@@ -336,7 +337,7 @@ export const ProjectEditor: React.FC = () => {
       setPolishedPreview({ slideId, text: polished });
     } catch (err: any) {
       console.error('Polish failed:', err);
-      alert('AI 潤色失敗：' + (err?.message || '未知錯誤'));
+      showAlert('AI 潤色失敗：' + (err?.message || '未知錯誤'), '錯誤');
     } finally {
       setIsPolishing(false);
     }
@@ -630,7 +631,7 @@ export const ProjectEditor: React.FC = () => {
       await deleteDoc(doc(db, 'projects', id, 'slides', slideId));
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('刪除失敗，請稍後再試。');
+      showAlert('刪除失敗，請稍後再試。', '錯誤');
     }
   };
 
@@ -737,7 +738,7 @@ export const ProjectEditor: React.FC = () => {
       setLastBackupTime(new Date());
     } catch (err) {
       console.error('Backup failed:', err);
-      alert('Backup failed. Please try again.');
+      showAlert('備份失敗，請稍後再試。', '錯誤');
     } finally {
       setIsBackingUp(false);
     }
@@ -998,7 +999,7 @@ export const ProjectEditor: React.FC = () => {
       }
       const pages = parseTextIntoPages(rawText);
       if (pages.length === 0) {
-        alert('找不到頁面標記，請確保文件中有「第一頁」、「第二頁」等標示。');
+        showAlert('找不到頁面標記，請確保文件中有「第一頁」、「第二頁」等標示。', '解析失敗');
         return;
       }
       const baseTimestamp = Date.now();
@@ -1019,7 +1020,7 @@ export const ProjectEditor: React.FC = () => {
       setActiveSlideId(newSlideIds[0]);
     } catch (err) {
       console.error(err);
-      alert('解析文件時發生錯誤，請確認檔案格式正確。');
+      showAlert('解析文件時發生錯誤，請確認檔案格式正確。', '錯誤');
     } finally {
       setSavingProgress(null);
     }
@@ -1035,13 +1036,13 @@ export const ProjectEditor: React.FC = () => {
     // In auto-retry mode: only retry the previously-failed slides, skip all other checks
     const isAutoRetry = skipRefCheck && !!autoRetryConfigRef.current;
     if (!isAutoRetry) {
-      if (selectedSlides.size === 0) return alert('Please select at least one slide to modify.');
-      if (!skipRefCheck && !globalReference) return alert('請先上傳風格參考圖片才能開始生成。');
+      if (selectedSlides.size === 0) { showAlert('請先選取至少一張投影片。', '提示'); return; }
+      if (!skipRefCheck && !globalReference) { showAlert('請先上傳風格參考圖片才能開始生成。', '提示'); return; }
       const hasContent = Array.from(selectedSlides).some(sid => {
         const s = slides.find(sl => sl.id === sid);
         return s?.originalImage || s?.prompt;
       });
-      if (!hasContent) return alert('Please upload a PPT, image, or Word/TXT file first before generating.');
+      if (!hasContent) { showAlert('請先上傳 PPT、圖片或 Word/TXT 檔案再開始生成。', '提示'); return; }
     }
 
     const abort = new AbortController();
@@ -1660,7 +1661,7 @@ export const ProjectEditor: React.FC = () => {
                     const res = await fetch(`${backendUrl}/upload-ppt/`, { method: "POST", body: formData });
                     if (!res.ok) throw new Error("Failed to parse PPT.");
                     const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
-                    if (totalSlidesReturned === 0) { alert("No slides found."); clearInterval(progressInterval); setParsingProgress(null); return; }
+                    if (totalSlidesReturned === 0) { showAlert('找不到投影片，請確認 PPT 檔案格式正確。', '錯誤'); clearInterval(progressInterval); setParsingProgress(null); return; }
                     clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
                     await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
                     setSavingProgress({ current: 0, total: totalSlidesReturned });
@@ -1678,7 +1679,7 @@ export const ProjectEditor: React.FC = () => {
                     allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPrompt, status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
                     await fb.commit();
                     setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
-                  } catch (err) { console.error(err); alert("Error saving PPT."); }
+                  } catch (err) { console.error(err); showAlert('儲存 PPT 時發生錯誤。', '錯誤'); }
                   finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
                 }} />
               </label>

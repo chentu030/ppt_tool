@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { showAlert } from '../utils/dialog';
 
 const USD_TO_TWD = 32;
 const tw = (usd: number) => `NT$${(usd * USD_TO_TWD).toFixed(1)}`;
@@ -43,7 +44,7 @@ export const Settings: React.FC = () => {
     }
   }, [theme]);
 
-  const doSave = (saveKey: boolean) => {
+  const doSave = async (saveKey: boolean) => {
     localStorage.setItem('theme', theme);
     if (saveKey) {
       localStorage.setItem('geminiApiKey', apiKey);
@@ -53,7 +54,7 @@ export const Settings: React.FC = () => {
     localStorage.setItem('vertexModel', model);
     localStorage.setItem('geminiModel', model);
     setShowPricingModal(false);
-    alert(saveKey ? '設定已儲存！將使用您自己的 Gemini API Key。' : '設定已儲存！將使用預設 Vertex API（您的 API Key 未啟用）。');
+    await showAlert(saveKey ? '設定已儲存！將使用您自己的 Gemini API Key。' : '設定已儲存！將使用預設 Vertex API（您的 API Key 未啟用）。', '設定已儲存');
   };
 
   const handleSaveConfigs = () => {
@@ -64,7 +65,7 @@ export const Settings: React.FC = () => {
       setShowPricingModal(true);
     } else {
       localStorage.removeItem('geminiApiKey');
-      alert('設定已儲存！將使用預設 Vertex API。');
+      showAlert('設定已儲存！將使用預設 Vertex API。', '設定已儲存');
     }
   };
 

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import DialogProvider from './components/ui/DialogProvider';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Landing } from './pages/Landing';
@@ -17,6 +18,7 @@ function App() {
   }, []);
 
   return (
+    <DialogProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
@@ -30,6 +32,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </DialogProvider>
   )
 }
 
