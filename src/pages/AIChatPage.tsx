@@ -198,6 +198,36 @@ export const AIChatPage: React.FC = () => {
     if (slidePlans.length > 0) setSlidePlanVisible(true);
   }, [slidePlans]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Debounced sync: when user edits style settings, update matching styleRefHistory entry
+  useEffect(() => {
+    if (!referenceImage) return;
+    const timer = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem('styleRefHistory');
+        if (!raw) return;
+        const history = JSON.parse(raw) as Array<{ imageUrl: string; settings: Record<string, string>; resolvedExtraPrompt: string | null; [key: string]: unknown }>;
+        const idx = history.findIndex(h => h.imageUrl === referenceImage);
+        if (idx < 0) return;
+        const merged = {
+          ...(history[idx].settings || {}),
+          ...(fontFamily     ? { fontFamily }     : {}),
+          ...(mainColor      ? { mainColor }      : {}),
+          ...(highlightColor ? { highlightColor } : {}),
+          ...(specialMark    ? { specialMark }    : {}),
+          ...(bgColor        ? { backgroundColor: bgColor } : {}),
+          ...(stylePrompt    ? { extraPrompt: stylePrompt } : {}),
+        };
+        history[idx] = {
+          ...history[idx],
+          settings: merged,
+          resolvedExtraPrompt: stylePrompt || history[idx].resolvedExtraPrompt,
+        };
+        localStorage.setItem('styleRefHistory', JSON.stringify(history));
+      } catch { /* ignore */ }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [referenceImage, fontFamily, mainColor, highlightColor, specialMark, bgColor, stylePrompt]);
+
   // Load slide plans when active conversation changes
   useEffect(() => {
     const plans = loadSlidePlans(activeId);
