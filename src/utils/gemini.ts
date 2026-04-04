@@ -20,18 +20,23 @@ export const transformSlideText = async (
   title: string,
   operation: TransformOp,
   apiKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  conversationContext?: string
 ): Promise<string> => {
   const useGrounding = operation === 'grounding';
   const modelName = useGrounding ? 'gemini-2.5-flash-preview-05-20' : 'gemini-3-flash-preview';
 
+  const ctxBlock = conversationContext
+    ? `\n\n【參考資料（來自使用者上傳的原始文件與對話）】\n${conversationContext.slice(0, 6000)}\n【參考資料結束】`
+    : '';
+
   const prompts: Record<TransformOp, string> = {
-    expand: `你是專業簡報撰寫師。請將以下投影片內容擴展得更豐富、詳細，加入具體說明、數據或例子，保持條理清晰，適合投影片呈現。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳擴展後的文字，不要加任何說明或前綴。`,
-    shorten: `你是專業簡報撰寫師。請將以下投影片內容精簡至最核心的重點，刪除冗餘文字，保留最關鍵資訊，適合投影片簡潔呈現。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳精簡後的文字，不要加任何說明或前綴。`,
-    'tone-formal': `你是專業簡報撰寫師。請將以下投影片內容改寫為正式、專業的商業語氣，用詞嚴謹、客觀。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
-    'tone-casual': `你是專業簡報撰寫師。請將以下投影片內容改寫為輕鬆、平易近人的語氣，讓讀者容易理解。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
-    'tone-academic': `你是專業簡報撰寫師。請將以下投影片內容改寫為學術研究風格，使用客觀、嚴謹的論述方式，適合學術報告。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
-    grounding: `你是專業簡報撰寫師。請根據以下投影片標題，搜尋相關最新資訊，並將原始內容擴充，加入具體數據、統計數字或最新動態，讓內容更有說服力。\n\n標題：${title}\n原始內容：${content}\n\n請直接回傳擴充後的文字，不要加任何說明或前綴。`,
+    expand: `你是專業簡報撰寫師。請根據以下【參考資料】（若有）以及投影片現有內容，將內容擴展得更豐富、詳細，加入具體說明、數據或例子，保持條理清晰，適合投影片呈現。優先使用參考資料中的具體資訊。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳擴展後的文字，不要加任何說明或前綴。`,
+    shorten: `你是專業簡報撰寫師。請將以下投影片內容精簡至最核心的重點，刪除冗餘文字，保留最關鍵資訊，適合投影片簡潔呈現。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳精簡後的文字，不要加任何說明或前綴。`,
+    'tone-formal': `你是專業簡報撰寫師。請將以下投影片內容改寫為正式、專業的商業語氣，用詞嚴謹、客觀。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
+    'tone-casual': `你是專業簡報撰寫師。請將以下投影片內容改寫為輕鬆、平易近人的語氣，讓讀者容易理解。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
+    'tone-academic': `你是專業簡報撰寫師。請將以下投影片內容改寫為學術研究風格，使用客觀、嚴謹的論述方式，適合學術報告。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳改寫後的文字，不要加任何說明或前綴。`,
+    grounding: `你是專業簡報撰寫師。請根據以下投影片標題，搜尋相關最新資訊，並將原始內容擴充，加入具體數據、統計數字或最新動態，讓內容更有說服力。${ctxBlock}\n\n標題：${title}\n現有內容：${content}\n\n請直接回傳擴充後的文字，不要加任何說明或前綴。`,
   };
 
   const requestBody: any = {

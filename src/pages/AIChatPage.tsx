@@ -525,7 +525,19 @@ export const AIChatPage: React.FC = () => {
     setIsContentProcessing(true);
     setShowToneMenu(false);
     try {
-      const result = await transformSlideText(slide.content, slide.title, operation, apiKey);
+      // Build conversation context from text messages (exclude binary attachments to save tokens)
+      const ctxParts: string[] = [];
+      for (const m of messages) {
+        if (m.text) ctxParts.push(`[${m.role === 'user' ? '使用者' : 'AI'}]: ${m.text}`);
+        for (const a of m.attachments) {
+          // Only include text-based attachments (skip images)
+          if (a.mimeType.startsWith('text/') || a.mimeType.includes('word') || a.mimeType.includes('document')) {
+            ctxParts.push(`[附件 ${a.name}]: (二進位檔，內容已在對話中討論)`);
+          }
+        }
+      }
+      const conversationContext = ctxParts.join('\n').slice(0, 8000);
+      const result = await transformSlideText(slide.content, slide.title, operation, apiKey, undefined, conversationContext || undefined);
       if (result) updateSlidePlan(slideId, 'content', result);
     } catch (err: any) {
       showAlert('處理失敗：' + (err?.message || '未知錯誤'), '錯誤');
