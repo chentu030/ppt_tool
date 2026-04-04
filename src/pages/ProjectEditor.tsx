@@ -1527,7 +1527,7 @@ export const ProjectEditor: React.FC = () => {
               <button onClick={handleBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
                 <ArrowLeft size={15} />
               </button>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>專案編輯器</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>回到專案列表</span>
             </>
           )}
         </div>
@@ -1728,7 +1728,7 @@ export const ProjectEditor: React.FC = () => {
                 value={globalExtraPrompt}
                 onChange={e => setGlobalExtraPrompt(e.target.value)}
                 placeholder="額外指令（選填）"
-                rows={3}
+                rows={6}
                 style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.3rem', outline: 'none', fontSize: '0.75rem', color: 'var(--text-primary)', padding: '0.4rem 0.5rem', resize: 'vertical', fontFamily: 'inherit' }}
               />
             </div>
