@@ -104,6 +104,7 @@ export const AIChatPage: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceImageOriginalUrl, setReferenceImageOriginalUrl] = useState<string | null>(null);
   const [referenceLabel, setReferenceLabel] = useState('');
   const [stylePrompt, setStylePrompt] = useState('');
   const [fontFamily, setFontFamily] = useState('');
@@ -200,13 +201,14 @@ export const AIChatPage: React.FC = () => {
 
   // Debounced sync: when user edits style settings, update matching styleRefHistory entry
   useEffect(() => {
-    if (!referenceImage) return;
+    const matchUrl = referenceImageOriginalUrl || referenceImage;
+    if (!matchUrl) return;
     const timer = setTimeout(() => {
       try {
         const raw = localStorage.getItem('styleRefHistory');
         if (!raw) return;
         const history = JSON.parse(raw) as Array<{ imageUrl: string; settings: Record<string, string>; resolvedExtraPrompt: string | null; [key: string]: unknown }>;
-        const idx = history.findIndex(h => h.imageUrl === referenceImage);
+        const idx = history.findIndex(h => h.imageUrl === matchUrl);
         if (idx < 0) return;
         const merged = {
           ...(history[idx].settings || {}),
@@ -226,7 +228,7 @@ export const AIChatPage: React.FC = () => {
       } catch { /* ignore */ }
     }, 800);
     return () => clearTimeout(timer);
-  }, [referenceImage, fontFamily, mainColor, highlightColor, specialMark, bgColor, stylePrompt]);
+  }, [referenceImageOriginalUrl, referenceImage, fontFamily, mainColor, highlightColor, specialMark, bgColor, stylePrompt]);
 
   // Load slide plans when active conversation changes
   useEffect(() => {
@@ -425,6 +427,7 @@ export const AIChatPage: React.FC = () => {
     }
     setReferenceLabel([settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇');
     if (resolvedExtraPrompt !== null) setStylePrompt(resolvedExtraPrompt);
+    setReferenceImageOriginalUrl(imageUrl || null);
     if (imageUrl && !imageUrl.startsWith('data:')) { setReferenceImage(await urlToBase64(imageUrl)); } else { setReferenceImage(imageUrl); }
   };
 
@@ -1404,7 +1407,7 @@ export const AIChatPage: React.FC = () => {
         </div>
       </div>
 
-      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt={stylePrompt} onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
+      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt={stylePrompt} currentImageUrl={referenceImageOriginalUrl || referenceImage} currentSettings={{ fontFamily, mainColor, highlightColor, specialMark, backgroundColor: bgColor }} onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
 
       {/* Auto-retry countdown banner */}
       {autoRetryStatus && (
