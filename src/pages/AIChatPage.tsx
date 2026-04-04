@@ -34,7 +34,15 @@ interface SlideOperation {
 const LS_KEY = 'ai_chat_conversations';
 const slidesKey = (id: string | null) => id ? `ai_slide_plans_${id}` : null;
 const loadSlidePlans = (id: string | null): SlidePlan[] => { const k = slidesKey(id); if (!k) return []; try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
-const saveSlidePlans = (plans: SlidePlan[], id: string | null) => { const k = slidesKey(id); if (!k) return; try { const lite = plans.map(p => ({ ...p, generatedImage: p.generatedImage?.slice(0, 300), templateImage: p.templateImage?.slice(0, 300) })); localStorage.setItem(k, JSON.stringify(lite)); } catch { /* quota */ } };
+const saveSlidePlans = (plans: SlidePlan[], id: string | null) => {
+  const k = slidesKey(id); if (!k) return;
+  try { localStorage.setItem(k, JSON.stringify(plans)); }
+  catch {
+    // Quota exceeded — retry without generatedImage (largest field)
+    try { localStorage.setItem(k, JSON.stringify(plans.map(p => ({ ...p, generatedImage: undefined })))); }
+    catch { /* still too big, give up */ }
+  }
+};
 const deleteSlidePlans = (id: string) => { try { localStorage.removeItem(`ai_slide_plans_${id}`); } catch { /* ignore */ } };
 const loadConversations = (): Conversation[] => { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; } };
 const saveConversations = (c: Conversation[]) => {
