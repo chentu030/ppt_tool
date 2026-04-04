@@ -1835,24 +1835,6 @@ export const ProjectEditor: React.FC = () => {
         {previewOpen && (<>
           {/* Left Sidebar */}
           <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
-            {/* Reference Style */}
-            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '1rem' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Reference Style <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 400 }}>(選填)</span></span>
-                {globalReference && <Button variant="ghost" size="sm" onClick={() => setGlobalReference(null)} style={{ padding: 0 }}><X size={16}/></Button>}
-              </h3>
-              {globalReference ? (
-                <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                  <img src={globalReference} alt="Reference" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              ) : (
-                <button onClick={() => setShowTemplateGallery(true)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '2rem 1rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-secondary)', background: 'var(--bg-secondary)' }}>
-                  <ImageIcon size={24} style={{ marginBottom: '0.5rem' }} />
-                  <span style={{ fontSize: '0.875rem' }}>選擇/上傳風格圖</span>
-                </button>
-              )}
-            </div>
-
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
@@ -1923,52 +1905,6 @@ export const ProjectEditor: React.FC = () => {
                 </div>
               );
             })()}
-
-            {/* PPT Upload Area */}
-            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '1rem' }}>
-              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Import PowerPoint</h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>Turn a .pptx into image slides instantly.</p>
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', fontWeight: 500, opacity: (parsingProgress || savingProgress) ? 0.9 : 1, position: 'relative', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)' }}>
-                {parsingProgress && (<div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${Math.max(5, (parsingProgress.current / parsingProgress.total) * 100)}%`, backgroundColor: 'rgba(59, 130, 246, 0.15)', transition: 'width 0.4s ease-out', zIndex: 0 }} />)}
-                <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {parsingProgress ? (<><Sparkles size={18} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /><span>轉換中：第 {parsingProgress.current} 張 / 共 {parsingProgress.total} 張</span></>) : savingProgress ? (<><Sparkles size={18} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /><span>儲存中：第 {savingProgress.current} 張 / 共 {savingProgress.total} 張</span></>) : (<><Plus size={18} /><span>Upload Base PPT</span></>)}
-                </div>
-                <input type="file" accept=".pptx" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file || !id) return;
-                  let exactTotalSlides = 1;
-                  try { const zip = new JSZip(); const content = await zip.loadAsync(file); const slideFiles = Object.keys(content.files).filter(name => name.startsWith('ppt/slides/slide') && name.endsWith('.xml')); if (slideFiles.length > 0) exactTotalSlides = slideFiles.length; } catch(err) { console.warn("Failed to pre-parse slide count"); }
-                  setParsingProgress({ current: 0, total: exactTotalSlides });
-                  const progressInterval = setInterval(() => { setParsingProgress(prev => { if (!prev) return prev; const next = prev.current + 1; return { ...prev, current: next >= prev.total ? prev.total - 1 : next }; }); }, 2000);
-                  try {
-                    const formData = new FormData(); formData.append("file", file);
-                    const backendUrl = localStorage.getItem("backendUrl") || import.meta.env.VITE_BACKEND_URL || '';
-                    const res = await fetch(`${backendUrl}/upload-ppt/`, { method: "POST", body: formData });
-                    if (!res.ok) throw new Error("Failed to parse PPT.");
-                    const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
-                    if (totalSlidesReturned === 0) { alert("No slides found."); clearInterval(progressInterval); setParsingProgress(null); return; }
-                    clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
-                    await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
-                    setSavingProgress({ current: 0, total: totalSlidesReturned });
-                    const newSlideIds: string[] = []; const baseTimestamp = Date.now();
-                    setSavingProgress({ current: 0, total: totalSlidesReturned });
-                    const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
-                    const UPLOAD_CONCURRENCY = 4;
-                    for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
-                      const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
-                      const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
-                      allUploadResults.push(...chunkRes);
-                      setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
-                    }
-                    const fb = writeBatch(db);
-                    allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPrompt, status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
-                    await fb.commit();
-                    setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
-                  } catch (err) { console.error(err); alert("Error saving PPT."); }
-                  finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
-                }} />
-              </label>
-            </div>
 
             {/* Slides List - sidebar mode */}
             <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
