@@ -450,66 +450,66 @@ export const AIChatPage: React.FC = () => {
               <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> AI 正在規劃投影片內容…
             </div>
           )}
-
-          {/* ── Slide Plan Module ── */}
-          {slidePlans.length > 0 && (
-            <div style={{ border: '2px solid var(--accent-color)', borderRadius: '0.75rem', overflow: 'hidden', background: 'var(--bg-primary)' }}>
-              <div style={{ padding: '0.6rem 0.8rem', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Edit3 size={14} /> 投影片內容規劃 ({slidePlans.length} 頁)</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.2rem 0.3rem', fontSize: '0.68rem', borderRadius: '0.25rem', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
-                    <option value="16:9" style={{ color: '#000' }}>16:9</option><option value="1:1" style={{ color: '#000' }}>1:1</option><option value="9:16" style={{ color: '#000' }}>9:16</option><option value="4:3" style={{ color: '#000' }}>4:3</option>
-                  </select>
-                  <button onClick={() => setSlidePlans([])} title="清除規劃" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'rgba(255,255,255,0.7)' }}><X size={14} /></button>
-                </div>
-              </div>
-              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                {slidePlans.map((slide, idx) => (
-                  <div key={slide.id} style={{ padding: '0.6rem 0.8rem', borderBottom: idx < slidePlans.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', gap: '0.5rem' }}>
-                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, marginTop: '0.15rem' }}>{slide.pageNum}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <input value={slide.title} onChange={e => updateSlidePlan(slide.id, 'title', e.target.value)} placeholder="標題" disabled={isGenerating}
-                        style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.78rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', marginBottom: '0.3rem', boxSizing: 'border-box' }} />
-                      <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="內容文字" disabled={isGenerating} rows={2}
-                        style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.74rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.25rem' }}>
-                        <button onClick={() => { setTemplateTargetSlide(slide.id); setShowTemplateGallery(true); }}
-                          style={{ padding: '0.2rem 0.45rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'var(--bg-secondary)', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                          <ImageIcon size={10} /> {slide.templateLabel || '選擇模板'}
-                        </button>
-                        {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '20px', borderRadius: '2px', border: '1px solid var(--border-color)' }} />}
-                        {slide.generatedImage && (
-                          <span style={{ fontSize: '0.62rem', color: '#27ae60', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>✓ 已生成</span>
-                        )}
-                      </div>
-                    </div>
-                    {slide.generatedImage && (
-                      <img src={slide.generatedImage} alt={`第${slide.pageNum}頁`} onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '0.25rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', flexShrink: 0, alignSelf: 'center' }} />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: '0.5rem 0.8rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-secondary)' }}>
-                {isGenerating ? (
-                  <>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <div style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> 生成中 {genProgress.current}/{genProgress.total}</div>
-                      <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}><div style={{ height: '100%', background: 'var(--accent-color)', width: `${(genProgress.current / genProgress.total) * 100}%`, transition: 'width 0.3s' }} /></div>
-                    </div>
-                    <button onClick={stopGenerating} style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', border: '1px solid #e74c3c', borderRadius: '0.3rem', cursor: 'pointer', background: 'none', color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '0.2rem', whiteSpace: 'nowrap' }}><Square size={11} /> 停止</button>
-                  </>
-                ) : (
-                  <button onClick={handleGenerateFromPlan}
-                    style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', fontWeight: 700, border: 'none', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-                    <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
           <div ref={messagesEndRef} />
         </div>
+
+        {/* ── Slide Plan Module (outside scroll area, always visible) ── */}
+        {slidePlans.length > 0 && (
+          <div style={{ borderTop: '2px solid var(--accent-color)', flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: '50vh' }}>
+            <div style={{ padding: '0.5rem 0.8rem', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Edit3 size={14} /> 投影片內容規劃 ({slidePlans.length} 頁)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <button onClick={() => { const c = parseInt(prompt('新增幾頁？', '1') || '0'); if (c > 0) setSlidePlans(prev => [...prev, ...Array.from({ length: c }, (_, i) => ({ id: `slide-${Date.now()}-${prev.length + i}`, pageNum: prev.length + i + 1, title: '', content: '' }))]); }}
+                  style={{ padding: '0.15rem 0.35rem', fontSize: '0.62rem', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '0.2rem', cursor: 'pointer', background: 'rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.15rem' }}><Plus size={10} /> 新增頁</button>
+                <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.15rem 0.25rem', fontSize: '0.65rem', borderRadius: '0.2rem', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
+                  <option value="16:9" style={{ color: '#000' }}>16:9</option><option value="1:1" style={{ color: '#000' }}>1:1</option><option value="9:16" style={{ color: '#000' }}>9:16</option><option value="4:3" style={{ color: '#000' }}>4:3</option>
+                </select>
+                <button onClick={() => setSlidePlans([])} title="清除規劃" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'rgba(255,255,255,0.7)' }}><X size={14} /></button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              {slidePlans.map((slide, idx) => (
+                <div key={slide.id} style={{ padding: '0.5rem 0.8rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0, marginTop: '0.2rem' }}>{slide.pageNum}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input value={slide.title} onChange={e => updateSlidePlan(slide.id, 'title', e.target.value)} placeholder="標題" disabled={isGenerating}
+                      style={{ width: '100%', padding: '0.25rem 0.4rem', fontSize: '0.76rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', marginBottom: '0.2rem', boxSizing: 'border-box' }} />
+                    <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="內容文字" disabled={isGenerating} rows={2}
+                      style={{ width: '100%', padding: '0.25rem 0.4rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, boxSizing: 'border-box' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
+                      <button onClick={() => { setTemplateTargetSlide(slide.id); setShowTemplateGallery(true); }}
+                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.62rem', border: '1px solid var(--border-color)', borderRadius: '0.2rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'var(--bg-secondary)', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                        <ImageIcon size={10} /> {slide.templateLabel || '選擇模板'}
+                      </button>
+                      {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '18px', borderRadius: '2px', border: '1px solid var(--border-color)' }} />}
+                      <button onClick={() => setSlidePlans(prev => { const arr = prev.filter(s => s.id !== slide.id); return arr.map((s, i) => ({ ...s, pageNum: i + 1 })); })} title="刪除此頁" disabled={isGenerating}
+                        style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', opacity: isGenerating ? 0.3 : 0.6 }}><Trash2 size={11} /></button>
+                    </div>
+                  </div>
+                  {slide.generatedImage && (
+                    <img src={slide.generatedImage} alt={`第${slide.pageNum}頁`} onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '56px', height: '36px', objectFit: 'cover', borderRadius: '0.2rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', flexShrink: 0, alignSelf: 'center' }} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '0.4rem 0.8rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+              {isGenerating ? (
+                <>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <div style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> 生成中 {genProgress.current}/{genProgress.total}</div>
+                    <div style={{ height: '3px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}><div style={{ height: '100%', background: 'var(--accent-color)', width: `${(genProgress.current / genProgress.total) * 100}%`, transition: 'width 0.3s' }} /></div>
+                  </div>
+                  <button onClick={stopGenerating} style={{ padding: '0.25rem 0.5rem', fontSize: '0.68rem', border: '1px solid #e74c3c', borderRadius: '0.25rem', cursor: 'pointer', background: 'none', color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '0.15rem', whiteSpace: 'nowrap' }}><Square size={11} /> 停止</button>
+                </>
+              ) : (
+                <button onClick={handleGenerateFromPlan}
+                  style={{ flex: 1, padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                  <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Pending attachments */}
         {attachments.length > 0 && (
