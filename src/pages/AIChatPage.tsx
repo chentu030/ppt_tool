@@ -325,7 +325,7 @@ export const AIChatPage: React.FC = () => {
     if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
     if (currentSlides && currentSlides.length > 0) {
       const slidesJson = JSON.stringify(currentSlides.map(s => ({ pageNum: s.pageNum, title: s.title, content: s.content })));
-      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改投影片內容，請在回覆末尾附上以下格式（僅包含需要修改的投影片）：\n[SLIDE_UPDATE]\n[{"pageNum":1,"title":"...","content":"..."}]\n[/SLIDE_UPDATE]`;
+      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改或擴充投影片，請在回覆末尾附上以下格式（包含所有需要新增或修改的投影片，新增的頁面 pageNum 要大於現有最大頁碼）：\n[SLIDE_UPDATE]\n[{"pageNum":1,"title":"...","content":"..."}]\n[/SLIDE_UPDATE]\n注意：新增頁面時 pageNum 必須連續遞增，不能重複現有頁碼。`;
     }
     const h: GeminiChatMessage[] = [
       { role: 'user', parts: [{ text: sys }] },
@@ -392,16 +392,28 @@ export const AIChatPage: React.FC = () => {
       if (updateMatch) {
         try {
           const updates = JSON.parse(updateMatch[1].trim()) as { pageNum: number; title?: string; content?: string }[];
+          // Compute counts based on current slidePlans snapshot (captured in closure)
+          const existingNums = new Set(slidePlans.map(s => s.pageNum));
+          const updatedCount = updates.filter(u => existingNums.has(u.pageNum)).length;
+          const addedCount = updates.filter(u => !existingNums.has(u.pageNum)).length;
           setSlidePlans(prev => {
-            const updated = [...prev];
+            const result = [...prev];
             for (const u of updates) {
-              const idx = updated.findIndex(s => s.pageNum === u.pageNum);
-              if (idx >= 0) { if (u.title !== undefined) updated[idx] = { ...updated[idx], title: u.title }; if (u.content !== undefined) updated[idx] = { ...updated[idx], content: u.content }; }
+              const idx = result.findIndex(s => s.pageNum === u.pageNum);
+              if (idx >= 0) {
+                if (u.title !== undefined) result[idx] = { ...result[idx], title: u.title };
+                if (u.content !== undefined) result[idx] = { ...result[idx], content: u.content };
+              } else {
+                result.push({ id: `slide-${Date.now()}-${u.pageNum}`, pageNum: u.pageNum, title: u.title || '', content: u.content || '' });
+              }
             }
-            return updated;
+            return result.sort((a, b) => a.pageNum - b.pageNum);
           });
           displayText = resp.text.replace(/\[SLIDE_UPDATE\][\s\S]*?\[\/SLIDE_UPDATE\]/g, '').trim();
-          displayText += `\n\n✏️ 已更新 ${updates.length} 頁投影片內容。`;
+          const summaryParts: string[] = [];
+          if (updatedCount > 0) summaryParts.push(`更新 ${updatedCount} 頁`);
+          if (addedCount > 0) summaryParts.push(`新增 ${addedCount} 頁`);
+          displayText += `\n\n✏️ 已${summaryParts.join('、')}投影片內容。`;
         } catch { /* ignore parse error */ }
       }
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: displayText, images: [], attachments: [], timestamp: Date.now() }]);
