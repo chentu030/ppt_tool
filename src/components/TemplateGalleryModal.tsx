@@ -1,8 +1,8 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, Upload, Sparkles, Loader, Star, Clock, Users } from 'lucide-react';
+import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 import { db, auth, storage } from '../firebase';
-import { doc, getDoc, setDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
 
 export interface TemplateSettings {
@@ -143,6 +143,12 @@ async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|nul
   }catch(err){console.warn('[Firebase] templateGallery load failed:',err);return null;}
 }
 
+async function deleteCommunity(tid:string):Promise<boolean>{
+  try{await deleteDoc(doc(db,'sharedTemplates',tid));return true;}catch(err){console.warn('[community] delete failed:',err);return false;}
+}
+async function updateCommunity(tid:string,data:Partial<SharedTemplate>):Promise<boolean>{
+  try{await updateDoc(doc(db,'sharedTemplates',tid),data);return true;}catch(err){console.warn('[community] update failed:',err);return false;}
+}
 async function loadCommunity():Promise<SharedTemplate[]>{
   try{
     const snap=await getDocs(collection(db,'sharedTemplates'));
@@ -205,6 +211,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
 
   const [communityItems,setCommunityItems]=useState<SharedTemplate[]>([]);
   const [communityLoading,setCommunityLoading]=useState(false);
+  const [editingCommunity,setEditingCommunity]=useState<{id:string;label:string;settings:TemplateSettings}|null>(null);
   const [conflictPending,setConflictPending]=useState<{imageUrl:string;settings:TemplateSettings;label:string}|null>(null);
   const [geminiPending,setGeminiPending]=useState<{imageUrl:string;existingSettings:TemplateSettings|null;label:string}|null>(null);
   const [isAnalyzing,setIsAnalyzing]=useState(false);
@@ -418,6 +425,22 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
     const result=await rateCommunity(tid,score);
     if(result)setCommunityItems(prev=>prev.map(t=>t.id===tid?{...t,avgRating:result.avg,ratingCount:result.count,ratings:{...t.ratings,[auth.currentUser?.uid||'']:score}}:t));
   };
+  const handleDeleteCommunity=async(tid:string)=>{
+    if(!confirm('確定要刪除這個社群模板嗎？'))return;
+    const ok=await deleteCommunity(tid);
+    if(ok)setCommunityItems(prev=>prev.filter(t=>t.id!==tid));
+  };
+  const handleEditCommunity=(t:SharedTemplate)=>{
+    setEditingCommunity({id:t.id,label:t.label,settings:{...t.settings}});
+  };
+  const handleSaveEditCommunity=async()=>{
+    if(!editingCommunity)return;
+    const ok=await updateCommunity(editingCommunity.id,{label:editingCommunity.label,settings:editingCommunity.settings});
+    if(ok){
+      setCommunityItems(prev=>prev.map(t=>t.id===editingCommunity.id?{...t,label:editingCommunity.label,settings:editingCommunity.settings}:t));
+      setEditingCommunity(null);
+    }
+  };
   const toggleStar=(id:string,e:React.MouseEvent)=>{
     e.stopPropagation();
     setStarred(prev=>{
@@ -458,6 +481,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
 
   const renderCommunityCard=(t:SharedTemplate)=>{
     const uid=auth.currentUser?.uid||'';
+    const isOwner=t.userId===uid;
     const myRating=t.ratings?.[uid]||0;
     const displayRating=myRating||Math.round(t.avgRating||0);
     return(
@@ -470,9 +494,9 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
             <img src={t.referenceUrl} alt={t.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
           </button>
           {t.resultUrls?.length>0&&(
-            <div style={{display:'flex',gap:'2px',padding:'2px',background:'var(--bg-tertiary)'}}>
+            <div style={{display:'flex',flexDirection:'row',gap:'3px',padding:'3px',background:'var(--bg-tertiary)',overflowX:'auto'}}>
               {t.resultUrls.slice(0,3).map((url,i)=>(
-                <img key={i} src={url} alt={`result ${i}`} style={{flex:1,height:'45px',objectFit:'cover',borderRadius:'2px'}}/>
+                <img key={i} src={url} alt={`效果 ${i+1}`} style={{flex:'1 1 0',minWidth:0,height:'auto',aspectRatio:'16/9',objectFit:'cover',borderRadius:'3px',display:'block'}}/>
               ))}
             </div>
           )}
@@ -484,16 +508,24 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
             {t.settings&&<div style={{color:'var(--text-secondary)',marginTop:'0.15rem',fontSize:'0.65rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
               {t.settings.fontFamily}{t.settings.highlightColor?` · ${t.settings.highlightColor}`:''}{t.settings.backgroundColor?` · ${t.settings.backgroundColor}`:''}
             </div>}
-            <div style={{display:'flex',alignItems:'center',gap:'0.15rem',marginTop:'0.25rem'}}>
-              {[1,2,3,4,5].map(s=>(
-                <Star key={s} size={13}
-                  fill={s<=displayRating?'#f6c90e':'none'}
-                  color={s<=displayRating?'#f6c90e':'var(--border-color)'}
-                  style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();handleRate(t.id,s);}}/>
-              ))}
-              <span style={{fontSize:'0.65rem',color:'var(--text-secondary)',marginLeft:'0.2rem'}}>
-                {t.avgRating?.toFixed(1)||'–'} ({t.ratingCount||0})
-              </span>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'0.25rem'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'0.15rem'}}>
+                {[1,2,3,4,5].map(s=>(
+                  <Star key={s} size={13}
+                    fill={s<=displayRating?'#f6c90e':'none'}
+                    color={s<=displayRating?'#f6c90e':'var(--border-color)'}
+                    style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();handleRate(t.id,s);}}/>
+                ))}
+                <span style={{fontSize:'0.65rem',color:'var(--text-secondary)',marginLeft:'0.2rem'}}>
+                  {t.avgRating?.toFixed(1)||'–'} ({t.ratingCount||0})
+                </span>
+              </div>
+              {isOwner&&(
+                <div style={{display:'flex',gap:'0.25rem'}}>
+                  <button onClick={e=>{e.stopPropagation();handleEditCommunity(t);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'var(--text-secondary)'}} title="編輯"><Pencil size={12}/></button>
+                  <button onClick={e=>{e.stopPropagation();handleDeleteCommunity(t.id);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'#e53e3e'}} title="刪除"><Trash2 size={12}/></button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -598,6 +630,49 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
               <button onClick={()=>resolveConflict('replace')} style={btnStyle('var(--accent-color)','#fff')}>取代</button>
               <button onClick={()=>resolveConflict('merge')}   style={btnStyle('var(--bg-primary)','var(--text-primary)')}>合併</button>
               <button onClick={()=>resolveConflict('keep')}    style={btnStyle('var(--bg-primary)','var(--text-secondary)')}>保留原本</button>
+            </div>
+          </div>
+        )}
+
+        {/* Edit community template */}
+        {editingCommunity&&(
+          <div style={{padding:'0.85rem 1.25rem',background:'var(--bg-secondary)',borderBottom:'1px solid var(--border-color)',flexShrink:0}}>
+            <p style={{margin:'0 0 0.5rem',fontWeight:700,fontSize:'0.88rem'}}><Pencil size={13} style={{verticalAlign:'middle',marginRight:'0.3rem'}}/>編輯社群模板</p>
+            <div style={{display:'flex',flexDirection:'column',gap:'0.45rem',fontSize:'0.78rem'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>名稱</label>
+                <input value={editingCommunity.label} onChange={e=>setEditingCommunity({...editingCommunity,label:e.target.value})}
+                  style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>字體</label>
+                <input value={editingCommunity.settings.fontFamily||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,fontFamily:e.target.value}})}
+                  style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>主色</label>
+                <input value={editingCommunity.settings.mainColor||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,mainColor:e.target.value}})}
+                  style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>重點色</label>
+                <input value={editingCommunity.settings.highlightColor||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,highlightColor:e.target.value}})}
+                  style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>背景色</label>
+                <input value={editingCommunity.settings.backgroundColor||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,backgroundColor:e.target.value}})}
+                  style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>提示詞</label>
+                <textarea value={editingCommunity.settings.extraPrompt||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,extraPrompt:e.target.value}})}
+                  rows={2} style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none',resize:'vertical'}}/>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:'0.5rem',marginTop:'0.5rem'}}>
+              <button onClick={handleSaveEditCommunity} style={btnStyle('var(--accent-color)','#fff')}>儲存</button>
+              <button onClick={()=>setEditingCommunity(null)} style={btnStyle('var(--bg-primary)','var(--text-secondary)')}>取消</button>
             </div>
           </div>
         )}
