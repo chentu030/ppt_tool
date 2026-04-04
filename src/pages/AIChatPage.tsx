@@ -1055,7 +1055,13 @@ export const AIChatPage: React.FC = () => {
 
                       {slide.generatedImage && (
                         <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#27ae60', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>✓ 生成結果預覽</label>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#27ae60', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>✓ 生成結果預覽</label>
+                            <button onClick={() => handleGenerateFromPlan([slide.id])} disabled={isGenerating}
+                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: isGenerating ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isGenerating ? 0.4 : 1 }}>
+                              <Play size={9} /> 重新生成此頁
+                            </button>
+                          </div>
                           <img src={slide.generatedImage} alt="" onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '100%', maxWidth: '400px', height: 'auto', aspectRatio: aspectRatio.replace(':', '/'), objectFit: 'cover', borderRadius: '0.5rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         </div>
                       )}
@@ -1090,10 +1096,25 @@ export const AIChatPage: React.FC = () => {
                       ⚠️ 請先選擇樣式模板（點右上角「模板庫」或各頁「選擇樣板」）
                     </p>
                   )}
-                  <button onClick={() => handleGenerateFromPlan()} disabled={!(slidePlans.some(s => s.templateImage) || !!referenceImage)}
-                    style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? 'pointer' : 'not-allowed', background: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? 'var(--accent-color)' : 'var(--bg-tertiary)', color: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? '0 2px 8px rgba(52, 152, 219, 0.3)' : 'none', transition: 'all 0.2s' }}>
-                    <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
-                  </button>
+                  {(() => {
+                    const hasTemplate = slidePlans.some(s => s.templateImage) || !!referenceImage;
+                    const pending = slidePlans.filter(s => !s.generatedImage);
+                    const allDone = pending.length === 0 && slidePlans.length > 0;
+                    return (
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button onClick={() => handleGenerateFromPlan(allDone ? undefined : pending.map(s => s.id))} disabled={!hasTemplate}
+                          style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: hasTemplate ? 'pointer' : 'not-allowed', background: hasTemplate ? 'var(--accent-color)' : 'var(--bg-tertiary)', color: hasTemplate ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: hasTemplate ? '0 2px 8px rgba(52, 152, 219, 0.3)' : 'none', transition: 'all 0.2s' }}>
+                          <Play size={14} /> {allDone ? `重新生成全部 ${slidePlans.length} 張` : `繼續生成 ${pending.length} 張圖片`}
+                        </button>
+                        {!allDone && slidePlans.some(s => s.generatedImage) && (
+                          <button onClick={() => handleGenerateFromPlan()} disabled={!hasTemplate} title="重新生成全部"
+                            style={{ padding: '0.6rem 0.8rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.4rem', cursor: hasTemplate ? 'pointer' : 'not-allowed', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', whiteSpace: 'nowrap', opacity: hasTemplate ? 1 : 0.4 }}>
+                            全部 {slidePlans.length} 張
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
