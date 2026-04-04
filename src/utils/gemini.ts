@@ -12,6 +12,15 @@ const getBaseUrl = (hasBearerToken: boolean) => {
   return 'https://aiplatform.googleapis.com/v1beta1/publishers/google/models';
 };
 
+// Use global location for grounding/newer models not available in regional endpoints
+const getGlobalBaseUrl = (hasBearerToken: boolean) => {
+  if (hasBearerToken) {
+    const project = localStorage.getItem('gcpProjectId') || '';
+    return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/global/publishers/google/models`;
+  }
+  return 'https://aiplatform.googleapis.com/v1beta1/publishers/google/models';
+};
+
 
 export type TransformOp = 'expand' | 'shorten' | 'tone-formal' | 'tone-casual' | 'tone-academic' | 'grounding';
 
@@ -47,9 +56,11 @@ export const transformSlideText = async (
   }
 
   const bearerToken = await getValidBearerToken();
+  // Grounding and newer models require the global endpoint to avoid 404 on regional URLs
+  const baseUrlFn = useGrounding ? getGlobalBaseUrl : getBaseUrl;
   const url = bearerToken
-    ? `${getBaseUrl(true)}/${modelName}:generateContent`
-    : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+    ? `${baseUrlFn(true)}/${modelName}:generateContent`
+    : `${baseUrlFn(false)}/${modelName}:generateContent?key=${apiKey}`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
 
@@ -132,11 +143,12 @@ export interface ChatResponse {
 export const chatWithGemini = async (
   history: ChatMessage[],
   apiKey: string,
-  options?: { generateImage?: boolean; referenceImage?: string | null; aspectRatio?: string; resolution?: string },
+  options?: { generateImage?: boolean; referenceImage?: string | null; aspectRatio?: string; resolution?: string; grounding?: boolean },
   signal?: AbortSignal
 ): Promise<ChatResponse> => {
   const wantImage = options?.generateImage ?? false;
-  const modelName = wantImage ? 'gemini-3.1-flash-image-preview' : 'gemini-3-flash-preview';
+  const wantGrounding = options?.grounding ?? false;
+  const modelName = wantImage ? 'gemini-3.1-flash-image-preview' : (wantGrounding ? 'gemini-2.5-flash-preview-05-20' : 'gemini-3-flash-preview');
 
   // Optionally append reference style image to the last user message
   if (options?.referenceImage && history.length > 0) {
@@ -160,11 +172,15 @@ export const chatWithGemini = async (
       imageConfig: { aspectRatio: options?.aspectRatio || '16:9', imageSize: options?.resolution || '2K' },
     };
   }
+  if (wantGrounding) {
+    requestBody.tools = [{ googleSearch: {} }];
+  }
 
   const bearerToken = await getValidBearerToken();
+  const baseUrlFn = wantGrounding ? getGlobalBaseUrl : getBaseUrl;
   const url = bearerToken
-    ? `${getBaseUrl(true)}/${modelName}:generateContent`
-    : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+    ? `${baseUrlFn(true)}/${modelName}:generateContent`
+    : `${baseUrlFn(false)}/${modelName}:generateContent?key=${apiKey}`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
 

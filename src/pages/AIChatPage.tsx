@@ -129,6 +129,7 @@ export const AIChatPage: React.FC = () => {
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [isContentProcessing, setIsContentProcessing] = useState(false);
   const [showToneMenu, setShowToneMenu] = useState(false);
+  const [chatGrounding, setChatGrounding] = useState(false);
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
@@ -457,7 +458,7 @@ export const AIChatPage: React.FC = () => {
       if (trimmed) parts.push({ text: trimmed });
       for (const a of userMsg.attachments) { const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl; parts.push({ inlineData: { mimeType: a.mimeType, data: b64 } }); }
       const history = buildHistory(messages, parts, stylePrompt || undefined, slidePlans.length > 0 ? slidePlans : undefined);
-      const resp = await chatWithGemini(history, apiKey, { generateImage: false }, ctrl.signal);
+      const resp = await chatWithGemini(history, apiKey, { generateImage: false, grounding: chatGrounding }, ctrl.signal);
       // Detect [SLIDE_UPDATE] block in response — store as pending (user must approve)
       const updateMatch = resp.text.match(/\[SLIDE_UPDATE\]([\s\S]*?)\[\/SLIDE_UPDATE\]/);
       let displayText = resp.text;
@@ -1232,7 +1233,11 @@ export const AIChatPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.4rem', padding: '0.6rem 0.85rem', borderTop: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-primary)' }}>
           <button onClick={() => fileInputRef.current?.click()} title="上傳檔案" style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.4rem', padding: '0.45rem', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0 }}><Paperclip size={16} /></button>
           <input ref={fileInputRef} type="file" multiple accept="*/*" style={{ display: 'none' }} onChange={handleFileUpload} />
-          <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="輸入訊息，與 AI 討論圖卡內容…" rows={1}
+          <button onClick={() => setChatGrounding(v => !v)} title={chatGrounding ? '聯網搜尋：開啟（點擊關閉）' : '聯網搜尋：關閉（點擊開啟）'}
+            style={{ background: chatGrounding ? 'rgba(52,152,219,0.12)' : 'none', border: `1px solid ${chatGrounding ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.4rem', padding: '0.45rem 0.55rem', cursor: 'pointer', color: chatGrounding ? 'var(--accent-color)' : 'var(--text-secondary)', flexShrink: 0, fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.2rem', transition: 'all 0.15s' }}>
+            🌐{chatGrounding ? ' ON' : ''}
+          </button>
+          <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatGrounding ? '聯網模式：AI 可上網搜尋最新資訊…' : '輸入訊息，與 AI 討論圖卡內容…'} rows={1}
             style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.6rem', fontSize: '0.85rem', resize: 'none', outline: 'none', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', lineHeight: 1.5 }} />
           <button onClick={handleSend} disabled={isLoading || (!input.trim() && attachments.length === 0)}
             style={{ background: 'var(--accent-color)', border: 'none', borderRadius: '0.4rem', padding: '0.45rem 0.65rem', cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: (isLoading || (!input.trim() && attachments.length === 0)) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
