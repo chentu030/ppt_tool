@@ -189,9 +189,9 @@ function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
 
 type Tab='all'|'starred'|'history'|'community';
 type ConflictChoice='replace'|'merge'|'keep';
-interface Props{currentExtraPrompt:string;onClose:()=>void;onApply:(p:ApplyParams)=>void;}
+interface Props{currentExtraPrompt:string;currentSettings?:TemplateSettings;currentImageUrl?:string|null;onClose:()=>void;onApply:(p:ApplyParams)=>void;}
 
-const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply})=>{
+const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,currentImageUrl,onClose,onApply})=>{
   const fileInputRef=useRef<HTMLInputElement>(null);
   const scrollRef=useRef<HTMLDivElement>(null);
   const sentinelRef=useRef<HTMLDivElement>(null);
@@ -230,18 +230,38 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
         const img=new Image();img.src=entry.imageUrl;
       }
     });
-    // Async: overwrite with Firebase data when ready
-    fbLoad().then(data=>{
-      if(!data)return;
-      setStarred(data.starred);
-      setHistory(data.history);
-      historyRef.current=data.history;
-      data.history.forEach(entry=>{
-        if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
-          const img=new Image();img.src=entry.imageUrl;
-        }
+    // Sync current ProjectEditor settings back into the matching history entry
+    if(currentImageUrl){
+      const idx=historyRef.current.findIndex(h=>h.imageUrl===currentImageUrl);
+      if(idx>=0){
+        const updated=[...historyRef.current];
+        const merged:TemplateSettings={...(updated[idx].settings||{})};
+        if(currentSettings?.fontFamily!==undefined)merged.fontFamily=currentSettings.fontFamily;
+        if(currentSettings?.mainColor!==undefined)merged.mainColor=currentSettings.mainColor;
+        if(currentSettings?.highlightColor!==undefined)merged.highlightColor=currentSettings.highlightColor;
+        if(currentSettings?.specialMark!==undefined)merged.specialMark=currentSettings.specialMark;
+        if(currentSettings?.backgroundColor!==undefined)merged.backgroundColor=currentSettings.backgroundColor;
+        if(currentExtraPrompt!==undefined)merged.extraPrompt=currentExtraPrompt;
+        updated[idx]={...updated[idx],settings:merged,resolvedExtraPrompt:currentExtraPrompt||updated[idx].resolvedExtraPrompt};
+        historyRef.current=updated;
+        setHistory(updated);
+        fbSave(lsLoadStarred(),updated);
+      }
+    }
+    // Async: overwrite with Firebase data when ready (but skip if we just synced)
+    if(!currentImageUrl){
+      fbLoad().then(data=>{
+        if(!data)return;
+        setStarred(data.starred);
+        setHistory(data.history);
+        historyRef.current=data.history;
+        data.history.forEach(entry=>{
+          if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
+            const img=new Image();img.src=entry.imageUrl;
+          }
+        });
       });
-    });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 

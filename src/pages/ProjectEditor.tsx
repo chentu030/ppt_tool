@@ -1378,6 +1378,8 @@ export const ProjectEditor: React.FC = () => {
       {showTemplateGallery && (
         <TemplateGalleryModal
           currentExtraPrompt={globalExtraPrompt}
+          currentSettings={{ fontFamily, mainColor, highlightColor, specialMark, backgroundColor }}
+          currentImageUrl={globalReference}
           onClose={() => setShowTemplateGallery(false)}
           onApply={handleTemplateApply}
         />
