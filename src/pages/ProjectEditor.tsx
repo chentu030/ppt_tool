@@ -1632,7 +1632,7 @@ export const ProjectEditor: React.FC = () => {
           </div>
 
           {/* Right Sidebar */}
-          <div style={{ width: '260px', flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.25rem 0' }}>
+          <div style={{ width: '260px', flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.25rem 0.25rem 0.25rem 0' }}>
 
             {/* 1. Upload PPT / Word / 新增頁面 */}
             <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -1738,59 +1738,52 @@ export const ProjectEditor: React.FC = () => {
               const inputS: React.CSSProperties = { padding: '0.3rem 0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', width: '100%' };
               const selectS: React.CSSProperties = { ...inputS, cursor: 'pointer' };
               return (
-                <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                  <button onClick={() => setShowAdvancedSettings(v => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>
-                    <span>進階設定</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{showAdvancedSettings ? '▲ 收合' : '▼ 展開'}</span>
-                  </button>
-                  {showAdvancedSettings && (
-                    <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
-                          <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
-                            <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
-                          </select>
-                        </div>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
-                          <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
-                            <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
-                        <input style={inputS} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>主要顏色</span>
-                          <input style={inputS} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
-                        </div>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>重點標示</span>
-                          <input style={inputS} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記（選填）</span>
-                        <input style={inputS} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：螢光筆、underline" />
-                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
-                          {['螢光筆', 'underline', '粗體'].map(tag => (
-                            <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
-                              style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              + {tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
-                        <input style={inputS} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
-                      </div>
+                <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>進階設定</span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
+                      <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
+                        <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
+                      </select>
                     </div>
-                  )}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
+                      <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
+                        <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
+                    <input style={inputS} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>主要顏色</span>
+                      <input style={inputS} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>重點標示</span>
+                      <input style={inputS} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記（選填）</span>
+                    <input style={inputS} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：螢光筆、underline" />
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                      {['螢光筆', 'underline', '粗體'].map(tag => (
+                        <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
+                          style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          + {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
+                    <input style={inputS} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
+                  </div>
                 </div>
               );
             })()}
