@@ -131,6 +131,8 @@ export const AIChatPage: React.FC = () => {
   const autoRetryIsWaiting = useRef(false);
   const retryModal429Ref = useRef<{ successCount: number; toRetryIds: string[] } | null>(null);
   const handleGenerateRef = useRef<(retryIds?: string[]) => void>(() => {});
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
   const apiKey = localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
 
   const allFiles = messages.flatMap(m => m.attachments);
@@ -162,10 +164,11 @@ export const AIChatPage: React.FC = () => {
   }, [messages]);
 
   // Persist slide plans under current conversation ID
+  // Use ref for activeId to avoid saving stale plans when conversation switches
   useEffect(() => {
-    saveSlidePlans(slidePlans, activeId);
+    saveSlidePlans(slidePlans, activeIdRef.current);
     if (slidePlans.length > 0) setSlidePlanVisible(true);
-  }, [slidePlans, activeId]);
+  }, [slidePlans]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load slide plans when active conversation changes
   useEffect(() => {
