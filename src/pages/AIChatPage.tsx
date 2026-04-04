@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check } from 'lucide-react';
 import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
@@ -22,6 +22,12 @@ interface SlidePlan {
   id: string; pageNum: number; title: string; content: string;
   templateImage?: string; templateLabel?: string; templatePrompt?: string;
   generatedImage?: string;
+}
+interface SlideOperation {
+  action: 'update' | 'delete' | 'add';
+  pageNum: number;
+  title?: string;
+  content?: string;
 }
 
 // ── Persistence ────────────────────────────────────────────────────────────────
@@ -105,6 +111,7 @@ export const AIChatPage: React.FC = () => {
   const [showAddPages, setShowAddPages] = useState(false);
   const [addPagesCount, setAddPagesCount] = useState(1);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
+  const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
@@ -232,6 +239,36 @@ export const AIChatPage: React.FC = () => {
     });
   };
 
+  // Apply or reject pending AI slide updates
+  const applyPendingUpdate = () => {
+    if (!pendingSlideUpdate) return;
+    setSlidePlans(prev => {
+      let result = [...prev];
+      for (const op of pendingSlideUpdate.ops) {
+        if (op.action === 'delete') {
+          result = result.filter(s => s.pageNum !== op.pageNum);
+        } else if (op.action === 'update') {
+          const idx = result.findIndex(s => s.pageNum === op.pageNum);
+          if (idx >= 0) {
+            if (op.title !== undefined) result[idx] = { ...result[idx], title: op.title };
+            if (op.content !== undefined) result[idx] = { ...result[idx], content: op.content };
+          }
+        } else if (op.action === 'add') {
+          result.push({ id: `slide-${Date.now()}-${op.pageNum}`, pageNum: op.pageNum, title: op.title || '', content: op.content || '' });
+        }
+      }
+      return result.sort((a, b) => a.pageNum - b.pageNum).map((s, i) => ({ ...s, pageNum: i + 1 }));
+    });
+    // Append confirmation note to the AI message
+    setMessages(prev => prev.map(m => m.id === pendingSlideUpdate.msgId ? { ...m, text: m.text + '\n\n✅ 變更已套用。' } : m));
+    setPendingSlideUpdate(null);
+  };
+  const rejectPendingUpdate = () => {
+    if (!pendingSlideUpdate) return;
+    setMessages(prev => prev.map(m => m.id === pendingSlideUpdate.msgId ? { ...m, text: m.text + '\n\n❌ 使用者已取消此變更。' } : m));
+    setPendingSlideUpdate(null);
+  };
+
   // Keep ref in sync for callbacks
   retryModal429Ref.current = retryModal429;
 
@@ -335,7 +372,7 @@ export const AIChatPage: React.FC = () => {
     if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
     if (currentSlides && currentSlides.length > 0) {
       const slidesJson = JSON.stringify(currentSlides.map(s => ({ pageNum: s.pageNum, title: s.title, content: s.content })));
-      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改或擴充投影片，請在回覆末尾附上以下格式（包含所有需要新增或修改的投影片，新增的頁面 pageNum 要大於現有最大頁碼）：\n[SLIDE_UPDATE]\n[{"pageNum":1,"title":"...","content":"..."}]\n[/SLIDE_UPDATE]\n注意：新增頁面時 pageNum 必須連續遞增，不能重複現有頁碼。`;
+      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改、刪除或擴充投影片，請在回覆末尾附上以下 JSON 格式（使用者會看到預覽並決定是否套用）：\n[SLIDE_UPDATE]\n[{"action":"update","pageNum":1,"title":"新標題","content":"新內容"},{"action":"delete","pageNum":3},{"action":"add","pageNum":${currentSlides.length + 1},"title":"新頁標題","content":"新頁內容"}]\n[/SLIDE_UPDATE]\n\naction 說明：\n- "update"：修改指定頁的標題或內容（只需提供要改的欄位）\n- "delete"：刪除指定頁\n- "add"：新增頁面，pageNum 從 ${currentSlides.length + 1} 開始遞增\n\n注意：先描述你的修改計畫，再附上 [SLIDE_UPDATE] 區塊。使用者會在介面上預覽變更後決定是否套用。`;
     }
     const h: GeminiChatMessage[] = [
       { role: 'user', parts: [{ text: sys }] },
@@ -396,37 +433,26 @@ export const AIChatPage: React.FC = () => {
       for (const a of userMsg.attachments) { const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl; parts.push({ inlineData: { mimeType: a.mimeType, data: b64 } }); }
       const history = buildHistory(messages, parts, stylePrompt || undefined, slidePlans.length > 0 ? slidePlans : undefined);
       const resp = await chatWithGemini(history, apiKey, { generateImage: false }, ctrl.signal);
-      // Detect [SLIDE_UPDATE] block in response
+      // Detect [SLIDE_UPDATE] block in response — store as pending (user must approve)
       const updateMatch = resp.text.match(/\[SLIDE_UPDATE\]([\s\S]*?)\[\/SLIDE_UPDATE\]/);
       let displayText = resp.text;
+      const aiMsgId = (Date.now() + 1).toString();
       if (updateMatch) {
         try {
-          const updates = JSON.parse(updateMatch[1].trim()) as { pageNum: number; title?: string; content?: string }[];
-          // Compute counts based on current slidePlans snapshot (captured in closure)
+          let rawOps = JSON.parse(updateMatch[1].trim()) as any[];
+          // Normalise: legacy format (no action) → 'update' or 'add'
           const existingNums = new Set(slidePlans.map(s => s.pageNum));
-          const updatedCount = updates.filter(u => existingNums.has(u.pageNum)).length;
-          const addedCount = updates.filter(u => !existingNums.has(u.pageNum)).length;
-          setSlidePlans(prev => {
-            const result = [...prev];
-            for (const u of updates) {
-              const idx = result.findIndex(s => s.pageNum === u.pageNum);
-              if (idx >= 0) {
-                if (u.title !== undefined) result[idx] = { ...result[idx], title: u.title };
-                if (u.content !== undefined) result[idx] = { ...result[idx], content: u.content };
-              } else {
-                result.push({ id: `slide-${Date.now()}-${u.pageNum}`, pageNum: u.pageNum, title: u.title || '', content: u.content || '' });
-              }
-            }
-            return result.sort((a, b) => a.pageNum - b.pageNum);
-          });
+          const ops: SlideOperation[] = rawOps.map(o => ({
+            action: o.action || (existingNums.has(o.pageNum) ? 'update' : 'add'),
+            pageNum: o.pageNum,
+            ...(o.title !== undefined ? { title: o.title } : {}),
+            ...(o.content !== undefined ? { content: o.content } : {}),
+          }));
           displayText = resp.text.replace(/\[SLIDE_UPDATE\][\s\S]*?\[\/SLIDE_UPDATE\]/g, '').trim();
-          const summaryParts: string[] = [];
-          if (updatedCount > 0) summaryParts.push(`更新 ${updatedCount} 頁`);
-          if (addedCount > 0) summaryParts.push(`新增 ${addedCount} 頁`);
-          displayText += `\n\n✏️ 已${summaryParts.join('、')}投影片內容。`;
+          setPendingSlideUpdate({ msgId: aiMsgId, ops });
         } catch { /* ignore parse error */ }
       }
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: displayText, images: [], attachments: [], timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', text: displayText, images: [], attachments: [], timestamp: Date.now() }]);
       if (isNew && trimmed) {
         generateChatTitle(trimmed, apiKey).then(title => {
           setConversations(prev => { const u = prev.map(c => c.id === convId ? { ...c, title } : c); saveConversations(u); return u; });
@@ -802,6 +828,36 @@ export const AIChatPage: React.FC = () => {
                   {msg.role === 'assistant' ? <Markdown text={msg.text} /> : <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'inherit' }}>{msg.text}</pre>}
                 </div>
               )}
+              {/* Pending slide update approval card */}
+              {pendingSlideUpdate && pendingSlideUpdate.msgId === msg.id && (
+                <div style={{ maxWidth: '85%', marginTop: '0.4rem', padding: '0.7rem 0.9rem', background: 'var(--bg-primary)', border: '2px solid var(--accent-color)', borderRadius: '0.6rem', fontSize: '0.78rem', boxShadow: '0 2px 12px rgba(52, 152, 219, 0.15)' }}>
+                  <div style={{ fontWeight: 700, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--accent-color)' }}>
+                    <Edit3 size={13} /> AI 建議以下投影片變更：
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '0.6rem' }}>
+                    {pendingSlideUpdate.ops.map((op, i) => (
+                      <div key={i} style={{ padding: '0.3rem 0.5rem', background: op.action === 'delete' ? 'rgba(231,76,60,0.08)' : op.action === 'add' ? 'rgba(39,174,96,0.08)' : 'rgba(52,152,219,0.08)', borderRadius: '0.3rem', fontSize: '0.72rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                        <span style={{ fontWeight: 700, color: op.action === 'delete' ? '#e74c3c' : op.action === 'add' ? '#27ae60' : 'var(--accent-color)', flexShrink: 0, minWidth: '2.5rem' }}>
+                          {op.action === 'delete' ? '🗑 刪除' : op.action === 'add' ? '➕ 新增' : '✏️ 修改'}
+                        </span>
+                        <span style={{ color: 'var(--text-primary)' }}>
+                          第 {op.pageNum} 頁
+                          {op.action !== 'delete' && op.title && <> — <strong>{op.title}</strong></>}
+                          {op.action !== 'delete' && op.content && <div style={{ marginTop: '0.15rem', fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', maxHeight: '3rem', overflow: 'hidden' }}>{op.content.slice(0, 120)}{op.content.length > 120 ? '…' : ''}</div>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button onClick={applyPendingUpdate} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                      <Check size={13} /> 套用變更
+                    </button>
+                    <button onClick={rejectPendingUpdate} style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                      <X size={13} /> 取消
+                    </button>
+                  </div>
+                </div>
+              )}
               <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', marginTop: '0.15rem', paddingInline: '0.2rem' }}>
                 {new Date(msg.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
               </span>
@@ -908,16 +964,7 @@ export const AIChatPage: React.FC = () => {
                   if (!slide) return null;
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-color)', background: 'rgba(52, 152, 219, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem' }}>第 {slide.pageNum} 頁</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <button onClick={() => { setTemplateTargetSlide(slide.id); setShowTemplateGallery(true); }}
-                            style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'var(--bg-primary)', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.2s' }}>
-                            <ImageIcon size={11} /> {slide.templateLabel || '選擇模板'}
-                          </button>
-                          {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '24px', borderRadius: '4px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />}
-                        </div>
-                      </div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-color)', background: 'rgba(52, 152, 219, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '0.3rem', alignSelf: 'flex-start' }}>第 {slide.pageNum} 頁</span>
                       
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>標題</label>
