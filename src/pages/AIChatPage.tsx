@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { showAlert, showConfirm } from '../utils/dialog';
 import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings } from 'lucide-react';
-import { chatWithGemini, generateChatTitle } from '../utils/gemini';
+import { chatWithGemini, generateChatTitle, transformSlideText } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
+import type { TransformOp } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -126,6 +127,8 @@ export const AIChatPage: React.FC = () => {
   const [showStyleSettings, setShowStyleSettings] = useState(false);
   const [addPagesCount, setAddPagesCount] = useState(1);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
+  const [isContentProcessing, setIsContentProcessing] = useState(false);
+  const [showToneMenu, setShowToneMenu] = useState(false);
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
@@ -514,6 +517,21 @@ export const AIChatPage: React.FC = () => {
 
   const updateSlidePlan = (id: string, field: 'title' | 'content', value: string) => {
     setSlidePlans(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handleContentTransform = async (slideId: string, operation: TransformOp) => {
+    const slide = slidePlans.find(s => s.id === slideId);
+    if (!slide || !slide.content.trim()) return;
+    setIsContentProcessing(true);
+    setShowToneMenu(false);
+    try {
+      const result = await transformSlideText(slide.content, slide.title, operation, apiKey);
+      if (result) updateSlidePlan(slideId, 'content', result);
+    } catch (err: any) {
+      showAlert('處理失敗：' + (err?.message || '未知錯誤'), '錯誤');
+    } finally {
+      setIsContentProcessing(false);
+    }
   };
 
   const handleTemplateApplyForSlide = ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
@@ -1049,9 +1067,52 @@ export const AIChatPage: React.FC = () => {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1 }}>
-                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>內容文字</label>
-                        <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="在這裡編輯投影片的主要內容…" disabled={isGenerating}
-                          style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.9rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', minHeight: '120px', transition: 'border-color 0.2s', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)', ...(isGenerating ? {} : { ':focus': { borderColor: 'var(--accent-color)' } } as any) }} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>內容文字</label>
+                          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {/* Expand */}
+                            <button onClick={() => handleContentTransform(slide.id, 'expand')} disabled={isGenerating || isContentProcessing || !slide.content.trim()} title="擴展文字內容"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: (isGenerating || isContentProcessing || !slide.content.trim()) ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', opacity: (isGenerating || isContentProcessing) ? 0.4 : 1 }}>
+                              {isContentProcessing ? <Loader size={9} style={{ animation: 'spin 1s linear infinite' }} /> : '↕'} 增長
+                            </button>
+                            {/* Shorten */}
+                            <button onClick={() => handleContentTransform(slide.id, 'shorten')} disabled={isGenerating || isContentProcessing || !slide.content.trim()} title="精簡文字內容"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: (isGenerating || isContentProcessing || !slide.content.trim()) ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', opacity: (isGenerating || isContentProcessing) ? 0.4 : 1 }}>
+                              縮短
+                            </button>
+                            {/* Tone dropdown */}
+                            <div style={{ position: 'relative' }}>
+                              <button onClick={() => setShowToneMenu(v => !v)} disabled={isGenerating || isContentProcessing || !slide.content.trim()} title="語氣調整"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: (isGenerating || isContentProcessing || !slide.content.trim()) ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', opacity: (isGenerating || isContentProcessing) ? 0.4 : 1 }}>
+                                語氣 ▾
+                              </button>
+                              {showToneMenu && (
+                                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.2rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.35rem', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 200, minWidth: '110px', overflow: 'hidden' }}>
+                                  {([['tone-formal', '正式商業'], ['tone-casual', '輕鬆平易'], ['tone-academic', '學術研究']] as [TransformOp, string][]).map(([op, label]) => (
+                                    <button key={op} onClick={() => handleContentTransform(slide.id, op)}
+                                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.4rem 0.7rem', fontSize: '0.75rem', border: 'none', cursor: 'pointer', background: 'none', color: 'var(--text-primary)' }}
+                                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+                                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {/* Grounding */}
+                            <button onClick={() => handleContentTransform(slide.id, 'grounding')} disabled={isGenerating || isContentProcessing || !slide.content.trim()} title="上網搜尋並擴充內容"
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 600, border: '1px solid var(--accent-color)', borderRadius: '0.25rem', cursor: (isGenerating || isContentProcessing || !slide.content.trim()) ? 'not-allowed' : 'pointer', background: 'rgba(52,152,219,0.08)', color: 'var(--accent-color)', opacity: (isGenerating || isContentProcessing) ? 0.4 : 1 }}>
+                              🌐 聯網擴充
+                            </button>
+                          </div>
+                        </div>
+                        {isContentProcessing && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> AI 處理中…
+                          </div>
+                        )}
+                        <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="在這裡編輯投影片的主要內容…" disabled={isGenerating || isContentProcessing}
+                          style={{ width: '100%', padding: '0.6rem 0.8rem', fontSize: '0.9rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', background: isContentProcessing ? 'var(--bg-secondary)' : 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', minHeight: '120px', transition: 'border-color 0.2s', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }} />
                       </div>
 
                       {slide.generatedImage && (
