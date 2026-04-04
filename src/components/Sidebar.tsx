@@ -15,7 +15,7 @@ export const Sidebar: React.FC = () => {
 
   const navItems = [
     { icon: Home, label: 'Projects', path: '/home' },
-    { icon: FileOutput, label: '圖片轉可編輯', path: '/convert' },
+    // { icon: FileOutput, label: '圖片轉可編輯', path: '/convert' },  // Hidden for now
     { icon: MessageSquareText, label: 'AI 對話', path: '/ai-chat' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
