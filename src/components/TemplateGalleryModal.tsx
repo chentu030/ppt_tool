@@ -1,8 +1,8 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, Upload, Sparkles, Loader, Star, Clock } from 'lucide-react';
+import { X, Upload, Sparkles, Loader, Star, Clock, Users } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 import { db, auth, storage } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
 
 export interface TemplateSettings {
@@ -67,6 +67,11 @@ async function fbSave(starred:Set<string>,history:HistoryEntry[]){
 }
 // ─── Template index (Firestore + Firebase Storage) ──────────────────────────
 interface StoredTemplate{name:string;url:string;settings:TemplateSettings|null;}
+export interface SharedTemplate{
+  id:string;userId:string;userName:string;label:string;
+  referenceUrl:string;resultUrls:string[];settings:TemplateSettings;
+  avgRating:number;ratingCount:number;ratings:Record<string,number>;createdAt:number;
+}
 const TMPL_INDEX=doc(db,'templateGalleryIndex','v1');
 
 async function loadIndexFromFirestore():Promise<StoredTemplate[]>{
@@ -138,6 +143,27 @@ async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|nul
   }catch(err){console.warn('[Firebase] templateGallery load failed:',err);return null;}
 }
 
+async function loadCommunity():Promise<SharedTemplate[]>{
+  try{
+    const snap=await getDocs(collection(db,'sharedTemplates'));
+    return snap.docs.map(d=>({id:d.id,...d.data()} as SharedTemplate))
+      .sort((a,b)=>(b.avgRating||0)-(a.avgRating||0)||(b.createdAt||0)-(a.createdAt||0));
+  }catch(err){console.warn('[community] load failed:',err);return[];}
+}
+async function rateCommunity(tid:string,score:number):Promise<{avg:number;count:number}|null>{
+  const user=auth.currentUser;if(!user)return null;
+  try{
+    const dr=doc(db,'sharedTemplates',tid);
+    const snap=await getDoc(dr);if(!snap.exists())return null;
+    const d=snap.data();const ratings:Record<string,number>={...(d.ratings||{})};
+    ratings[user.uid]=score;
+    const vals=Object.values(ratings) as number[];
+    const avg=Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10;
+    await updateDoc(dr,{ratings,avgRating:avg,ratingCount:vals.length});
+    return{avg,count:vals.length};
+  }catch(err){console.warn('[community] rate failed:',err);return null;}
+}
+
 function shuffleArray<T>(arr:T[]):T[]{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
   const result:Record<string,TemplateSettings>={};
@@ -155,7 +181,7 @@ function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
   return result;
 }
 
-type Tab='all'|'starred'|'history';
+type Tab='all'|'starred'|'history'|'community';
 type ConflictChoice='replace'|'merge'|'keep';
 interface Props{currentExtraPrompt:string;onClose:()=>void;onApply:(p:ApplyParams)=>void;}
 
@@ -177,6 +203,8 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const [syncProgress,setSyncProgress]=useState<{done:number;total:number}|null>(null);
   const [visibleCount,setVisibleCount]=useState(15);
 
+  const [communityItems,setCommunityItems]=useState<SharedTemplate[]>([]);
+  const [communityLoading,setCommunityLoading]=useState(false);
   const [conflictPending,setConflictPending]=useState<{imageUrl:string;settings:TemplateSettings;label:string}|null>(null);
   const [geminiPending,setGeminiPending]=useState<{imageUrl:string;existingSettings:TemplateSettings|null;label:string}|null>(null);
   const [isAnalyzing,setIsAnalyzing]=useState(false);
@@ -262,6 +290,13 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       });
     });
   },[]);
+
+  // ── Load community templates on tab switch ──────────────────────────────
+  useEffect(()=>{
+    if(tab!=='community')return;
+    setCommunityLoading(true);
+    loadCommunity().then(items=>{setCommunityItems(items);setCommunityLoading(false);});
+  },[tab]);
 
   // ── Reset visible count on tab change ─────────────────────────────────────
   useEffect(()=>{setVisibleCount(15);},[tab]);
@@ -375,6 +410,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
       setConflictPending({imageUrl:entry.imageUrl,settings:{...(entry.settings||{}),extraPrompt:entry.resolvedExtraPrompt},label:entry.label});
     else finalizeApply(entry.imageUrl,entry.settings,entry.resolvedExtraPrompt,entry.label);
   };
+  const handleCommunityApply=(t:SharedTemplate)=>{
+    setAnalyzeError(null);
+    setGeminiPending({imageUrl:t.referenceUrl,existingSettings:t.settings,label:t.label});
+  };
+  const handleRate=async(tid:string,score:number)=>{
+    const result=await rateCommunity(tid,score);
+    if(result)setCommunityItems(prev=>prev.map(t=>t.id===tid?{...t,avgRating:result.avg,ratingCount:result.count,ratings:{...t.ratings,[auth.currentUser?.uid||'']:score}}:t));
+  };
   const toggleStar=(id:string,e:React.MouseEvent)=>{
     e.stopPropagation();
     setStarred(prev=>{
@@ -413,6 +456,51 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
     );
   };
 
+  const renderCommunityCard=(t:SharedTemplate)=>{
+    const uid=auth.currentUser?.uid||'';
+    const myRating=t.ratings?.[uid]||0;
+    const displayRating=myRating||Math.round(t.avgRating||0);
+    return(
+      <div key={t.id} style={{display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}>
+        <div style={{border:'2px solid var(--border-color)',borderRadius:'0.6rem',overflow:'hidden',transition:'border-color 0.15s'}}
+          onMouseEnter={e=>(e.currentTarget.style.borderColor='var(--accent-color)')}
+          onMouseLeave={e=>(e.currentTarget.style.borderColor='var(--border-color)')}>
+          <button onClick={()=>handleCommunityApply(t)}
+            style={{padding:0,border:'none',cursor:'pointer',background:'none',display:'block',width:'100%',textAlign:'left'}}>
+            <img src={t.referenceUrl} alt={t.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
+          </button>
+          {t.resultUrls?.length>0&&(
+            <div style={{display:'flex',gap:'2px',padding:'2px',background:'var(--bg-tertiary)'}}>
+              {t.resultUrls.slice(0,3).map((url,i)=>(
+                <img key={i} src={url} alt={`result ${i}`} style={{flex:1,height:'45px',objectFit:'cover',borderRadius:'2px'}}/>
+              ))}
+            </div>
+          )}
+          <div style={{padding:'0.4rem 0.5rem',fontSize:'0.7rem',background:'var(--bg-secondary)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontWeight:700,color:'var(--text-primary)'}}>{t.label}</span>
+              <span style={{fontSize:'0.6rem',color:'var(--text-secondary)'}}>{t.userName}</span>
+            </div>
+            {t.settings&&<div style={{color:'var(--text-secondary)',marginTop:'0.15rem',fontSize:'0.65rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              {t.settings.fontFamily}{t.settings.highlightColor?` · ${t.settings.highlightColor}`:''}{t.settings.backgroundColor?` · ${t.settings.backgroundColor}`:''}
+            </div>}
+            <div style={{display:'flex',alignItems:'center',gap:'0.15rem',marginTop:'0.25rem'}}>
+              {[1,2,3,4,5].map(s=>(
+                <Star key={s} size={13}
+                  fill={s<=displayRating?'#f6c90e':'none'}
+                  color={s<=displayRating?'#f6c90e':'var(--border-color)'}
+                  style={{cursor:'pointer'}} onClick={e=>{e.stopPropagation();handleRate(t.id,s);}}/>
+              ))}
+              <span style={{fontSize:'0.65rem',color:'var(--text-secondary)',marginLeft:'0.2rem'}}>
+                {t.avgRating?.toFixed(1)||'–'} ({t.ratingCount||0})
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderHistoryCard=(entry:HistoryEntry)=>(
     <div key={entry.id} style={{display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}>
       <button onClick={()=>applyFromHistory(entry)}
@@ -445,13 +533,14 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
           <div style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
             <span style={{fontWeight:700,fontSize:'1rem'}}>風格參考</span>
             <div style={{display:'flex',gap:'0.2rem'}}>
-              {(['all','starred','history'] as Tab[]).map(t=>(
+              {(['all','starred','history','community'] as Tab[]).map(t=>(
                 <button key={t} onClick={()=>setTab(t)}
                   style={{padding:'0.28rem 0.7rem',fontSize:'0.78rem',fontWeight:tab===t?700:400,borderRadius:'0.4rem',border:'none',cursor:'pointer',background:tab===t?'var(--accent-color)':'transparent',color:tab===t?'#fff':'var(--text-secondary)'}}>
                   {t==='all'
                     ?<>{driveLoading?<Loader size={10} style={{verticalAlign:'middle',marginRight:'0.3rem',animation:'spin 1s linear infinite'}}/>:null}範本{driveLoading?' (載入中…)':`(${allItems.length})`}</>
                     :t==='starred'?<><Star size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>收藏 ({starredItems.length})</>
-                    :<><Clock size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>歷史 ({history.length})</>}
+                    :t==='history'?<><Clock size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>歷史 ({history.length})</>
+                    :<><Users size={11} style={{verticalAlign:'middle',marginRight:'0.2rem'}}/>社群{communityLoading?' ...':` (${communityItems.length})`}</>}
                 </button>
               ))}
             </div>
@@ -518,6 +607,9 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
           <div style={{columnCount:3,columnGap:'0.75rem'}}>
             {tab==='history'
               ?(history.length>0?history.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
+              :tab==='community'
+              ?(communityLoading?<div style={{display:'flex',alignItems:'center',gap:'0.5rem',color:'var(--text-secondary)',fontSize:'0.85rem'}}><Loader size={14} style={{animation:'spin 1s linear infinite'}}/>社群模板載入中…</div>
+                :communityItems.length>0?communityItems.map(renderCommunityCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無社群模板</p>)
               :(visibleItems.length>0?visibleItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':'Drive 模板載入中…'}</p>)}
           </div>
           {hasMore&&tab!=='history'&&<div ref={sentinelRef} style={{height:'40px',display:'flex',alignItems:'center',justifyContent:'center'}}>

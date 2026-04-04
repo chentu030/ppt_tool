@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
 import JSZip from 'jszip';
 import { collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, query, orderBy, getDoc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { db, auth, storage } from '../firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, compressForFirestore, uploadToDrive } from '../utils/storageHelper';
 
@@ -94,6 +95,10 @@ export const ProjectEditor: React.FC = () => {
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishedPreview, setPolishedPreview] = useState<{ slideId: string; text: string } | null>(null);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLabel, setShareLabel] = useState('');
+  const [shareSelectedResults, setShareSelectedResults] = useState<Set<string>>(new Set());
+  const [isSharing, setIsSharing] = useState(false);
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
@@ -531,6 +536,59 @@ export const ProjectEditor: React.FC = () => {
       if (settings.backgroundColor) setBackgroundColor(settings.backgroundColor);
     }
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
+  };
+
+  const handleShareTemplate = async () => {
+    if (!id || !globalReference || !shareLabel.trim()) return;
+    setIsSharing(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('請先登入');
+      const docId = `${user.uid}_${Date.now()}`;
+      // Upload reference image
+      let refUrl = globalReference;
+      if (globalReference.startsWith('data:')) {
+        const b64 = globalReference.split(',')[1];
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'image/jpeg' });
+        const sRef = storageRef(storage, `sharedTemplates/${docId}/reference.jpg`);
+        await uploadBytes(sRef, blob);
+        refUrl = await getDownloadURL(sRef);
+      }
+      // Upload selected result images (max 3)
+      const resultUrls: string[] = [];
+      const selected = [...shareSelectedResults].slice(0, 3);
+      for (let i = 0; i < selected.length; i++) {
+        const slideId = selected[i];
+        const img = pendingImages.get(slideId) || slides.find(s => s.id === slideId)?.generatedImage;
+        if (!img) continue;
+        if (img.startsWith('data:')) {
+          const b64 = img.split(',')[1];
+          const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          const blob = new Blob([bytes], { type: 'image/jpeg' });
+          const sRef = storageRef(storage, `sharedTemplates/${docId}/result_${i}.jpg`);
+          await uploadBytes(sRef, blob);
+          resultUrls.push(await getDownloadURL(sRef));
+        } else {
+          resultUrls.push(img);
+        }
+      }
+      await setDoc(doc(db, 'sharedTemplates', docId), {
+        userId: user.uid,
+        userName: user.displayName || user.email?.split('@')[0] || '匿名',
+        label: shareLabel.trim(),
+        referenceUrl: refUrl,
+        resultUrls,
+        settings: { fontFamily, mainColor, highlightColor, specialMark, backgroundColor, extraPrompt: globalExtraPrompt },
+        avgRating: 0, ratingCount: 0, ratings: {},
+        createdAt: Date.now(),
+      });
+      showToast('模板已分享到社群！', 'success');
+      setShowShareModal(false); setShareLabel(''); setShareSelectedResults(new Set());
+    } catch (err: any) {
+      console.error('Share failed:', err);
+      showToast('分享失敗：' + (err?.message || '未知錯誤'), 'error');
+    } finally { setIsSharing(false); }
   };
 
   const addSlide = async (type: 'image' | 'text' = 'image', count: number = 1) => {
@@ -1563,6 +1621,7 @@ export const ProjectEditor: React.FC = () => {
                   <div onClick={() => setShowTemplateGallery(true)} style={{ width: '40px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)', cursor: 'pointer' }} title="更換風格圖">
                     <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
+                  <button onClick={() => setShowShareModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)' }} title="分享模板到社群"><Share2 size={12}/></button>
                   <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={12}/></button>
                 </div>
               ) : (
@@ -2096,6 +2155,83 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </>)}
       </div>
+
+      {/* Share Template Modal */}
+      {showShareModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => { if (!isSharing) setShowShareModal(false); }}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}><Share2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />分享模板到社群</h3>
+              <button onClick={() => setShowShareModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>模板名稱</label>
+              <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder="例：極簡商務風、科技藍白風格"
+                style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.88rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+            </div>
+
+            {globalReference && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>風格參考圖</label>
+                <img src={globalReference} alt="Reference" style={{ width: '120px', height: 'auto', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>進階設定</label>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexWrap: 'wrap', gap: '0.3rem 0.8rem' }}>
+                <span>字體：{fontFamily}</span><span>主色：{mainColor}</span><span>重點色：{highlightColor}</span>
+                {specialMark && <span>標記：{specialMark}</span>}
+                {backgroundColor && <span>背景色：{backgroundColor}</span>}
+              </div>
+              {globalExtraPrompt.trim() && (
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '0.15rem' }}>
+                  提示詞：{globalExtraPrompt.trim().slice(0, 80)}{globalExtraPrompt.trim().length > 80 ? '…' : ''}
+                </div>
+              )}
+            </div>
+
+            {slides.filter(s => s.generatedImage).length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>選擇效果圖（最多 3 張）</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' }}>
+                  {slides.filter(s => s.generatedImage).map(s => {
+                    const selected = shareSelectedResults.has(s.id);
+                    return (
+                      <div key={s.id}
+                        onClick={() => setShareSelectedResults(prev => {
+                          const next = new Set(prev);
+                          if (next.has(s.id)) next.delete(s.id);
+                          else if (next.size < 3) next.add(s.id);
+                          return next;
+                        })}
+                        style={{ position: 'relative', cursor: 'pointer', borderRadius: '6px', overflow: 'hidden', border: `2px solid ${selected ? 'var(--accent-color)' : 'var(--border-color)'}`, opacity: selected ? 1 : 0.6, transition: 'all 0.15s' }}>
+                        <img src={pendingImages.get(s.id) || s.generatedImage!} alt="result" style={{ width: '100%', height: 'auto', display: 'block' }} />
+                        {selected && (
+                          <div style={{ position: 'absolute', top: '3px', right: '3px', width: '18px', height: '18px', borderRadius: '50%', backgroundColor: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <CheckSquare size={11} color="#fff" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
+              <Button variant="secondary" onClick={() => setShowShareModal(false)} disabled={isSharing}>取消</Button>
+              <Button onClick={handleShareTemplate} icon={Share2} disabled={isSharing || !shareLabel.trim()}
+                style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}>
+                {isSharing ? '分享中...' : '分享到社群'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 429 Error Modal with auto-retry config */}
       {retryModal429 && !autoRetryStatus && (
