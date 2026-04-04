@@ -5,6 +5,11 @@ import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Attachment { name: string; mimeType: string; dataUrl: string; }
@@ -38,76 +43,35 @@ const deriveTitle = (msgs: ChatMsg[]): string => {
   return first ? first.text.slice(0, 30) + (first.text.length > 30 ? '…' : '') : '新對話';
 };
 
-// ── Markdown renderer ──────────────────────────────────────────────────────────
-const Markdown: React.FC<{ text: string }> = ({ text }) => {
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    // Code block
-    if (line.trimStart().startsWith('```')) {
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trimStart().startsWith('```')) { codeLines.push(lines[i]); i++; }
-      i++; // skip closing ```
-      elements.push(<pre key={elements.length} style={{ background: 'var(--bg-tertiary)', padding: '0.6rem 0.8rem', borderRadius: '0.4rem', overflow: 'auto', fontSize: '0.78rem', margin: '0.3rem 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}><code>{codeLines.join('\n')}</code></pre>);
-      continue;
-    }
-    // Heading
-    const hMatch = line.match(/^(#{1,4})\s+(.*)$/);
-    if (hMatch) {
-      const level = hMatch[1].length;
-      const sizes = ['1.1rem', '1rem', '0.92rem', '0.88rem'];
-      elements.push(<div key={elements.length} style={{ fontWeight: 700, fontSize: sizes[level - 1], margin: '0.4rem 0 0.15rem' }}>{renderInline(hMatch[2])}</div>);
-      i++; continue;
-    }
-    // Horizontal rule
-    if (/^---+$/.test(line.trim())) { elements.push(<hr key={elements.length} style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.4rem 0' }} />); i++; continue; }
-    // Unordered list
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items: React.ReactNode[] = [];
-      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-        items.push(<li key={items.length} style={{ marginBottom: '0.15rem' }}>{renderInline(lines[i].replace(/^\s*[-*]\s+/, ''))}</li>);
-        i++;
-      }
-      elements.push(<ul key={elements.length} style={{ margin: '0.2rem 0', paddingLeft: '1.2rem' }}>{items}</ul>);
-      continue;
-    }
-    // Ordered list
-    if (/^\s*\d+\.\s+/.test(line)) {
-      const items: React.ReactNode[] = [];
-      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(<li key={items.length} style={{ marginBottom: '0.15rem' }}>{renderInline(lines[i].replace(/^\s*\d+\.\s+/, ''))}</li>);
-        i++;
-      }
-      elements.push(<ol key={elements.length} style={{ margin: '0.2rem 0', paddingLeft: '1.2rem' }}>{items}</ol>);
-      continue;
-    }
-    // Empty line
-    if (line.trim() === '') { i++; continue; }
-    // Normal paragraph
-    elements.push(<p key={elements.length} style={{ margin: '0.15rem 0' }}>{renderInline(line)}</p>);
-    i++;
-  }
-  return <div style={{ fontSize: '0.84rem', lineHeight: 1.7, wordBreak: 'break-word' }}>{elements}</div>;
+// ── Markdown renderer (react-markdown + GFM tables + KaTeX) ─────────────────
+const mdComponents: Record<string, React.FC<any>> = {
+  h1: ({ children }) => <h1 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '0.6rem 0 0.2rem', color: 'var(--text-primary)' }}>{children}</h1>,
+  h2: ({ children }) => <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: '0.5rem 0 0.15rem', color: 'var(--text-primary)' }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: '0.4rem 0 0.1rem', color: 'var(--text-primary)' }}>{children}</h3>,
+  h4: ({ children }) => <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '0.35rem 0 0.1rem', color: 'var(--text-secondary)' }}>{children}</h4>,
+  p: ({ children }) => <p style={{ margin: '0.2rem 0', lineHeight: 1.65 }}>{children}</p>,
+  ul: ({ children }) => <ul style={{ margin: '0.2rem 0', paddingLeft: '1.3rem' }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ margin: '0.2rem 0', paddingLeft: '1.3rem' }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: '0.1rem' }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.4rem 0' }} />,
+  code: ({ inline, children, className }: any) => inline
+    ? <code style={{ background: 'var(--bg-tertiary)', padding: '0.1rem 0.3rem', borderRadius: '3px', fontSize: '0.8em' }}>{children}</code>
+    : <pre style={{ background: 'var(--bg-tertiary)', padding: '0.6rem 0.8rem', borderRadius: '0.4rem', overflow: 'auto', fontSize: '0.78rem', margin: '0.3rem 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}><code className={className}>{children}</code></pre>,
+  table: ({ children }) => <div style={{ overflowX: 'auto', margin: '0.3rem 0' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>{children}</table></div>,
+  thead: ({ children }) => <thead style={{ background: 'var(--bg-tertiary)' }}>{children}</thead>,
+  th: ({ children }) => <th style={{ padding: '0.35rem 0.5rem', borderBottom: '2px solid var(--border-color)', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>{children}</th>,
+  td: ({ children }) => <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid var(--border-color)' }}>{children}</td>,
+  blockquote: ({ children }) => <blockquote style={{ margin: '0.3rem 0', paddingLeft: '0.8rem', borderLeft: '3px solid var(--accent-color)', color: 'var(--text-secondary)' }}>{children}</blockquote>,
+  a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>{children}</a>,
 };
-function renderInline(text: string): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-  const regex = /(\*\*(.+?)\*\*)|(`([^`]+?)`)|(\*(.+?)\*)/g;
-  let lastIdx = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
-    if (match[2]) parts.push(<strong key={key++}>{match[2]}</strong>);
-    else if (match[4]) parts.push(<code key={key++} style={{ background: 'var(--bg-tertiary)', padding: '0.1rem 0.3rem', borderRadius: '3px', fontSize: '0.8em' }}>{match[4]}</code>);
-    else if (match[6]) parts.push(<em key={key++}>{match[6]}</em>);
-    lastIdx = match.index + match[0].length;
-  }
-  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
-  return parts.length === 1 ? parts[0] : <>{parts}</>;
-}
+const Markdown: React.FC<{ text: string }> = React.memo(({ text }) => (
+  <div style={{ fontSize: '0.84rem', lineHeight: 1.7, wordBreak: 'break-word' }}>
+    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+      {text}
+    </ReactMarkdown>
+  </div>
+));
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export const AIChatPage: React.FC = () => {
