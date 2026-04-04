@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 
 export const Settings: React.FC = () => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || import.meta.env.VITE_VERTEX_API_KEY || '');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('geminiApiKey') || '');
   const [model, setModel] = useState(localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-3.1-flash-image-preview');
 
   const GEMINI_MODELS = [
@@ -23,7 +23,6 @@ export const Settings: React.FC = () => {
 
   const handleSaveConfigs = () => {
     localStorage.setItem('theme', theme);
-    localStorage.setItem('vertexApiKey', apiKey);
     localStorage.setItem('geminiApiKey', apiKey);
     localStorage.setItem('vertexModel', model);
     localStorage.setItem('geminiModel', model);
