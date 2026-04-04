@@ -377,9 +377,9 @@ export const AIChatPage: React.FC = () => {
       </div>
 
       {/* ── Center: Chat ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.85rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, gap: '0.4rem', flexWrap: 'wrap', background: 'var(--bg-primary)' }}>
-          <h2 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-secondary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 1rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-primary)' }}>
+          <h2 style={{ margin: 0, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
             <Sparkles size={18} color="var(--accent-color)" /> AI 協作
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -390,14 +390,11 @@ export const AIChatPage: React.FC = () => {
                 <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); setStylePrompt(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)' }}><X size={11} /></button>
               </div>
             )}
-            <button onClick={() => { setTemplateTargetSlide(null); setShowTemplateGallery(true); }} style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <ImageIcon size={12} /> 模板庫
-            </button>
           </div>
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           {messages.length === 0 && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', color: 'var(--text-secondary)' }}>
               <Sparkles size={44} style={{ opacity: 0.25 }} />
@@ -413,31 +410,31 @@ export const AIChatPage: React.FC = () => {
                 <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginBottom: '0.25rem', maxWidth: '85%', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                   {msg.attachments.map((a, i) => (
                     a.mimeType.startsWith('image/') ? (
-                      <img key={i} src={a.dataUrl} alt={a.name} onClick={() => setLightbox(a.dataUrl)} style={{ maxHeight: '100px', maxWidth: '160px', borderRadius: '0.4rem', cursor: 'zoom-in', border: '1px solid var(--border-color)' }} />
+                      <img key={i} src={a.dataUrl} alt={a.name} onClick={() => setLightbox(a.dataUrl)} style={{ maxHeight: '100px', maxWidth: '160px', borderRadius: '0.4rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} />
                     ) : (
-                      <div key={i} style={{ padding: '0.3rem 0.5rem', background: 'var(--bg-tertiary)', borderRadius: '0.35rem', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Paperclip size={10} />{a.name}</div>
+                      <div key={i} style={{ padding: '0.3rem 0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.35rem', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Paperclip size={10} />{a.name}</div>
                     )
                   ))}
                 </div>
               )}
               {msg.text && (
-                <div style={msg.role === 'user' ? userBubble : aiBubble}>
+                <div style={{ ...(msg.role === 'user' ? userBubble : aiBubble), boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                   {msg.role === 'assistant' ? <Markdown text={msg.text} /> : <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'inherit' }}>{msg.text}</pre>}
                 </div>
               )}
-              <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', marginTop: '0.1rem', paddingInline: '0.15rem' }}>
+              <span style={{ fontSize: '0.58rem', color: 'var(--text-secondary)', marginTop: '0.15rem', paddingInline: '0.2rem' }}>
                 {new Date(msg.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
           ))}
           {isLoading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem', padding: '0.5rem' }}>
               <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> AI 思考中…
-              <button onClick={() => abortRef.current?.abort()} style={{ marginLeft: '0.3rem', padding: '0.15rem 0.4rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'none', color: 'var(--text-secondary)' }}>取消</button>
+              <button onClick={() => abortRef.current?.abort()} style={{ marginLeft: '0.3rem', padding: '0.15rem 0.4rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>取消</button>
             </div>
           )}
           {isPlanLoading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem', padding: '0.5rem' }}>
               <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> AI 正在規劃投影片內容…
             </div>
           )}
@@ -446,17 +443,21 @@ export const AIChatPage: React.FC = () => {
 
         {/* ── Slide Plan Module (outside scroll area, always visible) ── */}
         {slidePlans.length > 0 && (
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: '50vh', borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', maxHeight: '50vh', borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)', boxShadow: '0 -4px 12px rgba(0,0,0,0.02)' }}>
             {/* Header */}
-            <div style={{ padding: '0.45rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+            <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--bg-primary)', borderBottom: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-color)' }} />
-                <span style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-primary)' }}>投影片規劃</span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '0.05rem 0.35rem', borderRadius: '0.6rem' }}>{slidePlans.length} 頁</span>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>投影片規劃</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.05rem 0.4rem', borderRadius: '0.6rem', border: '1px solid var(--border-color)' }}>{slidePlans.length} 頁</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                <button onClick={() => { setTemplateTargetSlide(null); setShowTemplateGallery(true); }} style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <ImageIcon size={11} /> 模板庫
+                </button>
+                <div style={{ width: '1px', height: '12px', background: 'var(--border-color)', margin: '0 0.1rem' }} />
                 <button onClick={() => setShowAddPages(!showAddPages)}
-                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}><Plus size={11} /> 新增</button>
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}><Plus size={11} /> 新增</button>
                 {showAddPages && (
                   <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.4rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '0.5rem', zIndex: 10, display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
                     <span style={{ fontSize: '0.7rem' }}>新增</span>
@@ -474,41 +475,43 @@ export const AIChatPage: React.FC = () => {
               </div>
             </div>
             {/* Slide cards */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0.4rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0.6rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-secondary)' }}>
               {slidePlans.map((slide) => (
-                <div key={slide.id} style={{ border: '1px solid var(--border-color)', borderRadius: '0.5rem', background: 'var(--bg-secondary)', overflow: 'hidden', transition: 'box-shadow 0.15s', ...(slide.generatedImage ? { borderColor: '#27ae60' } : {}) }}>
+                <div key={slide.id} style={{ border: '1px solid var(--border-color)', borderRadius: '0.6rem', background: 'var(--bg-primary)', overflow: 'hidden', transition: 'all 0.2s ease', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', ...(slide.generatedImage ? { borderColor: '#27ae60', boxShadow: '0 0 0 1px rgba(39, 174, 96, 0.2)' } : {}) }}>
                   <div style={{ display: 'flex', alignItems: 'stretch' }}>
                     {/* Page number strip */}
-                    <div style={{ width: '28px', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', writingMode: 'vertical-lr' }}>{slide.pageNum}</span>
+                    <div style={{ width: '32px', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRight: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: slide.generatedImage ? '#fff' : 'var(--text-secondary)' }}>{slide.pageNum}</span>
                     </div>
                     {/* Content area */}
-                    <div style={{ flex: 1, padding: '0.4rem 0.5rem', minWidth: 0 }}>
+                    <div style={{ flex: 1, padding: '0.6rem 0.8rem', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                       <input value={slide.title} onChange={e => updateSlidePlan(slide.id, 'title', e.target.value)} placeholder="投影片標題" disabled={isGenerating}
-                        style={{ width: '100%', padding: '0.2rem 0', fontSize: '0.78rem', fontWeight: 600, border: 'none', borderBottom: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
-                      <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="內容描述…" disabled={isGenerating} rows={1}
-                        style={{ width: '100%', padding: '0.25rem 0', fontSize: '0.72rem', border: 'none', background: 'transparent', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.45, boxSizing: 'border-box', minHeight: '2rem' }} />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.1rem' }}>
+                        style={{ width: '100%', padding: '0.2rem 0.4rem', fontSize: '0.85rem', fontWeight: 600, border: '1px solid transparent', borderRadius: '0.3rem', background: 'transparent', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s', ...(isGenerating ? {} : { ':focus': { borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' } } as any) }} />
+                      <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="內容描述…" disabled={isGenerating} rows={2}
+                        style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.78rem', border: '1px solid transparent', borderRadius: '0.3rem', background: 'transparent', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box', minHeight: '3rem', transition: 'all 0.2s', ...(isGenerating ? {} : { ':focus': { borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' } } as any) }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem', paddingLeft: '0.4rem' }}>
                         <button onClick={() => { setTemplateTargetSlide(slide.id); setShowTemplateGallery(true); }}
-                          style={{ padding: '0.12rem 0.35rem', fontSize: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '0.2rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'transparent', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.12rem' }}>
-                          <ImageIcon size={9} /> {slide.templateLabel || '模板'}
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'var(--bg-secondary)', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem', transition: 'all 0.2s' }}>
+                          <ImageIcon size={10} /> {slide.templateLabel || '選擇模板'}
                         </button>
-                        {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '16px', borderRadius: '2px', border: '1px solid var(--border-color)' }} />}
-                        {slide.generatedImage && <span style={{ fontSize: '0.58rem', color: '#27ae60', display: 'flex', alignItems: 'center', gap: '0.1rem' }}>✓</span>}
+                        {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '20px', borderRadius: '3px', border: '1px solid var(--border-color)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} />}
+                        {slide.generatedImage && <span style={{ fontSize: '0.68rem', color: '#27ae60', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 600 }}>✓ 已生成</span>}
                         <button onClick={() => setSlidePlans(prev => { const arr = prev.filter(s => s.id !== slide.id); return arr.map((s, i) => ({ ...s, pageNum: i + 1 })); })} title="刪除" disabled={isGenerating}
-                          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', opacity: isGenerating ? 0.2 : 0.4 }}><Trash2 size={10} /></button>
+                          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-secondary)', opacity: isGenerating ? 0.2 : 0.6, borderRadius: '0.3rem', transition: 'all 0.2s', ...(isGenerating ? {} : { ':hover': { background: 'var(--bg-secondary)', color: '#e74c3c', opacity: 1 } } as any) }}><Trash2 size={12} /></button>
                       </div>
                     </div>
                     {/* Thumbnail */}
                     {slide.generatedImage && (
-                      <img src={slide.generatedImage} alt="" onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '52px', objectFit: 'cover', cursor: 'zoom-in', flexShrink: 0 }} />
+                      <div style={{ padding: '0.6rem', paddingLeft: 0, display: 'flex', alignItems: 'center' }}>
+                        <img src={slide.generatedImage} alt="" onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '80px', height: 'auto', aspectRatio: aspectRatio.replace(':', '/'), objectFit: 'cover', borderRadius: '0.4rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }} />
+                      </div>
                     )}
                   </div>
                 </div>
               ))}
             </div>
             {/* Footer: generate button / progress */}
-            <div style={{ padding: '0.45rem 0.75rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+            <div style={{ padding: '0.6rem 1rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-primary)', flexShrink: 0 }}>
               {isGenerating ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{ flex: 1 }}>
