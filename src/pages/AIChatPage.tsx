@@ -523,30 +523,37 @@ export const AIChatPage: React.FC = () => {
   };
 
   const backupSlideImage = useCallback((slideId: string, img: string) => {
-    if (!activeId || !img) return;
+    if (!activeId || !img) { console.log('[Backup] Skipped: no activeId or img'); return; }
     const convId = activeId;
     const driveScriptUrl = localStorage.getItem('driveScriptUrl') || (import.meta.env.VITE_DRIVE_SCRIPT_URL as string) || '';
+    console.log('[Backup] Starting backup for slide:', slideId, '| convId:', convId, '| driveConfigured:', !!driveScriptUrl);
     // Upload HQ to Firebase Storage; on success swap base64 → URL to keep localStorage small
     uploadHQToStorage(convId, slideId, 'generatedImage', img)
       .then(hqUrl => {
         if (hqUrl) {
-          console.log('[HQ] Uploaded:', hqUrl);
+          console.log('[HQ] ✅ Uploaded to Firebase Storage:', hqUrl);
           setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: hqUrl } : s));
           setGalleryImages(prev => prev.map(g => g === img ? hqUrl : g));
+        } else {
+          console.log('[HQ] ⚠️ Upload returned null (Firebase Storage may be unavailable or auth failed)');
         }
       })
-      .catch(console.warn);
+      .catch(err => console.log('[HQ] ❌ Upload error:', err));
     // Upload to Google Drive (fire-and-forget)
     if (driveScriptUrl) {
       const ts = Date.now();
       uploadToDrive(img, `chat_${convId}_${slideId}_${ts}.jpg`, driveScriptUrl)
         .then(driveUrl => {
           if (driveUrl) {
-            console.log('[Drive] Backed up:', driveUrl);
+            console.log('[Drive] ✅ Backed up to Google Drive:', driveUrl);
             setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, driveUrl } : s));
+          } else {
+            console.log('[Drive] ⚠️ Upload returned null');
           }
         })
-        .catch(console.warn);
+        .catch(err => console.log('[Drive] ❌ Upload error:', err));
+    } else {
+      console.log('[Drive] ⏭️ Skipped: driveScriptUrl not configured');
     }
   }, [activeId]);
 
