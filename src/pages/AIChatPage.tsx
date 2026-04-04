@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { showAlert, showConfirm } from '../utils/dialog';
 import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings } from 'lucide-react';
 import { chatWithGemini, generateChatTitle, transformSlideText } from '../utils/gemini';
+import { uploadHQToStorage, uploadToDrive, fetchImageAsBase64 } from '../utils/storageHelper';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import type { TransformOp } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
@@ -24,6 +25,7 @@ interface SlidePlan {
   id: string; pageNum: number; title: string; content: string;
   templateImage?: string; templateLabel?: string; templatePrompt?: string;
   generatedImage?: string;
+  driveUrl?: string;
 }
 interface SlideOperation {
   action: 'update' | 'delete' | 'add';
@@ -520,6 +522,34 @@ export const AIChatPage: React.FC = () => {
     setSlidePlans(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
+  const backupSlideImage = useCallback((slideId: string, img: string) => {
+    if (!activeId || !img) return;
+    const convId = activeId;
+    const driveScriptUrl = localStorage.getItem('driveScriptUrl') || (import.meta.env.VITE_DRIVE_SCRIPT_URL as string) || '';
+    // Upload HQ to Firebase Storage; on success swap base64 → URL to keep localStorage small
+    uploadHQToStorage(convId, slideId, 'generatedImage', img)
+      .then(hqUrl => {
+        if (hqUrl) {
+          console.log('[HQ] Uploaded:', hqUrl);
+          setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: hqUrl } : s));
+          setGalleryImages(prev => prev.map(g => g === img ? hqUrl : g));
+        }
+      })
+      .catch(console.warn);
+    // Upload to Google Drive (fire-and-forget)
+    if (driveScriptUrl) {
+      const ts = Date.now();
+      uploadToDrive(img, `chat_${convId}_${slideId}_${ts}.jpg`, driveScriptUrl)
+        .then(driveUrl => {
+          if (driveUrl) {
+            console.log('[Drive] Backed up:', driveUrl);
+            setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, driveUrl } : s));
+          }
+        })
+        .catch(console.warn);
+    }
+  }, [activeId]);
+
   const handleContentTransform = async (slideId: string, operation: TransformOp) => {
     const slide = slidePlans.find(s => s.id === slideId);
     if (!slide || !slide.content.trim()) return;
@@ -613,6 +643,7 @@ export const AIChatPage: React.FC = () => {
             setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: generatedImg } : s));
             setGalleryImages(prev => { const withoutOld = prev.filter((_, gi) => gi !== currentPlans.findIndex(sp => sp.id === slideId)); return [...withoutOld, generatedImg]; });
             results.push(generatedImg);
+            backupSlideImage(slideId, generatedImg);
           } else {
             results.push(null);
           }
@@ -700,6 +731,7 @@ export const AIChatPage: React.FC = () => {
             setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: generatedImg } : s));
             setGalleryImages(prev => [...prev, generatedImg]);
             results.push(generatedImg);
+            backupSlideImage(slideId, generatedImg);
           } else {
             results.push(null);
           }
@@ -760,13 +792,15 @@ export const AIChatPage: React.FC = () => {
     setIsExporting(true);
     try {
       const pres = new pptxgen();
+      // Resolve all images to base64 (handles Firebase Storage / Drive URLs)
+      const resolvedImages = await Promise.all(images.map(img => fetchImageAsBase64(img).catch(() => img)));
       // Detect dimensions from first image
       const dims = await new Promise<{ w: number; h: number }>(res => {
-        const img = new Image(); img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight }); img.onerror = () => res({ w: 16, h: 9 }); img.src = images[0];
+        const img = new Image(); img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight }); img.onerror = () => res({ w: 16, h: 9 }); img.src = resolvedImages[0];
       });
       const layoutW = 10; const layoutH = parseFloat((layoutW / (dims.w / dims.h)).toFixed(4));
       pres.defineLayout({ name: 'AUTO', width: layoutW, height: layoutH }); pres.layout = 'AUTO';
-      for (const img of images) { pres.addSlide().addImage({ data: img, x: 0, y: 0, w: layoutW, h: layoutH }); }
+      for (const img of resolvedImages) { pres.addSlide().addImage({ data: img, x: 0, y: 0, w: layoutW, h: layoutH }); }
       await pres.writeFile({ fileName: `AI_Slides_${Date.now()}.pptx` });
     } catch (err: any) { showAlert(`匯出失敗：${err.message}`, '錯誤'); }
     finally { setIsExporting(false); }
