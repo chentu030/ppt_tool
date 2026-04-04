@@ -102,6 +102,11 @@ export const AIChatPage: React.FC = () => {
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceLabel, setReferenceLabel] = useState('');
   const [stylePrompt, setStylePrompt] = useState('');
+  const [fontFamily, setFontFamily] = useState('');
+  const [mainColor, setMainColor] = useState('');
+  const [highlightColor, setHighlightColor] = useState('');
+  const [specialMark, setSpecialMark] = useState('');
+  const [bgColor, setBgColor] = useState('');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [templateTargetSlide, setTemplateTargetSlide] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -371,6 +376,13 @@ export const AIChatPage: React.FC = () => {
 
   const handleTemplateApply = async ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
     setShowTemplateGallery(false);
+    if (settings) {
+      if (settings.fontFamily) setFontFamily(settings.fontFamily);
+      if (settings.mainColor) setMainColor(settings.mainColor);
+      if (settings.highlightColor) setHighlightColor(settings.highlightColor);
+      if (settings.specialMark !== undefined) setSpecialMark(settings.specialMark);
+      if (settings.backgroundColor) setBgColor(settings.backgroundColor);
+    }
     setReferenceLabel([settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇');
     if (resolvedExtraPrompt !== null) setStylePrompt(resolvedExtraPrompt);
     if (imageUrl && !imageUrl.startsWith('data:')) { setReferenceImage(await urlToBase64(imageUrl)); } else { setReferenceImage(imageUrl); }
@@ -540,7 +552,8 @@ export const AIChatPage: React.FC = () => {
         if (!slide) { completedCount++; setGenProgress({ current: completedCount, total: slideIds.length }); results.push(null); continue; }
         try {
           const slideStylePrompt = slide.templatePrompt || stylePrompt || '';
-          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${slideStylePrompt ? `Style: ${slideStylePrompt}` : ''}\nThis is slide ${slide.pageNum} of ${currentPlans.length}.`;
+          const advParts = [fontFamily && `Font: ${fontFamily}`, mainColor && `Main color: ${mainColor}`, highlightColor && `Highlight: ${highlightColor}`, bgColor && `Background: ${bgColor}`, specialMark && `Special: ${specialMark}`].filter(Boolean).join(', ');
+          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${advParts ? `Design settings: ${advParts}\n` : ''}${slideStylePrompt ? `Style: ${slideStylePrompt}\n` : ''}This is slide ${slide.pageNum} of ${currentPlans.length}.`;
           const imgHistory: GeminiChatMessage[] = [{ role: 'user', parts: [{ text: promptText }] }];
           const refImg = slide.templateImage || referenceImage;
           let resolvedRef = refImg;
@@ -627,7 +640,8 @@ export const AIChatPage: React.FC = () => {
         if (!slide) { completedCount++; setGenProgress({ current: completedCount, total: slideIds.length }); results.push(null); continue; }
         try {
           const slideStylePrompt = slide.templatePrompt || stylePrompt || '';
-          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${slideStylePrompt ? `Style: ${slideStylePrompt}` : ''}\nThis is slide ${slide.pageNum} of ${plans.length}.`;
+          const advParts = [fontFamily && `Font: ${fontFamily}`, mainColor && `Main color: ${mainColor}`, highlightColor && `Highlight: ${highlightColor}`, bgColor && `Background: ${bgColor}`, specialMark && `Special: ${specialMark}`].filter(Boolean).join(', ');
+          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${advParts ? `Design settings: ${advParts}\n` : ''}${slideStylePrompt ? `Style: ${slideStylePrompt}\n` : ''}This is slide ${slide.pageNum} of ${plans.length}.`;
           const imgHistory: GeminiChatMessage[] = [{ role: 'user', parts: [{ text: promptText }] }];
           const refImg = slide.templateImage || referenceImage;
           let resolvedRef = refImg;
@@ -923,15 +937,35 @@ export const AIChatPage: React.FC = () => {
                         <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); }} title="移除參考圖" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#e74c3c' }}><Trash2 size={11} /></button>
                       </div>
                     )}
+                    {/* Advanced settings grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                      {[
+                        { label: '字體', value: fontFamily, set: setFontFamily, ph: 'Noto Sans TC' },
+                        { label: '主色', value: mainColor, set: setMainColor, ph: '#333333' },
+                        { label: '強調色/方式', value: highlightColor, set: setHighlightColor, ph: '藍色底線' },
+                        { label: '背景色', value: bgColor, set: setBgColor, ph: '白色' },
+                      ].map(f => (
+                        <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <label style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{f.label}</label>
+                          <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                            style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <label style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記</label>
+                      <input value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例如：校徽浮水印、LOGO…"
+                        style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>額外提示詞</label>
-                      <textarea value={stylePrompt} onChange={e => setStylePrompt(e.target.value)} placeholder="例如：不要太花俏，背景簡潔，文字清晰可讀…" rows={4}
+                      <textarea value={stylePrompt} onChange={e => setStylePrompt(e.target.value)} placeholder="例如：不要太花俏，背景簡潔，文字清晰可讀…" rows={3}
                         style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此提示詞會附加到每張投影片的圖片生成指令中</span>
                     </div>
-                    {stylePrompt && (
-                      <button onClick={() => { setStylePrompt(''); }} style={{ padding: '0.3rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
-                        <Trash2 size={10} /> 清除提示詞
+                    {(stylePrompt || fontFamily || mainColor || highlightColor || bgColor || specialMark) && (
+                      <button onClick={() => { setStylePrompt(''); setFontFamily(''); setMainColor(''); setHighlightColor(''); setBgColor(''); setSpecialMark(''); }} style={{ padding: '0.3rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
+                        <Trash2 size={10} /> 清除所有設定
                       </button>
                     )}
                   </div>
