@@ -2160,7 +2160,7 @@ export const ProjectEditor: React.FC = () => {
       {showShareModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
           onClick={() => { if (!isSharing) setShowShareModal(false); }}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem' }}><Share2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />分享模板到社群</h3>
@@ -2197,7 +2197,7 @@ export const ProjectEditor: React.FC = () => {
             {slides.filter(s => s.generatedImage).length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>選擇效果圖（最多 3 張）</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem', maxHeight: '220px', overflowY: 'auto', borderRadius: '6px' }}>
                   {slides.filter(s => s.generatedImage).map(s => {
                     const selected = shareSelectedResults.has(s.id);
                     return (
