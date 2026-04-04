@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, EyeOff, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -1531,255 +1531,48 @@ export const ProjectEditor: React.FC = () => {
             </>
           )}
         </div>
-        
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>比例</label>
-            <select 
-              value={aspectRatio} 
-              onChange={(e) => setAspectRatio(e.target.value)}
-              style={{ padding: '0.2rem 0.3rem', fontSize: '0.72rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-            >
-              <option value="16:9">16:9</option>
-              <option value="4:3">4:3</option>
-              <option value="3:2">3:2</option>
-              <option value="1:1">1:1</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>解析度</label>
-            <select 
-              value={resolution} 
-              onChange={(e) => setResolution(e.target.value)}
-              style={{ padding: '0.2rem 0.3rem', fontSize: '0.72rem', borderRadius: '0.25rem', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-            >
-              <option value="1K">1K</option>
-              <option value="2K">2K</option>
-              <option value="4K">4K</option>
-            </select>
-          </div>
-        </div>
-
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-            <button onClick={() => setShowGenerateConfirmModal(true)} disabled={isGenerating || !globalReference || !!autoRetryStatus}
-              style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: (!globalReference || !!autoRetryStatus) ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
-              <Sparkles size={12} /> {generateProgress ? `生成中 ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
+          {!previewOpen && (
+            <button onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>
+              {selectedSlides.size === slides.length ? '取消全選' : '全選所有頁面'}
             </button>
-            {isGenerating && (
-              <button onClick={handleCancelGenerate} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.7rem' }}>
-                <X size={12} /> 取消
-              </button>
-            )}
-            {!isGenerating && !!autoRetryStatus && (
-              <button onClick={stopAutoRetry} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem', fontSize: '0.7rem' }}>
-                <X size={12} /> 停止重試
-              </button>
-            )}
-          </div>
+          )}
+          {!previewOpen && (
+            <button onClick={() => setPreviewOpen(true)}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <Eye size={12} /> 預覽
+            </button>
+          )}
           {pendingImages.size > 0 && (() => {
             const unbackedCount = pendingImages.size - backedUpIds.size;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                {unbackedCount > 0 ? (
-                  <button onClick={handleBackup} disabled={isBackingUp}
-                    style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                    {isBackingUp ? '備份中...' : `備份 (${unbackedCount})`}
-                  </button>
-                ) : (
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                    ✓ 已備份 {lastBackupTime?.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
+            return unbackedCount > 0 ? (
+              <button onClick={handleBackup} disabled={isBackingUp}
+                style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1 }}>
+                {isBackingUp ? '備份中...' : `備份 (${unbackedCount})`}
+              </button>
+            ) : (
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>✓ 已備份 {lastBackupTime?.toLocaleTimeString()}</span>
             );
           })()}
           <button onClick={() => setDownloadScopeModal('save')}
-            style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+            style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
             <Download size={12} /> 下載圖片
           </button>
           <button onClick={() => setDownloadScopeModal('export')} disabled={isExporting}
-            style={{ padding: '0.35rem 0.7rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isExporting ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isExporting ? 0.6 : 1 }}>
+            style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isExporting ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isExporting ? 0.6 : 1 }}>
             <Download size={12} /> {isExporting ? '匯出中...' : '匯出 PPTX'}
           </button>
         </div>
       </div>
 
       {/* Main Workspace */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: previewOpen ? 'row' : 'column', gap: '1rem', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', gap: '0.75rem', minHeight: 0 }}>
 
-        {/* ===== MODE A: Preview Hidden ??Compact bar + Grid ===== */}
-        {!previewOpen && (<>
-          {/* Combined controls + extra prompt row */}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-            {/* Extra prompt — flex:1 to fill remaining space */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, minWidth: '160px', backgroundColor: 'var(--bg-primary)', borderRadius: '0.35rem', border: '1px solid var(--border-color)', padding: '0.35rem 0.6rem' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>額外提示詞</span>
-              <input
-                value={globalExtraPrompt}
-                onChange={e => setGlobalExtraPrompt(e.target.value)}
-                placeholder="額外指令（選填）"
-                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '0.78rem', color: 'var(--text-primary)', minWidth: 0 }}
-              />
-              {globalExtraPrompt && (
-                <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={12}/></button>
-              )}
-            </div>
-            {/* Reference Style compact */}
-            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: '0.35rem', border: '1px solid var(--border-color)', padding: '0.35rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>風格參考</span>
-              {globalReference ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <div onClick={() => setShowTemplateGallery(true)} style={{ width: '40px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)', cursor: 'pointer' }} title="更換風格圖">
-                    <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                  <button onClick={() => setShowShareModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)' }} title="分享模板到社群"><Share2 size={12}/></button>
-                  <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={12}/></button>
-                </div>
-              ) : (
-                <button onClick={() => setShowTemplateGallery(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', border: '1px dashed var(--border-color)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.75rem', background: 'none' }}>
-                  <ImageIcon size={12} /> 風格參考
-                </button>
-              )}
-            </div>
-
-            {/* PPT Upload compact */}
-            <label style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-              {parsingProgress ? (
-                <><Sparkles size={14} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /> 轉換 {parsingProgress.current}/{parsingProgress.total}</>
-              ) : savingProgress ? (
-                <><Sparkles size={14} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /> 儲存 {savingProgress.current}/{savingProgress.total}</>
-              ) : (
-                <><Plus size={14} /> 上傳 PPT</>
-              )}
-              <input type="file" accept=".pptx" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file || !id) return;
-                let exactTotalSlides = 1;
-                try { const zip = new JSZip(); const content = await zip.loadAsync(file); const sf = Object.keys(content.files).filter(n => n.startsWith('ppt/slides/slide') && n.endsWith('.xml')); if (sf.length > 0) exactTotalSlides = sf.length; } catch(err) { console.warn("slide count fail"); }
-                setParsingProgress({ current: 0, total: exactTotalSlides });
-                const progressInterval = setInterval(() => { setParsingProgress(prev => { if (!prev) return prev; const next = prev.current + 1; return { ...prev, current: next >= prev.total ? prev.total - 1 : next }; }); }, 2000);
-                try {
-                  const formData = new FormData(); formData.append("file", file);
-                  const backendUrl = localStorage.getItem("backendUrl") || import.meta.env.VITE_BACKEND_URL || '';
-                  const res = await fetch(`${backendUrl}/upload-ppt/`, { method: "POST", body: formData });
-                  if (!res.ok) throw new Error("Failed to parse PPT.");
-                  const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
-                  if (totalSlidesReturned === 0) { alert("No slides found."); clearInterval(progressInterval); setParsingProgress(null); return; }
-                  clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
-                  await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
-                  setSavingProgress({ current: 0, total: totalSlidesReturned });
-                  const newSlideIds: string[] = []; const baseTimestamp = Date.now();
-                  setSavingProgress({ current: 0, total: totalSlidesReturned });
-                  const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
-                  const UPLOAD_CONCURRENCY = 4;
-                  for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
-                    const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
-                    const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
-                    allUploadResults.push(...chunkRes);
-                    setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
-                  }
-                  const fb = writeBatch(db);
-                  allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPrompt, status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
-                  await fb.commit();
-                  setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
-                } catch (err) { console.error(err); alert("Error saving PPT."); }
-                finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
-              }} />
-            </label>
-
-            {/* Word / TXT Upload compact */}
-            <button
-              disabled={parsingProgress !== null || savingProgress !== null}
-              onClick={() => setShowTextUploadModal(true)}
-              style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 600, color: 'inherit' }}>
-              <FileText size={14} /> Word/TXT
-            </button>
-            <input ref={textFileInputRef} type="file" accept=".docx,.txt" style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                handleTextFileProcess(file);
-                e.target.value = '';
-              }} />
-
-            {/* Gallery controls */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border-color)' }}>
-              <Button size="sm" variant="ghost" onClick={() => {
-                if (selectedSlides.size === slides.length) setSelectedSlides(new Set());
-                else setSelectedSlides(new Set(slides.map(s => s.id)));
-              }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                {selectedSlides.size === slides.length ? '取消全選' : '全選'}
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={14} />新增頁面</Button>
-            </div>
-
-            {/* Show Preview */}
-            <button onClick={() => setPreviewOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.75rem', backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500, marginLeft: 'auto' }}>
-              <Eye size={14} /> Preview
-            </button>
-          </div>
-
-          {/* 進階設定 compact collapsible */}
-          {(() => {
-            const inputS: React.CSSProperties = { padding: '0.3rem 0.55rem', fontSize: '0.8rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' };
-            const selectS: React.CSSProperties = { ...inputS, cursor: 'pointer' };
-            return (
-              <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden', flexShrink: 0 }}>
-                <button onClick={() => setShowAdvancedSettings(v => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.82rem' }}>
-                  <span>進階設定</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{showAdvancedSettings ? '▲ 收合' : '▼ 展開'}</span>
-                </button>
-                {showAdvancedSettings && (
-                  <div style={{ padding: '0.5rem 0.9rem 0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', borderTop: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
-                      <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
-                        <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
-                      <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
-                        <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
-                      <input style={{ ...inputS, width: '120px' }} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>主要顏色</span>
-                      <input style={{ ...inputS, width: '90px' }} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>重點標示顏色</span>
-                      <input style={{ ...inputS, width: '100px' }} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '180px' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記（選填）</span>
-                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <input style={{ ...inputS, flex: 1, minWidth: '120px' }} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：螢光筆、underline" />
-                        {['螢光筆', 'underline', '粗體'].map(tag => (
-                          <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
-                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                            + {tag}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
-                      <input style={{ ...inputS, width: '100px' }} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Google Drive-style grid */}
+        {/* ===== MODE A: Grid + Right Sidebar ===== */}
+        {!previewOpen && (
+          <div style={{ flex: 1, display: 'flex', gap: '0.75rem', minHeight: 0 }}>
+          {/* Slide Grid */}
           <div ref={gridRef} onMouseDown={handleGridMouseDown} style={{ flex: 1, overflowY: 'auto', padding: '0.25rem', userSelect: 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
               {slides.map((slide, index) => (
@@ -1837,7 +1630,194 @@ export const ProjectEditor: React.FC = () => {
               ))}
             </div>
           </div>
-        </>)}
+
+          {/* Right Sidebar */}
+          <div style={{ width: '260px', flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.25rem 0' }}>
+
+            {/* 1. Upload PPT / Word / 新增頁面 */}
+            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>上傳 / 新增</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.6rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                {parsingProgress ? (
+                  <><Sparkles size={13} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /> 轉換 {parsingProgress.current}/{parsingProgress.total}</>
+                ) : savingProgress ? (
+                  <><Sparkles size={13} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /> 儲存 {savingProgress.current}/{savingProgress.total}</>
+                ) : (
+                  <><Plus size={13} /> 上傳 PPT</>
+                )}
+                <input type="file" accept=".pptx" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !id) return;
+                  let exactTotalSlides = 1;
+                  try { const zip = new JSZip(); const content = await zip.loadAsync(file); const sf = Object.keys(content.files).filter(n => n.startsWith('ppt/slides/slide') && n.endsWith('.xml')); if (sf.length > 0) exactTotalSlides = sf.length; } catch(err) { console.warn("slide count fail"); }
+                  setParsingProgress({ current: 0, total: exactTotalSlides });
+                  const progressInterval = setInterval(() => { setParsingProgress(prev => { if (!prev) return prev; const next = prev.current + 1; return { ...prev, current: next >= prev.total ? prev.total - 1 : next }; }); }, 2000);
+                  try {
+                    const formData = new FormData(); formData.append("file", file);
+                    const backendUrl = localStorage.getItem("backendUrl") || import.meta.env.VITE_BACKEND_URL || '';
+                    const res = await fetch(`${backendUrl}/upload-ppt/`, { method: "POST", body: formData });
+                    if (!res.ok) throw new Error("Failed to parse PPT.");
+                    const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
+                    if (totalSlidesReturned === 0) { alert("No slides found."); clearInterval(progressInterval); setParsingProgress(null); return; }
+                    clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
+                    await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
+                    setSavingProgress({ current: 0, total: totalSlidesReturned });
+                    const newSlideIds: string[] = []; const baseTimestamp = Date.now();
+                    setSavingProgress({ current: 0, total: totalSlidesReturned });
+                    const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
+                    const UPLOAD_CONCURRENCY = 4;
+                    for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
+                      const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
+                      const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
+                      allUploadResults.push(...chunkRes);
+                      setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
+                    }
+                    const fb = writeBatch(db);
+                    allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPrompt, status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+                    await fb.commit();
+                    setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+                  } catch (err) { console.error(err); alert("Error saving PPT."); }
+                  finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
+                }} />
+              </label>
+              <button
+                disabled={parsingProgress !== null || savingProgress !== null}
+                onClick={() => setShowTextUploadModal(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.6rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                <FileText size={13} /> Word/TXT
+              </button>
+              <input ref={textFileInputRef} type="file" accept=".docx,.txt" style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  handleTextFileProcess(file);
+                  e.target.value = '';
+                }} />
+              <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}><Plus size={13} /> 新增頁面</Button>
+            </div>
+
+            {/* 2. 風格參考 */}
+            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>風格參考</span>
+              {globalReference ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <div onClick={() => setShowTemplateGallery(true)} style={{ width: '80px', aspectRatio: '16/9', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border-color)', cursor: 'pointer' }} title="更換風格圖">
+                    <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <button onClick={() => setShowShareModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }} title="分享模板到社群"><Share2 size={11}/> 分享</button>
+                    <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }}><X size={11}/> 移除</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowTemplateGallery(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem', border: '1px dashed var(--border-color)', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.75rem', background: 'none', justifyContent: 'center' }}>
+                  <ImageIcon size={13} /> 選擇風格參考圖
+                </button>
+              )}
+            </div>
+
+            {/* 3. 額外提示詞 */}
+            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>額外提示詞</span>
+                {globalExtraPrompt && (
+                  <button onClick={() => setGlobalExtraPrompt('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}><X size={12}/></button>
+                )}
+              </div>
+              <textarea
+                value={globalExtraPrompt}
+                onChange={e => setGlobalExtraPrompt(e.target.value)}
+                placeholder="額外指令（選填）"
+                rows={3}
+                style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.3rem', outline: 'none', fontSize: '0.75rem', color: 'var(--text-primary)', padding: '0.4rem 0.5rem', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
+
+            {/* 4. 進階設定 */}
+            {(() => {
+              const inputS: React.CSSProperties = { padding: '0.3rem 0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', width: '100%' };
+              const selectS: React.CSSProperties = { ...inputS, cursor: 'pointer' };
+              return (
+                <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                  <button onClick={() => setShowAdvancedSettings(v => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.75rem' }}>
+                    <span>進階設定</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{showAdvancedSettings ? '▲ 收合' : '▼ 展開'}</span>
+                  </button>
+                  {showAdvancedSettings && (
+                    <div style={{ padding: '0 0.75rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
+                          <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
+                            <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
+                          </select>
+                        </div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
+                          <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
+                            <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
+                        <input style={inputS} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>主要顏色</span>
+                          <input style={inputS} value={mainColor} onChange={e => setMainColor(e.target.value)} placeholder="黑色" />
+                        </div>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>重點標示</span>
+                          <input style={inputS} value={highlightColor} onChange={e => setHighlightColor(e.target.value)} placeholder="金黃色" />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>特殊標記（選填）</span>
+                        <input style={inputS} value={specialMark} onChange={e => setSpecialMark(e.target.value)} placeholder="例：螢光筆、underline" />
+                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                          {['螢光筆', 'underline', '粗體'].map(tag => (
+                            <button key={tag} onClick={() => setSpecialMark(v => v ? v + '、' + tag : tag)}
+                              style={{ fontSize: '0.65rem', padding: '0.15rem 0.35rem', border: '1px solid var(--border-color)', borderRadius: '999px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              + {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
+                        <input style={inputS} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 5. 開始生成 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: 'auto' }}>
+              <div style={{ position: 'relative' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
+                <button onClick={() => setShowGenerateConfirmModal(true)} disabled={isGenerating || !globalReference || !!autoRetryStatus}
+                  style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', fontWeight: 700, border: 'none', borderRadius: '0.3rem', cursor: (!globalReference || !!autoRetryStatus) ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
+                  <Sparkles size={14} /> {generateProgress ? `生成中 ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
+                </button>
+              </div>
+              {isGenerating && (
+                <button onClick={handleCancelGenerate} style={{ width: '100%', background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.35rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}>
+                  <X size={12} /> 取消生成
+                </button>
+              )}
+              {!isGenerating && !!autoRetryStatus && (
+                <button onClick={stopAutoRetry} style={{ width: '100%', background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.35rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', fontSize: '0.72rem' }}>
+                  <X size={12} /> 停止重試
+                </button>
+              )}
+            </div>
+
+          </div>
+          </div>
+        )}
 
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
