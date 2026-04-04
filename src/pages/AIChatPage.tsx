@@ -362,7 +362,7 @@ export const AIChatPage: React.FC = () => {
   const panelHeader: React.CSSProperties = { padding: '0.6rem 0.75rem', fontWeight: 700, fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 };
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 3rem)', margin: '-1.5rem', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', margin: '-1.5rem', overflow: 'hidden' }}>
 
       {/* ── Left Sidebar: History ── */}
       <div style={{ width: '220px', minWidth: '220px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
