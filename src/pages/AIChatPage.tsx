@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, FileText, Images, Play, Square } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown } from 'lucide-react';
 import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
+import pptxgen from 'pptxgenjs';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Attachment { name: string; mimeType: string; dataUrl: string; }
@@ -12,6 +13,11 @@ interface ChatMsg {
   images: string[]; attachments: Attachment[]; timestamp: number;
 }
 interface Conversation { id: string; title: string; messages: ChatMsg[]; createdAt: number; updatedAt: number; }
+interface SlidePlan {
+  id: string; pageNum: number; title: string; content: string;
+  templateImage?: string; templateLabel?: string; templatePrompt?: string;
+  generatedImage?: string;
+}
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 const LS_KEY = 'ai_chat_conversations';
@@ -115,15 +121,19 @@ export const AIChatPage: React.FC = () => {
   const [referenceLabel, setReferenceLabel] = useState('');
   const [stylePrompt, setStylePrompt] = useState('');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [templateTargetSlide, setTemplateTargetSlide] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState('16:9');
-  const [rightTab, setRightTab] = useState<'generate' | 'files'>('generate');
+  const [rightTab, setRightTab] = useState<'images' | 'files'>('images');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
-  // Image generation state
-  const [imageCount, setImageCount] = useState(3);
+  // Slide plan state
+  const [slidePlans, setSlidePlans] = useState<SlidePlan[]>([]);
+  const [isPlanLoading, setIsPlanLoading] = useState(false);
+  const [planPageCount, setPlanPageCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const genAbortRef = useRef(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,8 +169,8 @@ export const AIChatPage: React.FC = () => {
     });
   }, [messages]);
 
-  const loadConversation = (conv: Conversation) => { setActiveId(conv.id); setMessages(conv.messages); setInput(''); setAttachments([]); setGalleryImages([]); };
-  const newConversation = () => { setActiveId(null); setMessages([]); setInput(''); setAttachments([]); setGalleryImages([]); };
+  const loadConversation = (conv: Conversation) => { setActiveId(conv.id); setMessages(conv.messages); setInput(''); setAttachments([]); setGalleryImages([]); setSlidePlans([]); };
+  const newConversation = () => { setActiveId(null); setMessages([]); setInput(''); setAttachments([]); setGalleryImages([]); setSlidePlans([]); };
   const deleteConversation = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setConversations(prev => { const u = prev.filter(c => c.id !== id); saveConversations(u); return u; });
@@ -242,46 +252,93 @@ export const AIChatPage: React.FC = () => {
     } finally { setIsLoading(false); abortRef.current = null; }
   };
 
-  // ── Image generation (separate from chat) ──
-  const handleGenerateImages = async () => {
+  // ── Generate slide plan via AI ──
+  const handleGeneratePlan = async (pageCount: number) => {
     if (messages.length === 0) { alert('請先跟 AI 討論要生成的內容'); return; }
-    setIsGenerating(true); setGenProgress({ current: 0, total: imageCount }); genAbortRef.current = false;
-    setRightTab('generate');
-
-    // Ask AI to create a concise image prompt based on conversation
-    const promptReqHistory: GeminiChatMessage[] = [
-      ...buildHistory(messages, [{ text: `根據我們的對話內容，請幫我寫一段詳細的英文圖片生成 prompt，用於生成圖卡/投影片。只回覆 prompt 本身，不要加任何說明或前綴。${stylePrompt ? `風格：${stylePrompt}` : ''}` }], stylePrompt || undefined),
-    ];
-    let imagePrompt = '';
+    setIsPlanLoading(true);
     try {
-      const promptResp = await chatWithGemini(promptReqHistory, apiKey, { generateImage: false });
-      imagePrompt = promptResp.text.trim();
-    } catch {
-      imagePrompt = messages.filter(m => m.role === 'assistant' && m.text).slice(-1)[0]?.text || 'Create a beautiful presentation slide';
-    }
-
-    for (let idx = 0; idx < imageCount; idx++) {
-      if (genAbortRef.current) break;
-      setGenProgress({ current: idx + 1, total: imageCount });
-      try {
-        const slidePrompt = imageCount > 1 ? `${imagePrompt}\n\nThis is slide ${idx + 1} of ${imageCount}. Make each slide have different content focus.` : imagePrompt;
-        const imgHistory: GeminiChatMessage[] = [{ role: 'user', parts: [{ text: slidePrompt }] }];
-        // Attach reference image if available
-        const resp = await chatWithGemini(imgHistory, apiKey, {
-          generateImage: true, referenceImage, aspectRatio,
-        });
-        if (resp.images.length > 0) {
-          setGalleryImages(prev => [...prev, ...resp.images]);
-        }
-      } catch (err: any) {
-        console.error(`Image ${idx + 1} failed:`, err);
-        // Continue generating remaining images
+      const req = `根據我們的對話內容，請規劃 ${pageCount} 頁簡報，每頁包含標題和內容文字。回覆純 JSON 陣列格式，不要加任何說明：[{"title":"標題","content":"內容文字"}]。內容要具體、簡潔，適合放在投影片上。`;
+      const history = buildHistory(messages, [{ text: req }], stylePrompt || undefined);
+      const resp = await chatWithGemini(history, apiKey, { generateImage: false });
+      // Parse JSON from response
+      const jsonMatch = resp.text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as { title: string; content: string }[];
+        const plans: SlidePlan[] = parsed.map((s, i) => ({
+          id: `slide-${Date.now()}-${i}`, pageNum: i + 1, title: s.title, content: s.content,
+        }));
+        setSlidePlans(plans);
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `✅ 已規劃 ${plans.length} 頁投影片內容。請在下方模塊中檢視、編輯文字，選擇模板後按「開始生成圖片」。`, images: [], attachments: [], timestamp: Date.now() }]);
+      } else {
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `⚠️ 無法解析投影片規劃，請再試一次。\n\n原始回覆：\n${resp.text}`, images: [], attachments: [], timestamp: Date.now() }]);
       }
+    } catch (err: any) {
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `❌ 規劃失敗：${err.message}`, images: [], attachments: [], timestamp: Date.now() }]);
+    } finally { setIsPlanLoading(false); }
+  };
+
+  const updateSlidePlan = (id: string, field: 'title' | 'content', value: string) => {
+    setSlidePlans(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handleTemplateApplyForSlide = ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
+    setShowTemplateGallery(false);
+    if (!templateTargetSlide) { handleTemplateApply({ imageUrl, resolvedExtraPrompt, settings } as ApplyParams); return; }
+    const label = [settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇';
+    setSlidePlans(prev => prev.map(s => s.id === templateTargetSlide ? { ...s, templateImage: imageUrl, templateLabel: label, templatePrompt: resolvedExtraPrompt || '' } : s));
+    setTemplateTargetSlide(null);
+  };
+
+  // ── Generate images from plan ──
+  const handleGenerateFromPlan = async () => {
+    if (slidePlans.length === 0) return;
+    setIsGenerating(true); genAbortRef.current = false;
+    setGenProgress({ current: 0, total: slidePlans.length });
+    setRightTab('images');
+
+    for (let idx = 0; idx < slidePlans.length; idx++) {
+      if (genAbortRef.current) break;
+      setGenProgress({ current: idx + 1, total: slidePlans.length });
+      const slide = slidePlans[idx];
+      try {
+        const slideStylePrompt = slide.templatePrompt || stylePrompt || '';
+        const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${slideStylePrompt ? `Style: ${slideStylePrompt}` : ''}\nThis is slide ${slide.pageNum} of ${slidePlans.length}.`;
+        const imgHistory: GeminiChatMessage[] = [{ role: 'user', parts: [{ text: promptText }] }];
+        const refImg = slide.templateImage || referenceImage;
+        // Convert URL ref to base64 if needed
+        let resolvedRef = refImg;
+        if (refImg && !refImg.startsWith('data:')) { resolvedRef = await urlToBase64(refImg); }
+        const resp = await chatWithGemini(imgHistory, apiKey, { generateImage: true, referenceImage: resolvedRef, aspectRatio });
+        if (resp.images.length > 0) {
+          const img = resp.images[0];
+          setSlidePlans(prev => prev.map(s => s.id === slide.id ? { ...s, generatedImage: img } : s));
+          setGalleryImages(prev => [...prev, img]);
+        }
+      } catch (err: any) { console.error(`Slide ${idx + 1} failed:`, err); }
     }
     setIsGenerating(false);
   };
 
   const stopGenerating = () => { genAbortRef.current = true; };
+
+  // ── PPTX Export ──
+  const handleExportPptx = async () => {
+    const images = galleryImages.filter(Boolean);
+    if (images.length === 0) { alert('沒有可匯出的圖片'); return; }
+    setIsExporting(true);
+    try {
+      const pres = new pptxgen();
+      // Detect dimensions from first image
+      const dims = await new Promise<{ w: number; h: number }>(res => {
+        const img = new Image(); img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight }); img.onerror = () => res({ w: 16, h: 9 }); img.src = images[0];
+      });
+      const layoutW = 10; const layoutH = parseFloat((layoutW / (dims.w / dims.h)).toFixed(4));
+      pres.defineLayout({ name: 'AUTO', width: layoutW, height: layoutH }); pres.layout = 'AUTO';
+      for (const img of images) { pres.addSlide().addImage({ data: img, x: 0, y: 0, w: layoutW, h: layoutH }); }
+      await pres.writeFile({ fileName: `AI_Slides_${Date.now()}.pptx` });
+    } catch (err: any) { alert(`匯出失敗：${err.message}`); }
+    finally { setIsExporting(false); }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -332,7 +389,7 @@ export const AIChatPage: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.85rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, gap: '0.4rem', flexWrap: 'wrap', background: 'var(--bg-primary)' }}>
           <h2 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
-            <Sparkles size={18} color="var(--accent-color)" /> AI 對話設計
+            <Sparkles size={18} color="var(--accent-color)" /> AI 協作
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
             {referenceImage && (
@@ -342,12 +399,9 @@ export const AIChatPage: React.FC = () => {
                 <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); setStylePrompt(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)' }}><X size={11} /></button>
               </div>
             )}
-            <button onClick={() => setShowTemplateGallery(true)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <button onClick={() => { setTemplateTargetSlide(null); setShowTemplateGallery(true); }} style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
               <ImageIcon size={12} /> 模板庫
             </button>
-            <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.3rem 0.4rem', fontSize: '0.7rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }}>
-              <option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option>
-            </select>
           </div>
         </div>
 
@@ -358,7 +412,7 @@ export const AIChatPage: React.FC = () => {
               <Sparkles size={44} style={{ opacity: 0.25 }} />
               <p style={{ fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>開始與 AI 對話</p>
               <div style={{ fontSize: '0.78rem', textAlign: 'center', lineHeight: 1.7 }}>
-                1. 上傳文件或描述需求<br />2. 與 AI 討論確認內容<br />3. 右側面板設定張數並生成圖卡
+                1. 上傳文件或描述需求<br />2. 與 AI 討論確認內容<br />3. 點「📋 規劃投影片」產生內容規劃<br />4. 編輯文字、選模板後按「開始生成」
               </div>
             </div>
           )}
@@ -391,6 +445,69 @@ export const AIChatPage: React.FC = () => {
               <button onClick={() => abortRef.current?.abort()} style={{ marginLeft: '0.3rem', padding: '0.15rem 0.4rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'none', color: 'var(--text-secondary)' }}>取消</button>
             </div>
           )}
+          {isPlanLoading && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> AI 正在規劃投影片內容…
+            </div>
+          )}
+
+          {/* ── Slide Plan Module ── */}
+          {slidePlans.length > 0 && (
+            <div style={{ border: '2px solid var(--accent-color)', borderRadius: '0.75rem', overflow: 'hidden', background: 'var(--bg-primary)' }}>
+              <div style={{ padding: '0.6rem 0.8rem', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Edit3 size={14} /> 投影片內容規劃 ({slidePlans.length} 頁)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.2rem 0.3rem', fontSize: '0.68rem', borderRadius: '0.25rem', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
+                    <option value="16:9" style={{ color: '#000' }}>16:9</option><option value="1:1" style={{ color: '#000' }}>1:1</option><option value="9:16" style={{ color: '#000' }}>9:16</option><option value="4:3" style={{ color: '#000' }}>4:3</option>
+                  </select>
+                  <button onClick={() => setSlidePlans([])} title="清除規劃" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'rgba(255,255,255,0.7)' }}><X size={14} /></button>
+                </div>
+              </div>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {slidePlans.map((slide, idx) => (
+                  <div key={slide.id} style={{ padding: '0.6rem 0.8rem', borderBottom: idx < slidePlans.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0, marginTop: '0.15rem' }}>{slide.pageNum}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <input value={slide.title} onChange={e => updateSlidePlan(slide.id, 'title', e.target.value)} placeholder="標題" disabled={isGenerating}
+                        style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.78rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', marginBottom: '0.3rem', boxSizing: 'border-box' }} />
+                      <textarea value={slide.content} onChange={e => updateSlidePlan(slide.id, 'content', e.target.value)} placeholder="內容文字" disabled={isGenerating} rows={2}
+                        style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.74rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.25rem' }}>
+                        <button onClick={() => { setTemplateTargetSlide(slide.id); setShowTemplateGallery(true); }}
+                          style={{ padding: '0.2rem 0.45rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: slide.templateImage ? 'var(--accent-color)' : 'var(--bg-secondary)', color: slide.templateImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                          <ImageIcon size={10} /> {slide.templateLabel || '選擇模板'}
+                        </button>
+                        {slide.templateImage && <img src={slide.templateImage} alt="" style={{ height: '20px', borderRadius: '2px', border: '1px solid var(--border-color)' }} />}
+                        {slide.generatedImage && (
+                          <span style={{ fontSize: '0.62rem', color: '#27ae60', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>✓ 已生成</span>
+                        )}
+                      </div>
+                    </div>
+                    {slide.generatedImage && (
+                      <img src={slide.generatedImage} alt={`第${slide.pageNum}頁`} onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '60px', height: '40px', objectFit: 'cover', borderRadius: '0.25rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', flexShrink: 0, alignSelf: 'center' }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '0.5rem 0.8rem', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-secondary)' }}>
+                {isGenerating ? (
+                  <>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <div style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> 生成中 {genProgress.current}/{genProgress.total}</div>
+                      <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}><div style={{ height: '100%', background: 'var(--accent-color)', width: `${(genProgress.current / genProgress.total) * 100}%`, transition: 'width 0.3s' }} /></div>
+                    </div>
+                    <button onClick={stopGenerating} style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', border: '1px solid #e74c3c', borderRadius: '0.3rem', cursor: 'pointer', background: 'none', color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '0.2rem', whiteSpace: 'nowrap' }}><Square size={11} /> 停止</button>
+                  </>
+                ) : (
+                  <button onClick={handleGenerateFromPlan}
+                    style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', fontWeight: 700, border: 'none', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
+                    <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -407,6 +524,20 @@ export const AIChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* Plan generation controls */}
+        {messages.length > 0 && slidePlans.length === 0 && !isPlanLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.85rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>確認好內容後：</span>
+            <span style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>頁數</span>
+            <input type="number" min={1} max={30} value={planPageCount} onChange={e => setPlanPageCount(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+              style={{ width: '42px', padding: '0.2rem 0.3rem', fontSize: '0.72rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', textAlign: 'center', background: 'var(--bg-primary)', color: 'var(--text-primary)' }} />
+            <button onClick={() => handleGeneratePlan(planPageCount)} disabled={isLoading}
+              style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.35rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap', opacity: isLoading ? 0.5 : 1 }}>
+              <Edit3 size={12} /> 規劃投影片
+            </button>
+          </div>
+        )}
+
         {/* Input */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.4rem', padding: '0.6rem 0.85rem', borderTop: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-primary)' }}>
           <button onClick={() => fileInputRef.current?.click()} title="上傳檔案" style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.4rem', padding: '0.45rem', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0 }}><Paperclip size={16} /></button>
@@ -420,12 +551,12 @@ export const AIChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Right Panel ── */}
+      {/* ── Right Panel: Gallery ── */}
       <div style={{ width: '300px', minWidth: '300px', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-          <button onClick={() => setRightTab('generate')}
-            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'generate' ? 700 : 400, border: 'none', borderBottom: rightTab === 'generate' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'generate' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
-            <Images size={13} /> 生成圖片
+          <button onClick={() => setRightTab('images')}
+            style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'images' ? 700 : 400, border: 'none', borderBottom: rightTab === 'images' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'images' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+            <Images size={13} /> 生成圖片 ({galleryImages.length})
           </button>
           <button onClick={() => setRightTab('files')}
             style={{ flex: 1, padding: '0.55rem', fontSize: '0.72rem', fontWeight: rightTab === 'files' ? 700 : 400, border: 'none', borderBottom: rightTab === 'files' ? '2px solid var(--accent-color)' : '2px solid transparent', cursor: 'pointer', background: 'none', color: rightTab === 'files' ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
@@ -434,69 +565,42 @@ export const AIChatPage: React.FC = () => {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-          {rightTab === 'generate' ? (
-            <>
-              {/* Generate controls */}
-              <div style={{ padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem', marginBottom: '0.5rem' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.4rem' }}>生成設定</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                  <span style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>張數：</span>
-                  <input type="number" min={1} max={20} value={imageCount} onChange={e => setImageCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
-                    style={{ width: '50px', padding: '0.25rem 0.4rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', textAlign: 'center' }} />
-                  <span style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>比例：</span>
-                  <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ padding: '0.25rem', fontSize: '0.7rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-                    <option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option>
-                  </select>
+          {rightTab === 'images' ? (
+            galleryImages.length === 0 ? (
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0.5rem' }}>使用投影片規劃模塊生成圖片後<br />會顯示在這裡</p>
+            ) : (
+              <>
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.4rem' }}>
+                  <button onClick={downloadAllImages} style={{ flex: 1, padding: '0.3rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}><Download size={10} /> 下載圖片</button>
+                  <button onClick={handleExportPptx} disabled={isExporting} style={{ flex: 1, padding: '0.3rem', fontSize: '0.65rem', border: '1px solid var(--accent-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', opacity: isExporting ? 0.6 : 1 }}><FileDown size={10} /> {isExporting ? '匯出中…' : '匯出 PPTX'}</button>
                 </div>
-                {isGenerating ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem' }}>
-                      <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                      生成中 {genProgress.current}/{genProgress.total}
+                {isGenerating && (
+                  <div style={{ marginBottom: '0.4rem', padding: '0.35rem 0.5rem', background: 'var(--bg-secondary)', borderRadius: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', marginBottom: '0.2rem' }}>
+                      <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> 生成中 {genProgress.current}/{genProgress.total}
                     </div>
-                    <div style={{ height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ height: '3px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}>
                       <div style={{ height: '100%', background: 'var(--accent-color)', width: `${(genProgress.current / genProgress.total) * 100}%`, transition: 'width 0.3s' }} />
                     </div>
-                    <button onClick={stopGenerating} style={{ padding: '0.35rem', fontSize: '0.7rem', border: '1px solid #e74c3c', borderRadius: '0.3rem', cursor: 'pointer', background: 'none', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
-                      <Square size={11} /> 停止生成
-                    </button>
                   </div>
-                ) : (
-                  <button onClick={handleGenerateImages} disabled={messages.length === 0}
-                    style={{ width: '100%', padding: '0.45rem', fontSize: '0.78rem', fontWeight: 700, border: 'none', borderRadius: '0.4rem', cursor: messages.length === 0 ? 'default' : 'pointer', background: messages.length === 0 ? 'var(--border-color)' : 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}>
-                    <Play size={14} /> 開始生成 {imageCount} 張圖片
-                  </button>
                 )}
-                {messages.length === 0 && <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: '0.3rem 0 0', textAlign: 'center' }}>先跟 AI 討論內容後再生成</p>}
-              </div>
-
-              {/* Gallery */}
-              {galleryImages.length > 0 && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 600 }}>已生成 {galleryImages.length} 張</span>
-                    <button onClick={downloadAllImages} style={{ padding: '0.2rem 0.4rem', fontSize: '0.62rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'none', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}><Download size={10} /> 全部下載</button>
-                  </div>
-                  {galleryImages.map((img, i) => (
-                    <div key={i} style={{ marginBottom: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', overflow: 'hidden', position: 'relative' }}>
-                      <img src={img} alt={`圖片 ${i + 1}`} onClick={() => setLightbox(img)} style={{ width: '100%', height: 'auto', display: 'block', cursor: 'zoom-in' }} />
-                      <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '2px' }}>
-                        <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px' }}>#{i + 1}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.25rem', padding: '0.25rem', background: 'var(--bg-secondary)' }}>
-                        <button onClick={() => moveImage(i, -1)} disabled={i === 0} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.3 : 1, color: 'var(--text-secondary)' }}><ChevronUp size={11} /></button>
-                        <button onClick={() => moveImage(i, 1)} disabled={i === galleryImages.length - 1} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: i === galleryImages.length - 1 ? 'default' : 'pointer', opacity: i === galleryImages.length - 1 ? 0.3 : 1, color: 'var(--text-secondary)' }}><ChevronDown size={11} /></button>
-                        <button onClick={() => downloadImage(img, i)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: 'pointer', color: 'var(--text-secondary)' }}><Download size={11} /></button>
-                        <button onClick={() => removeImage(i)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: 'pointer', color: '#e74c3c' }}><Trash2 size={11} /></button>
-                      </div>
+                {galleryImages.map((img, i) => (
+                  <div key={i} style={{ marginBottom: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '0.5rem', overflow: 'hidden', position: 'relative' }}>
+                    <img src={img} alt={`圖片 ${i + 1}`} onClick={() => setLightbox(img)} style={{ width: '100%', height: 'auto', display: 'block', cursor: 'zoom-in' }} />
+                    <div style={{ position: 'absolute', top: '4px', right: '4px' }}>
+                      <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px' }}>#{i + 1}</span>
                     </div>
-                  ))}
-                </>
-              )}
-              {galleryImages.length === 0 && !isGenerating && messages.length > 0 && (
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0.5rem' }}>確認好內容後<br />點擊上方「開始生成」</p>
-              )}
-            </>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.25rem', padding: '0.25rem', background: 'var(--bg-secondary)' }}>
+                      <button onClick={() => moveImage(i, -1)} disabled={i === 0} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: i === 0 ? 'default' : 'pointer', opacity: i === 0 ? 0.3 : 1, color: 'var(--text-secondary)' }}><ChevronUp size={11} /></button>
+                      <button onClick={() => moveImage(i, 1)} disabled={i === galleryImages.length - 1} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: i === galleryImages.length - 1 ? 'default' : 'pointer', opacity: i === galleryImages.length - 1 ? 0.3 : 1, color: 'var(--text-secondary)' }}><ChevronDown size={11} /></button>
+                      <button onClick={() => downloadImage(img, i)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: 'pointer', color: 'var(--text-secondary)' }}><Download size={11} /></button>
+                      <button onClick={() => removeImage(i)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.2rem', padding: '2px 5px', cursor: 'pointer', color: '#e74c3c' }}><Trash2 size={11} /></button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )
           ) : (
             allFiles.length === 0 ? (
               <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0.5rem' }}>上傳的檔案會顯示在這裡</p>
@@ -519,7 +623,7 @@ export const AIChatPage: React.FC = () => {
         </div>
       </div>
 
-      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt="" onClose={() => setShowTemplateGallery(false)} onApply={handleTemplateApply} />}
+      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt="" onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
 
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, zIndex: 10200, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
