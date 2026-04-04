@@ -33,7 +33,7 @@ export const transformSlideText = async (
   conversationContext?: string
 ): Promise<string> => {
   const useGrounding = operation === 'grounding';
-  const modelName = useGrounding ? 'gemini-2.5-flash-preview-05-20' : 'gemini-3-flash-preview';
+  const modelName = 'gemini-3-flash-preview';
 
   const ctxBlock = conversationContext
     ? `\n\n【參考資料（來自使用者上傳的原始文件與對話）】\n${conversationContext.slice(0, 6000)}\n【參考資料結束】`
@@ -110,9 +110,9 @@ export const polishTextWithAI = async (
   throw new Error('AI did not return text.');
 };
 
-// Generate a short conversation title (≤10 chars) using Gemini 2.5 Flash
+// Generate a short conversation title (≤10 chars)
 export const generateChatTitle = async (firstMessage: string, apiKey: string): Promise<string> => {
-  const modelName = 'gemini-2.5-flash-preview-05-20';
+  const modelName = 'gemini-3-flash-preview';
   const requestBody = {
     contents: [{ role: 'user', parts: [{ text: `請用10個字以內為以下對話開頭取一個簡短標題，直接回覆標題文字，不要加標點符號或其他說明：\n\n${firstMessage.slice(0, 300)}` }] }],
   };
@@ -148,7 +148,7 @@ export const chatWithGemini = async (
 ): Promise<ChatResponse> => {
   const wantImage = options?.generateImage ?? false;
   const wantGrounding = options?.grounding ?? false;
-  const modelName = wantImage ? 'gemini-3.1-flash-image-preview' : (wantGrounding ? 'gemini-2.5-flash-preview-05-20' : 'gemini-3-flash-preview');
+  const modelName = wantImage ? 'gemini-3.1-flash-image-preview' : 'gemini-3-flash-preview';
 
   // Optionally append reference style image to the last user message
   if (options?.referenceImage && history.length > 0) {
