@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, LogOut, Presentation, Pin, PinOff, FileOutput, MessageSquareText } from 'lucide-react';
+import { Home, Settings, LogOut, Presentation, Pin, PinOff, MessageSquareText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
