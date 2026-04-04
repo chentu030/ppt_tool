@@ -234,6 +234,9 @@ export const AIChatPage: React.FC = () => {
     setSlidePlans(plans);
     setSlidePlanVisible(plans.length > 0);
     setActiveSlideId(plans[0]?.id || null);
+    // Restore gallery images from saved slide plans (preserves order by pageNum)
+    const imgs = plans.map(s => s.generatedImage).filter((img): img is string => !!img);
+    setGalleryImages(imgs);
   }, [activeId]);
 
   // Drag-to-resize slide plan panel
