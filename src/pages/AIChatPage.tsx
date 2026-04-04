@@ -44,6 +44,7 @@ export const AIChatPage: React.FC = () => {
   const [generateImage, setGenerateImage] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [referenceLabel, setReferenceLabel] = useState('');
+  const [stylePrompt, setStylePrompt] = useState('');
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState('16:9');
@@ -128,16 +129,38 @@ export const AIChatPage: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleTemplateApply = ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
-    setShowTemplateGallery(false);
-    setReferenceImage(imageUrl);
-    setReferenceLabel([settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇');
-    if (resolvedExtraPrompt) setInput(prev => prev || `風格提示：${resolvedExtraPrompt}`);
+  // Convert a URL to base64 data URI
+  const urlToBase64 = async (url: string): Promise<string> => {
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch { return url; }
   };
 
-  const buildHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts']): GeminiChatMessage[] => {
+  const handleTemplateApply = async ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
+    setShowTemplateGallery(false);
+    setReferenceLabel([settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇');
+    if (resolvedExtraPrompt) setStylePrompt(resolvedExtraPrompt);
+    // Convert URL to base64 if needed
+    if (imageUrl && !imageUrl.startsWith('data:')) {
+      const b64 = await urlToBase64(imageUrl);
+      setReferenceImage(b64);
+    } else {
+      setReferenceImage(imageUrl);
+    }
+  };
+
+  const buildHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string): GeminiChatMessage[] => {
+    let systemText = '你是專業設計助手，可以整理文件、生成圖卡、回答問題。用繁體中文回答。';
+    if (extraStylePrompt) systemText += `\n\n使用者選擇了以下風格設定，請在生成圖片時參考：${extraStylePrompt}`;
     const h: GeminiChatMessage[] = [
-      { role: 'user', parts: [{ text: '你是專業設計助手，可以整理文件、生成圖卡、回答問題。用繁體中文回答。' }] },
+      { role: 'user', parts: [{ text: systemText }] },
       { role: 'model', parts: [{ text: '好的，我是你的設計助手！請問需要什麼幫助？' }] },
     ];
     for (const m of msgs) {
@@ -176,7 +199,7 @@ export const AIChatPage: React.FC = () => {
         const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl;
         parts.push({ inlineData: { mimeType: a.mimeType, data: b64 } });
       }
-      const history = buildHistory(messages, parts);
+      const history = buildHistory(messages, parts, stylePrompt || undefined);
       const resp = await chatWithGemini(history, apiKey, { generateImage, referenceImage, aspectRatio }, ctrl.signal);
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: resp.images, attachments: [], timestamp: Date.now() }]);
       // Generate AI title for new conversations (first user message)
@@ -269,7 +292,7 @@ export const AIChatPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.5rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.4rem', fontSize: '0.7rem' }}>
                 <img src={referenceImage} alt="ref" style={{ width: '24px', height: '14px', objectFit: 'cover', borderRadius: '2px' }} />
                 <span>{referenceLabel || '風格'}</span>
-                <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)' }}><X size={11} /></button>
+                <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); setStylePrompt(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)' }}><X size={11} /></button>
               </div>
             )}
             <button onClick={() => setShowTemplateGallery(true)}
