@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings } from 'lucide-react';
 import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
@@ -117,6 +117,7 @@ export const AIChatPage: React.FC = () => {
   const genAbortRef = useRef(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAddPages, setShowAddPages] = useState(false);
+  const [showStyleSettings, setShowStyleSettings] = useState(false);
   const [addPagesCount, setAddPagesCount] = useState(1);
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
@@ -903,6 +904,38 @@ export const AIChatPage: React.FC = () => {
                 <button onClick={() => { setTemplateTargetSlide(null); setShowTemplateGallery(true); }} style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                   <ImageIcon size={11} /> 模板庫
                 </button>
+                <button onClick={() => setShowStyleSettings(v => !v)} title="風格設定" style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: showStyleSettings ? 'var(--accent-color)' : 'var(--bg-secondary)', color: showStyleSettings ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.2s' }}>
+                  <Settings size={11} /> 設定
+                </button>
+                {showStyleSettings && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', width: '320px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', padding: '0.75rem', zIndex: 20, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>風格設定</span>
+                      <button onClick={() => setShowStyleSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={13} /></button>
+                    </div>
+                    {referenceImage && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem', background: 'var(--bg-secondary)', borderRadius: '0.35rem', border: '1px solid var(--border-color)' }}>
+                        <img src={referenceImage} alt="ref" style={{ width: '48px', height: '30px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border-color)' }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-primary)' }}>{referenceLabel || '風格參考圖'}</div>
+                          <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)' }}>來自模板庫</div>
+                        </div>
+                        <button onClick={() => { setReferenceImage(null); setReferenceLabel(''); }} title="移除參考圖" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#e74c3c' }}><Trash2 size={11} /></button>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>額外提示詞</label>
+                      <textarea value={stylePrompt} onChange={e => setStylePrompt(e.target.value)} placeholder="例如：不要太花俏，背景簡潔，文字清晰可讀…" rows={4}
+                        style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
+                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此提示詞會附加到每張投影片的圖片生成指令中</span>
+                    </div>
+                    {stylePrompt && (
+                      <button onClick={() => { setStylePrompt(''); }} style={{ padding: '0.3rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
+                        <Trash2 size={10} /> 清除提示詞
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div style={{ width: '1px', height: '12px', background: 'var(--border-color)', margin: '0 0.1rem' }} />
                 <button onClick={() => setShowAddPages(!showAddPages)}
                   style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}><Plus size={11} /> 新增</button>
