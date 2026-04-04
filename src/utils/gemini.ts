@@ -48,6 +48,68 @@ export const polishTextWithAI = async (
   throw new Error('AI did not return text.');
 };
 
+// Multi-turn chat via Gemini (text + optional images/files, can return text + images)
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+}
+export interface ChatResponse {
+  text: string;
+  images: string[]; // data URIs
+}
+export const chatWithGemini = async (
+  history: ChatMessage[],
+  apiKey: string,
+  options?: { generateImage?: boolean; referenceImage?: string | null; aspectRatio?: string; resolution?: string },
+  signal?: AbortSignal
+): Promise<ChatResponse> => {
+  const wantImage = options?.generateImage ?? false;
+  const modelName = wantImage ? 'gemini-3.1-flash-image-preview' : 'gemini-3-flash-preview';
+
+  // Optionally append reference style image to the last user message
+  if (options?.referenceImage && history.length > 0) {
+    const last = history[history.length - 1];
+    if (last.role === 'user') {
+      const cleanRef = options.referenceImage.includes(',')
+        ? options.referenceImage.split(',')[1]
+        : options.referenceImage;
+      last.parts = [
+        ...last.parts,
+        { text: 'Reference Style:' },
+        { inlineData: { mimeType: 'image/jpeg', data: cleanRef } },
+      ];
+    }
+  }
+
+  const requestBody: any = { contents: history };
+  if (wantImage) {
+    requestBody.generationConfig = {
+      responseModalities: ['TEXT', 'IMAGE'],
+      imageConfig: { aspectRatio: options?.aspectRatio || '16:9', imageSize: options?.resolution || '2K' },
+    };
+  }
+
+  const bearerToken = await getValidBearerToken();
+  const url = bearerToken
+    ? `${getBaseUrl(true)}/${modelName}:generateContent`
+    : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
+
+  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody), signal });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API Error ${response.status}: ${errorText.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts.filter((p: any) => p.text).map((p: any) => p.text).join('');
+  const images = parts
+    .filter((p: any) => p?.inlineData?.data)
+    .map((p: any) => `data:${p.inlineData.mimeType || 'image/png'};base64,${p.inlineData.data}`);
+  return { text, images };
+};
+
 // Standard generation via Gemini generateContent endpoint (no mask)
 export const generateImageDesign = async (
   baseImage: string | null,

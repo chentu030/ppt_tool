@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, LogOut, Presentation, Pin, PinOff, FileOutput } from 'lucide-react';
+import { Home, Settings, LogOut, Presentation, Pin, PinOff, FileOutput, MessageSquareText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -16,6 +16,7 @@ export const Sidebar: React.FC = () => {
   const navItems = [
     { icon: Home, label: 'Projects', path: '/home' },
     { icon: FileOutput, label: '圖片轉可編輯', path: '/convert' },
+    { icon: MessageSquareText, label: 'AI 對話', path: '/ai-chat' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

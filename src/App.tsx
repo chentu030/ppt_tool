@@ -6,6 +6,7 @@ import { Home } from './pages/Home';
 import { ProjectEditor } from './pages/ProjectEditor';
 import { Settings } from './pages/Settings';
 import { ConvertPage } from './pages/ConvertPage';
+import { AIChatPage } from './pages/AIChatPage';
 
 function App() {
   useEffect(() => {
@@ -25,6 +26,7 @@ function App() {
           <Route path="/project/:id" element={<ProjectEditor />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/convert" element={<ConvertPage />} />
+          <Route path="/ai-chat" element={<AIChatPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
