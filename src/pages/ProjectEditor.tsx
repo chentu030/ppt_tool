@@ -1518,10 +1518,18 @@ export const ProjectEditor: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <button onClick={handleBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-            <ArrowLeft size={15} />
-          </button>
-          <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>專案編輯器</span>
+          {previewOpen ? (
+            <button onClick={() => setPreviewOpen(false)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.25rem 0.55rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
+              <ArrowLeft size={13} /> 退出預覽
+            </button>
+          ) : (
+            <>
+              <button onClick={handleBack} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                <ArrowLeft size={15} />
+              </button>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>專案編輯器</span>
+            </>
+          )}
         </div>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -1937,11 +1945,6 @@ export const ProjectEditor: React.FC = () => {
 
           {/* Canvas Area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setPreviewOpen(false)} title="Hide preview" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}>
-                <EyeOff size={16} /> Hide
-              </button>
-            </div>
             <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: activeSlide?.status === 'empty' ? '1px dashed var(--border-color)' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
               {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId) && activeSlide.status !== 'empty' ? (
                 // ── Text-only slide: show text editor ──
