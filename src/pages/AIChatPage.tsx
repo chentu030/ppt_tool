@@ -432,7 +432,7 @@ export const AIChatPage: React.FC = () => {
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {slidePlans.map((slide, idx) => (
+              {slidePlans.map((slide) => (
                 <div key={slide.id} style={{ padding: '0.5rem 0.8rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                   <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0, marginTop: '0.2rem' }}>{slide.pageNum}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
