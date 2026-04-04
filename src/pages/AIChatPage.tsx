@@ -107,8 +107,12 @@ export const AIChatPage: React.FC = () => {
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(220);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(300);
   const dragHandleRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const leftResizeRef = useRef<{ startX: number; startW: number } | null>(null);
+  const rightResizeRef = useRef<{ startX: number; startW: number } | null>(null);
   // 429 auto-retry state
   const [retryModal429, setRetryModal429] = useState<{ successCount: number; toRetryIds: string[] } | null>(null);
   const [retryIntervalSec, setRetryIntervalSec] = useState(30);
@@ -179,12 +183,50 @@ export const AIChatPage: React.FC = () => {
       if (!dragHandleRef.current) return;
       const delta = dragHandleRef.current.startY - me.clientY;
       const deltaVh = (delta / containerH) * 100;
-      setSlidePlanHeight(h => Math.min(85, Math.max(20, dragHandleRef.current!.startHeight + deltaVh)));
+      setSlidePlanHeight(_ => Math.min(85, Math.max(20, dragHandleRef.current!.startHeight + deltaVh)));
     };
     const onUp = () => { dragHandleRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [slidePlanHeight]);
+
+  // Drag-to-resize left sidebar width
+  const onLeftResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    leftResizeRef.current = { startX: e.clientX, startW: leftSidebarWidth };
+    const onMove = (me: MouseEvent) => {
+      if (!leftResizeRef.current) return;
+      setLeftSidebarWidth(Math.min(400, Math.max(140, leftResizeRef.current.startW + me.clientX - leftResizeRef.current.startX)));
+    };
+    const onUp = () => { leftResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [leftSidebarWidth]);
+
+  // Drag-to-resize right sidebar width
+  const onRightResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    rightResizeRef.current = { startX: e.clientX, startW: rightSidebarWidth };
+    const onMove = (me: MouseEvent) => {
+      if (!rightResizeRef.current) return;
+      setRightSidebarWidth(Math.min(500, Math.max(180, rightResizeRef.current.startW - (me.clientX - rightResizeRef.current.startX))));
+    };
+    const onUp = () => { rightResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [rightSidebarWidth]);
+
+  // Reorder slides
+  const moveSlide = (id: string, dir: -1 | 1) => {
+    setSlidePlans(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      const to = idx + dir;
+      if (to < 0 || to >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[to]] = [arr[to], arr[idx]];
+      return arr.map((s, i) => ({ ...s, pageNum: i + 1 }));
+    });
+  };
 
   // Keep ref in sync for callbacks
   retryModal429Ref.current = retryModal429;
@@ -652,7 +694,8 @@ export const AIChatPage: React.FC = () => {
     <div style={{ display: 'flex', height: '100vh', margin: '-1.5rem', overflow: 'hidden' }}>
 
       {/* ── Left Sidebar: History ── */}
-      <div style={{ width: leftSidebarOpen ? '220px' : '36px', minWidth: leftSidebarOpen ? '220px' : '36px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden' }}>
+      <div style={{ width: leftSidebarOpen ? `${leftSidebarWidth}px` : '36px', minWidth: leftSidebarOpen ? `${leftSidebarWidth}px` : '36px', borderRight: 'none', display: 'flex', flexDirection: 'row', background: 'var(--bg-primary)', position: 'relative', flexShrink: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', borderRight: '1px solid var(--border-color)' }}>
         <div style={{ ...panelHeader, justifyContent: 'space-between', minWidth: 0 }}>
           {leftSidebarOpen && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', overflow: 'hidden' }}><MessageSquare size={14} /> 歷史對話</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', marginLeft: leftSidebarOpen ? 'auto' : 0 }}>
@@ -663,7 +706,7 @@ export const AIChatPage: React.FC = () => {
           </div>
         </div>
         {leftSidebarOpen && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0.3rem' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.3rem', minHeight: 0 }}>
             {conversations.length === 0 && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0.5rem' }}>尚無歷史紀錄</p>}
             {conversations.map(conv => (
               <div key={conv.id} onClick={() => loadConversation(conv)}
@@ -676,6 +719,11 @@ export const AIChatPage: React.FC = () => {
               </div>
             ))}
           </div>
+        )}
+        </div>
+        {/* Left sidebar drag-resize handle */}
+        {leftSidebarOpen && (
+          <div onMouseDown={onLeftResizeMouseDown} style={{ width: '5px', cursor: 'ew-resize', background: 'transparent', flexShrink: 0, zIndex: 10, position: 'absolute', right: 0, top: 0, bottom: 0 }} />
         )}
       </div>
 
@@ -800,16 +848,20 @@ export const AIChatPage: React.FC = () => {
               {/* Left Panel: Slide List */}
               <div style={{ width: '220px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
-                  {slidePlans.map(slide => (
+                  {slidePlans.map((slide, idx) => (
                     <div key={slide.id} onClick={() => setActiveSlideId(slide.id)}
-                      style={{ padding: '0.4rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', borderRadius: '0.4rem', marginBottom: '0.2rem', background: activeSlideId === slide.id ? 'var(--bg-secondary)' : 'transparent', border: activeSlideId === slide.id ? '1px solid var(--border-color)' : '1px solid transparent', transition: 'all 0.15s' }}>
-                      <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: slide.generatedImage ? '#27ae60' : 'var(--bg-tertiary)', color: slide.generatedImage ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, flexShrink: 0 }}>
+                      style={{ padding: '0.35rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', borderRadius: '0.4rem', marginBottom: '0.2rem', background: activeSlideId === slide.id ? 'var(--bg-secondary)' : 'transparent', border: activeSlideId === slide.id ? '1px solid var(--border-color)' : '1px solid transparent', transition: 'all 0.15s' }}>
+                      <div style={{ width: '18px', height: '18px', borderRadius: '3px', background: slide.generatedImage ? '#27ae60' : (slide.templateImage ? 'var(--accent-color)' : 'var(--bg-tertiary)'), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.58rem', fontWeight: 700, flexShrink: 0 }}>
                         {slide.pageNum}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: activeSlideId === slide.id ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 600, color: activeSlideId === slide.id ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {slide.title || '無標題'}
                         </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', opacity: activeSlideId === slide.id ? 1 : 0, transition: 'opacity 0.15s' }}>
+                        <button onClick={e => { e.stopPropagation(); moveSlide(slide.id, -1); }} disabled={idx === 0 || isGenerating} title="上移" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', color: 'var(--text-secondary)', lineHeight: 1, opacity: idx === 0 ? 0.2 : 1 }}><ChevronUp size={9} /></button>
+                        <button onClick={e => { e.stopPropagation(); moveSlide(slide.id, 1); }} disabled={idx === slidePlans.length - 1 || isGenerating} title="下移" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px', color: 'var(--text-secondary)', lineHeight: 1, opacity: idx === slidePlans.length - 1 ? 0.2 : 1 }}><ChevronDown size={9} /></button>
                       </div>
                       <button onClick={(e) => { 
                           e.stopPropagation(); 
@@ -819,8 +871,8 @@ export const AIChatPage: React.FC = () => {
                             return arr;
                           }); 
                         }} 
-                        title="刪除" disabled={isGenerating} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', opacity: isGenerating ? 0.2 : (activeSlideId === slide.id ? 0.6 : 0), transition: 'opacity 0.2s' }}>
-                        <Trash2 size={11} />
+                        title="刪除" disabled={isGenerating} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', opacity: isGenerating ? 0.2 : (activeSlideId === slide.id ? 0.5 : 0), transition: 'opacity 0.2s' }}>
+                        <Trash2 size={10} />
                       </button>
                     </div>
                   ))}
@@ -887,11 +939,22 @@ export const AIChatPage: React.FC = () => {
                   </div>
                   <button onClick={stopGenerating} style={{ padding: '0.25rem 0.55rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.15rem', whiteSpace: 'nowrap' }}><Square size={10} /> 停止</button>
                 </div>
-              ) : (
-                <button onClick={handleGenerateFromPlan}
-                  style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: '0 2px 8px rgba(52, 152, 219, 0.3)' }}>
-                  <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
-                </button>
+              ) : (() => {
+                const hasTemplate = slidePlans.some(s => s.templateImage) || !!referenceImage;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {!hasTemplate && (
+                      <p style={{ margin: 0, fontSize: '0.68rem', color: '#e67e22', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                        ⚠️ 請先選擇樣式模板（點右上角「模板庫」或各頁「選擇樣板」）
+                      </p>
+                    )}
+                    <button onClick={() => handleGenerateFromPlan()} disabled={!hasTemplate}
+                      style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: hasTemplate ? 'pointer' : 'not-allowed', background: hasTemplate ? 'var(--accent-color)' : 'var(--bg-tertiary)', color: hasTemplate ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: hasTemplate ? '0 2px 8px rgba(52, 152, 219, 0.3)' : 'none', transition: 'all 0.2s' }}>
+                      <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
+                    </button>
+                  </div>
+                );
+              })()
               )}
             </div>
           </div>
@@ -938,7 +1001,12 @@ export const AIChatPage: React.FC = () => {
       </div>
 
       {/* ── Right Panel: Gallery ── */}
-      <div style={{ width: rightSidebarOpen ? '300px' : '36px', minWidth: rightSidebarOpen ? '300px' : '36px', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', transition: 'width 0.2s ease, min-width 0.2s ease', overflow: 'hidden' }}>
+      <div style={{ width: rightSidebarOpen ? `${rightSidebarWidth}px` : '36px', minWidth: rightSidebarOpen ? `${rightSidebarWidth}px` : '36px', borderLeft: 'none', display: 'flex', flexDirection: 'row', background: 'var(--bg-primary)', position: 'relative', flexShrink: 0 }}>
+        {/* Right sidebar drag-resize handle */}
+        {rightSidebarOpen && (
+          <div onMouseDown={onRightResizeMouseDown} style={{ width: '5px', cursor: 'ew-resize', background: 'transparent', flexShrink: 0, zIndex: 10, position: 'absolute', left: 0, top: 0, bottom: 0 }} />
+        )}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', borderLeft: '1px solid var(--border-color)' }}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', flexShrink: 0, minWidth: 0 }}>
           <button onClick={() => setRightSidebarOpen(o => !o)} title={rightSidebarOpen ? '收起' : '展開畫廊'}
             style={{ padding: '0.55rem 0.5rem', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
