@@ -363,7 +363,7 @@ export const AIChatPage: React.FC = () => {
   const handleTemplateApply = async ({ imageUrl, resolvedExtraPrompt, settings }: ApplyParams) => {
     setShowTemplateGallery(false);
     setReferenceLabel([settings?.fontFamily, settings?.highlightColor].filter(Boolean).join(' · ') || '已選擇');
-    if (resolvedExtraPrompt) setStylePrompt(resolvedExtraPrompt);
+    if (resolvedExtraPrompt !== null) setStylePrompt(resolvedExtraPrompt);
     if (imageUrl && !imageUrl.startsWith('data:')) { setReferenceImage(await urlToBase64(imageUrl)); } else { setReferenceImage(imageUrl); }
   };
 
@@ -1149,7 +1149,7 @@ export const AIChatPage: React.FC = () => {
         </div>
       </div>
 
-      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt="" onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
+      {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt={stylePrompt} onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
 
       {/* Auto-retry countdown banner */}
       {autoRetryStatus && (
