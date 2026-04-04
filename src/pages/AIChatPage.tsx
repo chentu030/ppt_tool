@@ -1057,10 +1057,16 @@ export const AIChatPage: React.FC = () => {
                         <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#27ae60', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>✓ 生成結果預覽</label>
-                            <button onClick={() => handleGenerateFromPlan([slide.id])} disabled={isGenerating}
-                              style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: isGenerating ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isGenerating ? 0.4 : 1 }}>
-                              <Play size={9} /> 重新生成此頁
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.3rem' }}>
+                              <button onClick={() => { setSlidePlans(prev => prev.map(s => s.id === slide.id ? { ...s, generatedImage: undefined } : s)); }} disabled={isGenerating} title="清除此頁圖片，之後可用底部按鈕批次重新生成"
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: isGenerating ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isGenerating ? 0.4 : 1 }}>
+                                <X size={9} /> 清除
+                              </button>
+                              <button onClick={() => handleGenerateFromPlan([slide.id])} disabled={isGenerating}
+                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: isGenerating ? 'not-allowed' : 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isGenerating ? 0.4 : 1 }}>
+                                <Play size={9} /> 重新生成
+                              </button>
+                            </div>
                           </div>
                           <img src={slide.generatedImage} alt="" onClick={() => setLightbox(slide.generatedImage!)} style={{ width: '100%', maxWidth: '400px', height: 'auto', aspectRatio: aspectRatio.replace(':', '/'), objectFit: 'cover', borderRadius: '0.5rem', cursor: 'zoom-in', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                         </div>
