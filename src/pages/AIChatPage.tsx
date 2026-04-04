@@ -939,22 +939,18 @@ export const AIChatPage: React.FC = () => {
                   </div>
                   <button onClick={stopGenerating} style={{ padding: '0.25rem 0.55rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.15rem', whiteSpace: 'nowrap' }}><Square size={10} /> 停止</button>
                 </div>
-              ) : (() => {
-                const hasTemplate = slidePlans.some(s => s.templateImage) || !!referenceImage;
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    {!hasTemplate && (
-                      <p style={{ margin: 0, fontSize: '0.68rem', color: '#e67e22', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
-                        ⚠️ 請先選擇樣式模板（點右上角「模板庫」或各頁「選擇樣板」）
-                      </p>
-                    )}
-                    <button onClick={() => handleGenerateFromPlan()} disabled={!hasTemplate}
-                      style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: hasTemplate ? 'pointer' : 'not-allowed', background: hasTemplate ? 'var(--accent-color)' : 'var(--bg-tertiary)', color: hasTemplate ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: hasTemplate ? '0 2px 8px rgba(52, 152, 219, 0.3)' : 'none', transition: 'all 0.2s' }}>
-                      <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
-                    </button>
-                  </div>
-                );
-              })()
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {!(slidePlans.some(s => s.templateImage) || !!referenceImage) && (
+                    <p style={{ margin: 0, fontSize: '0.68rem', color: '#e67e22', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                      ⚠️ 請先選擇樣式模板（點右上角「模板庫」或各頁「選擇樣板」）
+                    </p>
+                  )}
+                  <button onClick={() => handleGenerateFromPlan()} disabled={!(slidePlans.some(s => s.templateImage) || !!referenceImage)}
+                    style={{ width: '100%', padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, border: 'none', borderRadius: '0.4rem', cursor: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? 'pointer' : 'not-allowed', background: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? 'var(--accent-color)' : 'var(--bg-tertiary)', color: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? '#fff' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', letterSpacing: '0.02em', boxShadow: (slidePlans.some(s => s.templateImage) || !!referenceImage) ? '0 2px 8px rgba(52, 152, 219, 0.3)' : 'none', transition: 'all 0.2s' }}>
+                    <Play size={14} /> 開始生成 {slidePlans.length} 張圖片
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1081,6 +1077,7 @@ export const AIChatPage: React.FC = () => {
             )
           )}
         </div>}
+        </div>
       </div>
 
       {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt="" onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
