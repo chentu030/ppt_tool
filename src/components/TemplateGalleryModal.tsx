@@ -1,5 +1,5 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil } from 'lucide-react';
+import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -212,6 +212,8 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
   const [communityItems,setCommunityItems]=useState<SharedTemplate[]>([]);
   const [communityLoading,setCommunityLoading]=useState(false);
   const [editingCommunity,setEditingCommunity]=useState<{id:string;label:string;settings:TemplateSettings}|null>(null);
+  const [resultIdx,setResultIdx]=useState<Record<string,number>>({});
+  const [lightbox,setLightbox]=useState<{urls:string[];idx:number}|null>(null);
   const [conflictPending,setConflictPending]=useState<{imageUrl:string;settings:TemplateSettings;label:string}|null>(null);
   const [geminiPending,setGeminiPending]=useState<{imageUrl:string;existingSettings:TemplateSettings|null;label:string}|null>(null);
   const [isAnalyzing,setIsAnalyzing]=useState(false);
@@ -493,13 +495,35 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
             style={{padding:0,border:'none',cursor:'pointer',background:'none',display:'block',width:'100%',textAlign:'left'}}>
             <img src={t.referenceUrl} alt={t.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
           </button>
-          {t.resultUrls?.length>0&&(
-            <div style={{display:'flex',flexDirection:'row',gap:'3px',padding:'3px',background:'var(--bg-tertiary)',overflowX:'auto'}}>
-              {t.resultUrls.slice(0,3).map((url,i)=>(
-                <img key={i} src={url} alt={`效果 ${i+1}`} style={{flex:'1 1 0',minWidth:0,height:'auto',aspectRatio:'16/9',objectFit:'cover',borderRadius:'3px',display:'block'}}/>
-              ))}
-            </div>
-          )}
+          {t.resultUrls?.length>0&&(()=>{
+            const idx=resultIdx[t.id]||0;
+            const urls=t.resultUrls.slice(0,3);
+            const cur=urls[idx]||urls[0];
+            return(
+              <div style={{position:'relative',background:'var(--bg-tertiary)',padding:'3px'}}>
+                <img src={cur} alt={`效果 ${idx+1}`}
+                  onClick={e=>{e.stopPropagation();setLightbox({urls,idx});}}
+                  style={{width:'100%',height:'auto',aspectRatio:'16/9',objectFit:'cover',borderRadius:'3px',display:'block',cursor:'zoom-in'}}/>
+                {urls.length>1&&(
+                  <>
+                    <button onClick={e=>{e.stopPropagation();setResultIdx(p=>({...p,[t.id]:(idx-1+urls.length)%urls.length}));}}
+                      style={{position:'absolute',left:'5px',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,0.55)',border:'none',borderRadius:'50%',width:'22px',height:'22px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
+                      <ChevronLeft size={14} color="#fff"/>
+                    </button>
+                    <button onClick={e=>{e.stopPropagation();setResultIdx(p=>({...p,[t.id]:(idx+1)%urls.length}));}}
+                      style={{position:'absolute',right:'5px',top:'50%',transform:'translateY(-50%)',background:'rgba(0,0,0,0.55)',border:'none',borderRadius:'50%',width:'22px',height:'22px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
+                      <ChevronRight size={14} color="#fff"/>
+                    </button>
+                    <div style={{position:'absolute',bottom:'6px',left:'50%',transform:'translateX(-50%)',display:'flex',gap:'4px'}}>
+                      {urls.map((_,i)=>(
+                        <div key={i} style={{width:'6px',height:'6px',borderRadius:'50%',background:i===idx?'#fff':'rgba(255,255,255,0.4)'}}/>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
           <div style={{padding:'0.4rem 0.5rem',fontSize:'0.7rem',background:'var(--bg-secondary)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontWeight:700,color:'var(--text-primary)'}}>{t.label}</span>
@@ -693,6 +717,39 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,onClose,onApply}
         </div>
 
       </div>
+
+      {/* Lightbox for expanded result images */}
+      {lightbox&&(
+        <div onClick={()=>setLightbox(null)}
+          style={{position:'fixed',inset:0,zIndex:10200,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
+          <img src={lightbox.urls[lightbox.idx]} alt="展開效果圖"
+            onClick={e=>e.stopPropagation()}
+            style={{maxWidth:'90vw',maxHeight:'90vh',objectFit:'contain',borderRadius:'8px',cursor:'default'}}/>
+          {lightbox.urls.length>1&&(
+            <>
+              <button onClick={e=>{e.stopPropagation();setLightbox(p=>p?{...p,idx:(p.idx-1+p.urls.length)%p.urls.length}:p);}}
+                style={{position:'absolute',left:'20px',top:'50%',transform:'translateY(-50%)',background:'rgba(255,255,255,0.15)',border:'none',borderRadius:'50%',width:'40px',height:'40px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
+                <ChevronLeft size={24} color="#fff"/>
+              </button>
+              <button onClick={e=>{e.stopPropagation();setLightbox(p=>p?{...p,idx:(p.idx+1)%p.urls.length}:p);}}
+                style={{position:'absolute',right:'20px',top:'50%',transform:'translateY(-50%)',background:'rgba(255,255,255,0.15)',border:'none',borderRadius:'50%',width:'40px',height:'40px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
+                <ChevronRight size={24} color="#fff"/>
+              </button>
+              <div style={{position:'absolute',bottom:'30px',left:'50%',transform:'translateX(-50%)',display:'flex',gap:'8px'}}>
+                {lightbox.urls.map((_,i)=>(
+                  <div key={i} onClick={e=>{e.stopPropagation();setLightbox(p=>p?{...p,idx:i}:p);}}
+                    style={{width:'10px',height:'10px',borderRadius:'50%',background:i===lightbox.idx?'#fff':'rgba(255,255,255,0.4)',cursor:'pointer'}}/>
+                ))}
+              </div>
+            </>
+          )}
+          <button onClick={()=>setLightbox(null)}
+            style={{position:'absolute',top:'20px',right:'20px',background:'rgba(255,255,255,0.15)',border:'none',borderRadius:'50%',width:'36px',height:'36px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}>
+            <X size={20} color="#fff"/>
+          </button>
+        </div>
+      )}
+
     </div>
   );
 };
