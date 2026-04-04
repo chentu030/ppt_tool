@@ -48,6 +48,27 @@ export const polishTextWithAI = async (
   throw new Error('AI did not return text.');
 };
 
+// Generate a short conversation title (≤10 chars) using Gemini 2.5 Flash
+export const generateChatTitle = async (firstMessage: string, apiKey: string): Promise<string> => {
+  const modelName = 'gemini-2.5-flash-preview-05-20';
+  const requestBody = {
+    contents: [{ role: 'user', parts: [{ text: `請用10個字以內為以下對話開頭取一個簡短標題，直接回覆標題文字，不要加標點符號或其他說明：\n\n${firstMessage.slice(0, 300)}` }] }],
+  };
+  try {
+    const bearerToken = await getValidBearerToken();
+    const url = bearerToken
+      ? `${getBaseUrl(true)}/${modelName}:generateContent`
+      : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
+    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody) });
+    if (!resp.ok) return firstMessage.slice(0, 10);
+    const data = await resp.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    return text.slice(0, 15) || firstMessage.slice(0, 10);
+  } catch { return firstMessage.slice(0, 10); }
+};
+
 // Multi-turn chat via Gemini (text + optional images/files, can return text + images)
 export interface ChatMessage {
   role: 'user' | 'model';

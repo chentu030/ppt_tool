@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, MessageSquare, FileText, Images } from 'lucide-react';
-import { chatWithGemini } from '../utils/gemini';
+import { chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
@@ -55,7 +55,7 @@ export const AIChatPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const apiKey = localStorage.getItem('geminiApiKey') || '';
+  const apiKey = localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
 
   // Collect all images & files from messages
   const allFiles = messages.flatMap(m => m.attachments);
@@ -160,6 +160,10 @@ export const AIChatPage: React.FC = () => {
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed && attachments.length === 0) return;
+    const isNewConversation = messages.length === 0;
+    // For new conversations, pre-set activeId so the save-effect uses this ID
+    const convId = activeId || Date.now().toString();
+    if (!activeId) setActiveId(convId);
     const userMsg: ChatMsg = { id: Date.now().toString(), role: 'user', text: trimmed, images: [], attachments: [...attachments], timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInput(''); setAttachments([]);
@@ -175,6 +179,16 @@ export const AIChatPage: React.FC = () => {
       const history = buildHistory(messages, parts);
       const resp = await chatWithGemini(history, apiKey, { generateImage, referenceImage, aspectRatio }, ctrl.signal);
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: resp.images, attachments: [], timestamp: Date.now() }]);
+      // Generate AI title for new conversations (first user message)
+      if (isNewConversation && trimmed) {
+        generateChatTitle(trimmed, apiKey).then(title => {
+          setConversations(prev => {
+            const updated = prev.map(c => c.id === convId ? { ...c, title } : c);
+            saveConversations(updated);
+            return updated;
+          });
+        });
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `❌ 錯誤：${err.message || '未知錯誤'}`, images: [], attachments: [], timestamp: Date.now() }]);
