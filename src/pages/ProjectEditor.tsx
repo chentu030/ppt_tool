@@ -743,11 +743,6 @@ export const ProjectEditor: React.FC = () => {
     } catch (err) {
       console.error('Backup failed:', err);
       backupFailCount.current += 1;
-      if (backupFailCount.current >= 3) {
-        showAlert('備份多次失敗，請手動點擊備份按鈕或重新整理頁面再試。', '錯誤');
-      } else {
-        showToast(`備份失敗，${Math.round(5 * Math.pow(2, backupFailCount.current - 1))} 秒後自動重試…`, 'error');
-      }
     } finally {
       setIsBackingUp(false);
     }
