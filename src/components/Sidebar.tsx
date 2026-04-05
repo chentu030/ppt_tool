@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Settings, LogOut, Presentation, Pin, PinOff, MessageSquareText } from 'lucide-react';
+import { Home, Settings, LogOut, Presentation, Pin, PinOff, MessageSquareText, BookOpen } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 
@@ -17,6 +17,7 @@ export const Sidebar: React.FC = () => {
     // { icon: FileOutput, label: '圖片轉可編輯', path: '/convert' },  // Hidden for now
     { icon: MessageSquareText, label: 'AI 對話', path: '/ai-chat' },
     { icon: Settings, label: '設定', path: '/settings' },
+    { icon: BookOpen, label: '操作說明', path: '/guide' },
   ];
 
   const handleSignOut = async () => {

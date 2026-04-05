@@ -8,6 +8,7 @@ import { ProjectEditor } from './pages/ProjectEditor';
 import { Settings } from './pages/Settings';
 import { ConvertPage } from './pages/ConvertPage';
 import { AIChatPage } from './pages/AIChatPage';
+import { Guide } from './pages/Guide';
 
 function App() {
   useEffect(() => {
@@ -29,6 +30,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/convert" element={<ConvertPage />} />
           <Route path="/ai-chat" element={<AIChatPage />} />
+          <Route path="/guide" element={<Guide />} />
         </Route>
       </Routes>
     </BrowserRouter>
