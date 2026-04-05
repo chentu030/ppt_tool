@@ -131,7 +131,7 @@ export const AIChatPage: React.FC = () => {
   const [planPageCount, setPlanPageCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
-  const genAbortRef = useRef(false);
+  const genAbortCtrlRef = useRef<AbortController | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [showAddPages, setShowAddPages] = useState(false);
   const [showStyleSettings, setShowStyleSettings] = useState(false);
@@ -682,7 +682,9 @@ export const AIChatPage: React.FC = () => {
     const slideIds = retryIds ?? currentPlans.map(s => s.id);
     if (slideIds.length === 0) return;
 
-    setIsGenerating(true); genAbortRef.current = false;
+    const abort = new AbortController();
+    genAbortCtrlRef.current = abort;
+    setIsGenerating(true);
     setRetryModal429(null);
     setGenProgress({ current: 0, total: slideIds.length });
     setRightTab('images');
@@ -692,11 +694,15 @@ export const AIChatPage: React.FC = () => {
     const results: (string | null)[] = [];
     let completedCount = 0;
 
+    const abortAwareDelay = (ms: number) => new Promise<void>(resolve => {
+      const t = setTimeout(resolve, ms);
+      abort.signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+    });
+
     try {
       for (let i = 0; i < slideIds.length; i++) {
-        if (genAbortRef.current) break;
+        if (abort.signal.aborted) break;
         const slideId = slideIds[i];
-        // Get latest slide data (ref may be stale, read from DOM state via functional updater workaround)
         const slide = currentPlans.find(s => s.id === slideId);
         if (!slide) { completedCount++; setGenProgress({ current: completedCount, total: slideIds.length }); results.push(null); continue; }
         try {
@@ -708,24 +714,26 @@ export const AIChatPage: React.FC = () => {
           let resolvedRef = refImg;
           if (refImg && !refImg.startsWith('data:')) { resolvedRef = await urlToBase64(refImg); }
 
-          // Inner retry loop: retry every 5s for up to 60s on 429
           let generatedImg = '';
           const RETRY_DEADLINE = Date.now() + 60_000;
           let lastErr: unknown;
           while (true) {
-            if (genAbortRef.current) break;
+            if (abort.signal.aborted) break;
             try {
-              const resp = await chatWithGemini(imgHistory, apiKey, { generateImage: true, referenceImage: resolvedRef, aspectRatio });
+              const resp = await chatWithGemini(imgHistory, apiKey, { generateImage: true, referenceImage: resolvedRef, aspectRatio }, abort.signal);
               if (resp.images.length > 0) { generatedImg = resp.images[0]; }
               break;
             } catch (e: unknown) {
+              if ((e as { name?: string })?.name === 'AbortError') throw e;
               lastErr = e;
               const is429 = String((e as { message?: string })?.message ?? e).includes('429');
               if (!is429 || Date.now() >= RETRY_DEADLINE) throw lastErr;
               console.warn('[429] 5 秒後自動重試...');
-              await new Promise<void>(r => setTimeout(r, RETRY_INTERVAL));
+              await abortAwareDelay(RETRY_INTERVAL);
+              if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError');
             }
           }
+          if (abort.signal.aborted) break;
           if (generatedImg) {
             setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: generatedImg } : s));
             setGalleryImages(prev => { const withoutOld = prev.filter((_, gi) => gi !== currentPlans.findIndex(sp => sp.id === slideId)); return [...withoutOld, generatedImg]; });
@@ -735,8 +743,12 @@ export const AIChatPage: React.FC = () => {
             results.push(null);
           }
           completedCount++; setGenProgress({ current: completedCount, total: slideIds.length });
-          if (i < slideIds.length - 1) await new Promise(r => setTimeout(r, INTER_DELAY));
+          if (i < slideIds.length - 1) {
+            await abortAwareDelay(INTER_DELAY);
+            if (abort.signal.aborted) break;
+          }
         } catch (err: any) {
+          if (err?.name === 'AbortError') break;
           const msg = String(err?.message ?? err);
           const is429 = msg.includes('429');
           console.error(`Slide ${slide.pageNum} failed:`, msg);
@@ -746,9 +758,9 @@ export const AIChatPage: React.FC = () => {
         }
       }
     } catch (loopErr: any) {
-      if (!String(loopErr).includes('QUOTA_EXHAUSTED')) {
+      if ((loopErr as any)?.name !== 'AbortError' && !String(loopErr).includes('QUOTA_EXHAUSTED')) {
         console.error('Generation error:', loopErr);
-      } else {
+      } else if (String(loopErr).includes('QUOTA_EXHAUSTED')) {
         const successCount = results.filter(Boolean).length;
         const toRetryIds = slideIds.filter((_, i) => !results[i]);
         setRetryModal429({ successCount, toRetryIds });
@@ -772,7 +784,9 @@ export const AIChatPage: React.FC = () => {
     const slideIds = retryIds ?? plans.map(s => s.id);
     if (slideIds.length === 0) return;
 
-    setIsGenerating(true); genAbortRef.current = false;
+    const abort = new AbortController();
+    genAbortCtrlRef.current = abort;
+    setIsGenerating(true);
     setRetryModal429(null);
     setGenProgress({ current: 0, total: slideIds.length });
     setRightTab('images');
@@ -782,9 +796,14 @@ export const AIChatPage: React.FC = () => {
     const results: (string | null)[] = [];
     let completedCount = 0;
 
+    const abortAwareDelay = (ms: number) => new Promise<void>(resolve => {
+      const t = setTimeout(resolve, ms);
+      abort.signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+    });
+
     try {
       for (let i = 0; i < slideIds.length; i++) {
-        if (genAbortRef.current) break;
+        if (abort.signal.aborted) break;
         const slideId = slideIds[i];
         const slide = plans.find(s => s.id === slideId);
         if (!slide) { completedCount++; setGenProgress({ current: completedCount, total: slideIds.length }); results.push(null); continue; }
@@ -801,19 +820,22 @@ export const AIChatPage: React.FC = () => {
           const RETRY_DEADLINE = Date.now() + 60_000;
           let lastErr: unknown;
           while (true) {
-            if (genAbortRef.current) break;
+            if (abort.signal.aborted) break;
             try {
-              const resp = await chatWithGemini(imgHistory, apiKey, { generateImage: true, referenceImage: resolvedRef, aspectRatio });
+              const resp = await chatWithGemini(imgHistory, apiKey, { generateImage: true, referenceImage: resolvedRef, aspectRatio }, abort.signal);
               if (resp.images.length > 0) { generatedImg = resp.images[0]; }
               break;
             } catch (e: unknown) {
+              if ((e as { name?: string })?.name === 'AbortError') throw e;
               lastErr = e;
               const is429 = String((e as { message?: string })?.message ?? e).includes('429');
               if (!is429 || Date.now() >= RETRY_DEADLINE) throw lastErr;
               console.warn('[429] 5 秒後自動重試...');
-              await new Promise<void>(r => setTimeout(r, RETRY_INTERVAL));
+              await abortAwareDelay(RETRY_INTERVAL);
+              if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError');
             }
           }
+          if (abort.signal.aborted) break;
           if (generatedImg) {
             setSlidePlans(prev => prev.map(s => s.id === slideId ? { ...s, generatedImage: generatedImg } : s));
             setGalleryImages(prev => [...prev, generatedImg]);
@@ -823,8 +845,12 @@ export const AIChatPage: React.FC = () => {
             results.push(null);
           }
           completedCount++; setGenProgress({ current: completedCount, total: slideIds.length });
-          if (i < slideIds.length - 1) await new Promise(r => setTimeout(r, INTER_DELAY));
+          if (i < slideIds.length - 1) {
+            await abortAwareDelay(INTER_DELAY);
+            if (abort.signal.aborted) break;
+          }
         } catch (err: any) {
+          if (err?.name === 'AbortError') break;
           const msg = String(err?.message ?? err);
           const is429 = msg.includes('429');
           console.error(`Slide ${slide.pageNum} failed:`, msg);
@@ -834,9 +860,9 @@ export const AIChatPage: React.FC = () => {
         }
       }
     } catch (loopErr: any) {
-      if (!String(loopErr).includes('QUOTA_EXHAUSTED')) {
+      if ((loopErr as any)?.name !== 'AbortError' && !String(loopErr).includes('QUOTA_EXHAUSTED')) {
         console.error('Generation error:', loopErr);
-      } else {
+      } else if (String(loopErr).includes('QUOTA_EXHAUSTED')) {
         const successCount = results.filter(Boolean).length;
         const toRetryIds = slideIds.filter((_, i) => !results[i]);
         setRetryModal429({ successCount, toRetryIds });
@@ -846,7 +872,7 @@ export const AIChatPage: React.FC = () => {
     setIsGenerating(false);
   };
 
-  const stopGenerating = () => { genAbortRef.current = true; };
+  const stopGenerating = () => { genAbortCtrlRef.current?.abort(); };
 
   const startAutoRetry = () => {
     if (!retryModal429) return;
@@ -1500,7 +1526,7 @@ export const AIChatPage: React.FC = () => {
             <><Loader size={15} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
             <span style={{ flex: 1 }}>自動重試第 <strong>{autoRetryStatus.doneCount + 1}</strong> 次，正在生成…</span></>
           )}
-          <button onClick={() => { autoRetryConfigRef.current = null; if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current); autoRetryTimerRef.current = null; setAutoRetryStatus(null); genAbortRef.current = true; }} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>取消</button>
+          <button onClick={() => { autoRetryConfigRef.current = null; if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current); autoRetryTimerRef.current = null; setAutoRetryStatus(null); genAbortCtrlRef.current?.abort(); }} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.72rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>取消</button>
         </div>
       )}
 

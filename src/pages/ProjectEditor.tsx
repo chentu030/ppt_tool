@@ -1182,10 +1182,15 @@ export const ProjectEditor: React.FC = () => {
 
       try {
         for (let i = 0; i < slideIds.length; i++) {
+          if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError');
           const result = await processSlide(slideIds[i]);
           results.push(result);
           if (i < slideIds.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, INTER_REQUEST_DELAY_MS));
+            await new Promise<void>((resolve) => {
+              const t = setTimeout(resolve, INTER_REQUEST_DELAY_MS);
+              abort.signal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+            });
+            if (abort.signal.aborted) throw new DOMException('Aborted', 'AbortError');
           }
         }
       } catch (loopErr: any) {

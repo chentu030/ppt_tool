@@ -1,9 +1,106 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { AuthModal } from '../components/AuthModal';
 import { Presentation, Sparkles, ArrowRight, MousePointerClick } from 'lucide-react';
+
+const DigitalRain: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Tech/Matrix characters
+    const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ'.split('');
+    const fontSize = 16;
+    let columns = canvas.width / fontSize;
+    let drops: number[] = [];
+
+    const initDrops = () => {
+      columns = canvas.width / fontSize;
+      drops = [];
+      for (let x = 0; x < columns; x++) {
+        drops[x] = Math.random() * canvas.height / fontSize; // random start y
+      }
+    };
+    initDrops();
+    window.addEventListener('resize', initDrops);
+
+    let lastDrawTime = 0;
+    const fps = 24; // Control speed of the rain
+    const frameInterval = 1000 / fps;
+
+    const draw = (time: number) => {
+      animationFrameId = requestAnimationFrame(draw);
+      
+      if (time - lastDrawTime < frameInterval) return;
+      lastDrawTime = time;
+
+      // Use destination-out to fade existing drawing to transparent, keeping the canvas background transparent
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.5)'; // Accent blue color for the text
+      ctx.font = `${fontSize}px monospace`;
+      ctx.textAlign = 'center';
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        const x = i * fontSize + fontSize / 2;
+        const y = drops[i] * fontSize;
+        
+        ctx.fillText(text, x, y);
+
+        // Reset drop to top randomly after it crosses the screen
+        if (y > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(draw);
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', initDrops);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
+  return (
+    <canvas 
+      ref={canvasRef} 
+      style={{ 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        width: '100%', 
+        height: '100%', 
+        zIndex: 0, 
+        pointerEvents: 'none',
+        opacity: 0.3 // Make it subtle
+      }} 
+    />
+  );
+};
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -30,6 +127,9 @@ export const Landing: React.FC = () => {
       position: 'relative',
       cursor: 'none' // Hide default cursor
     }}>
+      {/* Background Matrix Digital Rain Effect */}
+      <DigitalRain />
+
       {/* Custom Cursor - Inner Dot */}
       <motion.div
         animate={{
