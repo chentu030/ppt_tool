@@ -119,15 +119,8 @@ export const ProjectEditor: React.FC = () => {
 
   // 429 auto-retry state
   const [retryModal429, setRetryModal429] = useState<{ successCount: number; toRetrySlides: string[] } | null>(null);
-  const [retryIntervalSec, setRetryIntervalSec] = useState(5);
-  const [retryStopCond, setRetryStopCond] = useState<'success' | 'retries' | 'time'>('success');
-  const [retryMaxTimes, setRetryMaxTimes] = useState(3);
-  const [retryUntilTime, setRetryUntilTime] = useState(() => {
-    const d = new Date(); d.setHours(d.getHours() + 1);
-    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-  });
-  const [autoRetryStatus, setAutoRetryStatus] = useState<{ countdown: number; doneCount: number } | null>(null);
-  const autoRetryConfigRef = useRef<{ toRetrySlides: string[]; intervalSec: number; stopCond: 'success' | 'retries' | 'time'; maxTimes: number; untilTime: string; doneCount: number } | null>(null);
+  const [autoRetryStatus, setAutoRetryStatus] = useState<{ countdown: number; doneCount: number; pendingCount: number } | null>(null);
+  const autoRetryConfigRef = useRef<{ toRetrySlides: string[]; doneCount: number } | null>(null);
   const autoRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoRetryIsWaiting = useRef(false);
   const retryModal429Ref = useRef<{ successCount: number; toRetrySlides: string[] } | null>(null);
@@ -401,7 +394,7 @@ export const ProjectEditor: React.FC = () => {
   activeSlideIdRef.current = activeSlideId;
   retryModal429Ref.current = retryModal429;
 
-  // Post-generate auto-retry logic
+  // Post-generate auto-retry logic — always retry every 5s until success
   React.useEffect(() => {
     if (!autoRetryIsWaiting.current) return;
     if (isGenerating) return;
@@ -412,7 +405,7 @@ export const ProjectEditor: React.FC = () => {
     config.doneCount = newDone;
     const another429 = retryModal429Ref.current;
     console.log(`[AutoRetry] 第 ${newDone} 次重試完成，${another429 ? '仍有 429 錯誤' : '✓ 成功'}`);
-    // Succeeded (no new 429) — stop in all modes
+    // Succeeded (no new 429) — stop
     if (!another429) {
       autoRetryConfigRef.current = null;
       if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
@@ -421,35 +414,12 @@ export const ProjectEditor: React.FC = () => {
       showToast('✓ 自動重試成功！所有投影片已生成。', 'success');
       return;
     }
-    // Still failing — check stop conditions
-    if (config.stopCond === 'retries' && newDone >= config.maxTimes) {
-      console.log(`[AutoRetry] 已達 ${config.maxTimes} 次上限，停止。`);
-      autoRetryConfigRef.current = null;
-      if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
-      autoRetryTimerRef.current = null;
-      setAutoRetryStatus(null);
-      showToast(`自動重試已達 ${config.maxTimes} 次上限，仍有失敗。`, 'info');
-      return;
-    }
-    if (config.stopCond === 'time' && config.untilTime) {
-      const now = new Date();
-      const [h, m] = config.untilTime.split(':').map(Number);
-      if (now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)) {
-        console.log(`[AutoRetry] 已到達設定時間 ${config.untilTime}，停止。`);
-        autoRetryConfigRef.current = null;
-        if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
-        autoRetryTimerRef.current = null;
-        setAutoRetryStatus(null);
-        showToast('已到達設定時間，停止自動重試。', 'info');
-        return;
-      }
-    }
-    // Continue — update failed slides and start next countdown
+    // Still failing — continue, 5 seconds then retry
     config.toRetrySlides = another429.toRetrySlides;
-    console.log(`[AutoRetry] 繼續，${config.intervalSec} 秒後進行第 ${newDone + 1} 次重試，待重試 ${another429.toRetrySlides.length} 張...`);
+    console.log(`[AutoRetry] 繼續，5 秒後進行第 ${newDone + 1} 次重試，待重試 ${another429.toRetrySlides.length} 張...`);
     setRetryModal429(null);
-    let cd = config.intervalSec;
-    setAutoRetryStatus({ countdown: cd, doneCount: newDone });
+    let cd = 5;
+    setAutoRetryStatus({ countdown: cd, doneCount: newDone, pendingCount: another429.toRetrySlides.length });
     if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
     autoRetryTimerRef.current = setInterval(() => {
       cd--;
@@ -457,12 +427,10 @@ export const ProjectEditor: React.FC = () => {
         clearInterval(autoRetryTimerRef.current!); autoRetryTimerRef.current = null;
         const cfg = autoRetryConfigRef.current;
         if (!cfg) return;
-        console.log(`[AutoRetry] 倒數結束，開始第 ${cfg.doneCount + 1} 次重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: -1 } : null);
         autoRetryIsWaiting.current = true;
         setTimeout(() => handleGenerateRef.current(true), 50);
       } else {
-        if (cd % 30 === 0 || cd <= 10) console.log(`[AutoRetry] 倒數 ${cd} 秒後重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: cd } : null);
       }
     }, 1000);
@@ -1260,6 +1228,10 @@ export const ProjectEditor: React.FC = () => {
           const successCount = results.filter(Boolean).length;
           const toRetrySlides = slideIds.filter((_, i) => !results[i]);
           setRetryModal429({ successCount, toRetrySlides });
+          // Auto-start retry if not already running (useEffect handles continuation)
+          if (!autoRetryConfigRef.current) {
+            beginAutoRetry(toRetrySlides);
+          }
         } else {
           throw loopErr;
         }
@@ -1404,30 +1376,22 @@ export const ProjectEditor: React.FC = () => {
 
   handleGenerateRef.current = handleGenerate;
 
-  const startAutoRetry = () => {
-    if (!retryModal429) return;
-    const intervalSec = Math.max(1, retryIntervalSec);
-    const cfg = {
-      toRetrySlides: [...retryModal429.toRetrySlides],
-      intervalSec, stopCond: retryStopCond,
-      maxTimes: retryMaxTimes, untilTime: retryUntilTime, doneCount: 0,
-    };
+  const beginAutoRetry = (toRetrySlides: string[]) => {
+    const cfg = { toRetrySlides: [...toRetrySlides], doneCount: 0 };
     autoRetryConfigRef.current = cfg;
-    console.log(`[AutoRetry] 啟動自動重試：每 ${retryIntervalSec} 秒，待重試投影片 ${cfg.toRetrySlides.length} 張，停止條件：${retryStopCond}`);
+    console.log(`[AutoRetry] 啟動自動重試：每 5 秒，待重試投影片 ${cfg.toRetrySlides.length} 張`);
     setRetryModal429(null);
-    let cd = intervalSec;
-    setAutoRetryStatus({ countdown: cd, doneCount: 0 });
+    let cd = 5;
+    setAutoRetryStatus({ countdown: cd, doneCount: 0, pendingCount: toRetrySlides.length });
     if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
     autoRetryTimerRef.current = setInterval(() => {
       cd--;
       if (cd <= 0) {
         clearInterval(autoRetryTimerRef.current!); autoRetryTimerRef.current = null;
-        console.log(`[AutoRetry] 倒數結束，開始第 ${(autoRetryConfigRef.current?.doneCount ?? 0) + 1} 次重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: -1 } : null);
         autoRetryIsWaiting.current = true;
         setTimeout(() => handleGenerateRef.current(true), 50);
       } else {
-        if (cd % 30 === 0 || cd <= 10) console.log(`[AutoRetry] 倒數 ${cd} 秒後重試...`);
         setAutoRetryStatus(prev => prev ? { ...prev, countdown: cd } : null);
       }
     }, 1000);
@@ -2273,100 +2237,24 @@ export const ProjectEditor: React.FC = () => {
         </div>
       )}
 
-      {/* 429 Error Modal with auto-retry config */}
-      {retryModal429 && !autoRetryStatus && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-          onClick={() => setRetryModal429(null)}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '440px', maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}
-            onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
-              <span style={{ fontSize: '1.4rem', lineHeight: 1, flexShrink: 0 }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#ef4444' }}>429 錯誤：API 使用量過高</h3>
-              </div>
-              <button onClick={() => setRetryModal429(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px', flexShrink: 0 }}><X size={18}/></button>
-            </div>
-            {/* Error info */}
-            <div style={{ paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                目前重試 3 次失敗，因為目前 Gemini API 使用者過多，請等待 5–10 分鐘再嘗試。
-              </p>
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                成功：{retryModal429.successCount} 張　／　待重試：{retryModal429.toRetrySlides.length} 張
-              </div>
-            </div>
-            {/* Auto-retry config */}
-            <div style={{ paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>自動重試設定</span>
-              {/* Interval */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
-                <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>每</span>
-                <input type="number" min={5} max={3600} value={retryIntervalSec}
-                  onChange={e => setRetryIntervalSec(Math.max(5, Math.min(3600, Number(e.target.value) || 5)))}
-                  style={{ width: '64px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', fontSize: '0.875rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>秒自動重試一次</span>
-              </div>
-              {/* Stop condition */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>停止條件：</span>
-                {/* Success */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input type="radio" name="retryStop" checked={retryStopCond === 'success'} onChange={() => setRetryStopCond('success')} />
-                  <span>成功為止</span>
-                </label>
-                {/* Max retries */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input type="radio" name="retryStop" checked={retryStopCond === 'retries'} onChange={() => setRetryStopCond('retries')} />
-                  <span>最多重試</span>
-                  <input type="number" min={1} max={20} value={retryMaxTimes}
-                    onChange={e => setRetryMaxTimes(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-                    onClick={() => setRetryStopCond('retries')}
-                    style={{ width: '48px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.2rem', fontSize: '0.875rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                  <span>次</span>
-                </label>
-                {/* Until time */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input type="radio" name="retryStop" checked={retryStopCond === 'time'} onChange={() => setRetryStopCond('time')} />
-                  <span>直到</span>
-                  <input type="time" value={retryUntilTime}
-                    onChange={e => setRetryUntilTime(e.target.value)}
-                    onClick={() => setRetryStopCond('time')}
-                    style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.2rem 0.4rem', fontSize: '0.875rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                </label>
-              </div>
-            </div>
-            {/* Buttons */}
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setRetryModal429(null)}
-                style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                確定
-              </button>
-              <button onClick={startAutoRetry}
-                style={{ padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                ▶ 開始自動重試
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Auto-retry floating status widget */}
+      {/* Auto-retry floating status widget (429 error) */}
       {autoRetryStatus && (
-        <div style={{ position: 'fixed', bottom: '1.5rem', left: '1.5rem', zIndex: 10200, backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '220px', fontSize: '0.85rem' }}>
+        <div style={{ position: 'fixed', bottom: '1.5rem', left: '1.5rem', zIndex: 10200, backgroundColor: 'var(--bg-primary)', border: '1px solid #f59e0b', borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '240px', fontSize: '0.85rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: autoRetryStatus.countdown < 0 ? '#f59e0b' : '#3b82f6', animation: autoRetryStatus.countdown < 0 ? 'pulse 1s infinite' : 'none' }} />
-              自動重試中
+            <span style={{ fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem' }}>
+              ⚠ 429 錯誤 — 自動重試中
             </span>
             <button onClick={stopAutoRetry} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }} title="停止自動重試"><X size={14}/></button>
           </div>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            {autoRetryStatus.countdown < 0 ? '正在生成...' : `${fmtCountdown(autoRetryStatus.countdown)} 後重試`}
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+            {autoRetryStatus.countdown < 0
+              ? '正在生成...'
+              : `${autoRetryStatus.countdown} 秒後重試`}
+            {autoRetryStatus.pendingCount > 0 && `（待重試 ${autoRetryStatus.pendingCount} 張）`}
           </div>
-          {autoRetryStatus.doneCount > 0 && (
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>已重試 {autoRetryStatus.doneCount} 次</div>
-          )}
+          <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+            第 {autoRetryStatus.doneCount + 1} 次重試
+          </div>
         </div>
       )}
 
