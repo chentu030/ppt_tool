@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { showAlert, showConfirm } from '../utils/dialog';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus } from 'lucide-react';
+import { collection, doc, setDoc, addDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 import { chatWithGemini, generateChatTitle, transformSlideText } from '../utils/gemini';
 import { uploadHQToStorage, uploadToDrive, fetchImageAsBase64 } from '../utils/storageHelper';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
@@ -97,6 +100,7 @@ const Markdown: React.FC<{ text: string }> = React.memo(({ text }) => (
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export const AIChatPage: React.FC = () => {
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -115,6 +119,9 @@ export const AIChatPage: React.FC = () => {
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
   const [templateTargetSlide, setTemplateTargetSlide] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [showSaveProjectModal, setShowSaveProjectModal] = useState(false);
+  const [saveProjectName, setSaveProjectName] = useState('');
+  const [isSavingProject, setIsSavingProject] = useState(false);
   const [aspectRatio, setAspectRatio] = useState('16:9');
   const [rightTab, setRightTab] = useState<'images' | 'files'>('images');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
@@ -556,6 +563,43 @@ export const AIChatPage: React.FC = () => {
 
   const updateSlidePlan = (id: string, field: 'title' | 'content', value: string) => {
     setSlidePlans(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handleSaveAsProject = async () => {
+    const user = auth.currentUser;
+    if (!user) { showAlert('請先登入後才能儲存專案。', '未登入'); return; }
+    if (slidePlans.length === 0) { showAlert('目前沒有投影片規劃可以儲存。', '提示'); return; }
+    const name = saveProjectName.trim() || conversations.find(c => c.id === activeId)?.title || 'AI 對話匯出';
+    setIsSavingProject(true);
+    try {
+      const projectRef = await addDoc(collection(db, 'projects'), {
+        name,
+        date: new Date().toLocaleDateString(),
+        color: '#3b82f6',
+        icon: 'LayoutTemplate',
+        createdAt: Date.now(),
+        userId: user.uid,
+      });
+      const baseTs = Date.now();
+      await Promise.all(slidePlans.map((slide, i) =>
+        setDoc(doc(db, 'projects', projectRef.id, 'slides', `slide_${i}`), {
+          originalImage: null,
+          originalImageHQ: null,
+          generatedImage: slide.generatedImage || null,
+          generatedImageHQ: slide.generatedImage || null,
+          maskImage: null,
+          prompt: `Title: ${slide.title}\n\n${slide.content}`,
+          status: slide.generatedImage ? 'done' : 'draft',
+          createdAt: baseTs + i,
+          order: (baseTs + i) * 1000,
+        })
+      ));
+      setShowSaveProjectModal(false);
+      setSaveProjectName('');
+      navigate(`/project/${projectRef.id}`);
+    } catch (err: any) {
+      showAlert('儲存失敗：' + (err?.message || '未知錯誤'), '錯誤');
+    } finally { setIsSavingProject(false); }
   };
 
   const backupSlideImage = useCallback((slideId: string, img: string) => {
@@ -1024,6 +1068,9 @@ export const AIChatPage: React.FC = () => {
                 <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.05rem 0.4rem', borderRadius: '0.6rem', border: '1px solid var(--border-color)' }}>{slidePlans.length} 頁</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                <button onClick={() => { setSaveProjectName(conversations.find(c => c.id === activeId)?.title || ''); setShowSaveProjectModal(true); }} title="儲存為專案" style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <FolderPlus size={11} /> 存為專案
+                </button>
                 <button onClick={() => { setTemplateTargetSlide(null); setShowTemplateGallery(true); }} style={{ padding: '0.2rem 0.5rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                   <ImageIcon size={11} /> 模板庫
                 </button>
@@ -1406,6 +1453,40 @@ export const AIChatPage: React.FC = () => {
         </div>}
         </div>
       </div>
+
+      {showSaveProjectModal && (
+        <div onClick={() => setShowSaveProjectModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', borderRadius: '0.75rem', padding: '1.5rem', width: '360px', maxWidth: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <FolderPlus size={16} style={{ color: 'var(--accent-color)' }} />
+                <span style={{ fontWeight: 700, fontSize: '1rem' }}>儲存為專案</span>
+              </div>
+              <button onClick={() => setShowSaveProjectModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px' }}><X size={16} /></button>
+            </div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              將 <strong>{slidePlans.length} 頁</strong>投影片規劃（含文字稿{slidePlans.filter(s => s.generatedImage).length > 0 ? ` + ${slidePlans.filter(s => s.generatedImage).length} 張生成圖片` : ''}）存為新專案
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>專案名稱</label>
+              <input
+                value={saveProjectName}
+                onChange={e => setSaveProjectName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !isSavingProject && handleSaveAsProject()}
+                placeholder="輸入專案名稱…"
+                autoFocus
+                style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowSaveProjectModal(false)} style={{ padding: '0.5rem 1rem', borderRadius: '0.4rem', border: '1px solid var(--border-color)', background: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>取消</button>
+              <button onClick={handleSaveAsProject} disabled={isSavingProject} style={{ padding: '0.5rem 1.25rem', borderRadius: '0.4rem', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: isSavingProject ? 'not-allowed' : 'pointer', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', opacity: isSavingProject ? 0.7 : 1 }}>
+                {isSavingProject ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} />建立中…</> : <><FolderPlus size={13} />建立專案</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showTemplateGallery && <TemplateGalleryModal currentExtraPrompt={stylePrompt} currentImageUrl={referenceImageOriginalUrl || referenceImage} currentSettings={{ fontFamily, mainColor, highlightColor, specialMark, backgroundColor: bgColor }} onClose={() => { setShowTemplateGallery(false); setTemplateTargetSlide(null); }} onApply={templateTargetSlide ? handleTemplateApplyForSlide : handleTemplateApply} />}
 
