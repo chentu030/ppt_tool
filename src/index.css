@@ -3,50 +3,56 @@
 :root {
   /* Light Theme */
   --bg-primary: #ffffff;
-  --bg-secondary: #f4f4f5;
-  --bg-tertiary: #e4e4e7;
+  --bg-secondary: #f8f9fc;
+  --bg-tertiary: #f1f3f8;
+  --bg-body: #eef2f6; /* Outer background color */
   
-  --text-primary: #09090b;
-  --text-secondary: #71717a;
+  --text-primary: #1e1e2d;
+  --text-secondary: #6b7280;
   
-  --border-color: #e4e4e7;
-  --accent-color: #18181b;
+  --border-color: #e5e7eb;
+  --accent-color: #6366f1; /* Primary Purple/Blue */
+  --accent-light: #eff0fe; /* Light purple for active states */
   --accent-text: #ffffff;
   
   /* Shared */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
   
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-float: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.05);
+  --shadow-float: 0 20px 40px rgba(0, 0, 0, 0.08);
 }
 
 .dark {
   /* Dark Theme */
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --bg-tertiary: #27272a;
+  --bg-primary: #18181b;
+  --bg-secondary: #27272a;
+  --bg-tertiary: #3f3f46;
+  --bg-body: #09090b;
   
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
+  --text-primary: #f8fafc;
+  --text-secondary: #9ca3af;
   
-  --border-color: #27272a;
-  --accent-color: #fafafa;
-  --accent-text: #09090b;
+  --border-color: #3f3f46;
+  --accent-color: #818cf8;
+  --accent-light: rgba(99, 102, 241, 0.15);
+  --accent-text: #ffffff;
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 body {
-  background-color: var(--bg-primary);
+  background-color: var(--bg-body);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;

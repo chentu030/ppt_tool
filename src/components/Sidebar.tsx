@@ -39,7 +39,7 @@ export const Sidebar: React.FC = () => {
         minWidth: expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
         height: '100vh',
         borderRight: '1px solid var(--border-color)',
-        padding: expanded ? '0.75rem 0.6rem' : '0.75rem 0.35rem',
+        padding: expanded ? '1rem 0.8rem' : '1rem 0.4rem',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--bg-primary)',
@@ -51,17 +51,18 @@ export const Sidebar: React.FC = () => {
       }}
     >
       {/* Logo + Pin */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center', marginBottom: '1rem', padding: expanded ? '0.3rem 0.4rem' : '0.3rem 0', minHeight: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, justifyContent: expanded ? 'flex-start' : 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center', marginBottom: '2rem', padding: expanded ? '0 0.4rem' : '0', minHeight: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, justifyContent: expanded ? 'flex-start' : 'center' }}>
           <div style={{
             backgroundColor: 'var(--accent-color)', color: 'var(--accent-text)',
-            padding: '0.3rem', borderRadius: '0.3rem',
+            padding: '0.4rem', borderRadius: '0.4rem',
             flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
           }}>
-            <Presentation size={16} />
+            <Presentation size={18} />
           </div>
           {expanded && (
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>Designt.io</span>
+            <span style={{ fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Designt.io</span>
           )}
         </div>
         {expanded && (
@@ -70,18 +71,22 @@ export const Sidebar: React.FC = () => {
             title={pinned ? '取消釘選' : '釘選側邊欄'}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '3px', borderRadius: '0.2rem',
+              padding: '4px', borderRadius: '0.3rem',
               color: pinned ? 'var(--accent-color)' : 'var(--text-secondary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, opacity: 0.7,
+              flexShrink: 0, opacity: 0.7, transition: 'all 0.15s'
             }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
           >
-            {pinned ? <Pin size={13} /> : <PinOff size={13} />}
+            {pinned ? <Pin size={14} /> : <PinOff size={14} />}
           </button>
         )}
       </div>
 
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+      {expanded && <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem', paddingLeft: '0.6rem' }}>OVERVIEW</div>}
+
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -90,39 +95,43 @@ export const Sidebar: React.FC = () => {
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem',
-              padding: expanded ? '0.45rem 0.6rem' : '0.45rem',
-              borderRadius: '0.35rem',
-              color: isActive ? '#fff' : 'var(--text-secondary)',
-              backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
-              fontSize: '0.78rem',
-              fontWeight: isActive ? 600 : 500,
+              gap: '0.6rem',
+              padding: expanded ? '0.6rem 0.8rem' : '0.6rem',
+              borderRadius: '0.5rem',
+              color: isActive ? 'var(--accent-color)' : 'var(--text-secondary)',
+              backgroundColor: isActive ? 'var(--accent-light)' : 'transparent',
+              fontSize: '0.85rem',
+              fontWeight: isActive ? 700 : 500,
               transition: 'all 0.15s ease',
               justifyContent: expanded ? 'flex-start' : 'center',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
             })}
           >
-            <item.icon size={15} style={{ flexShrink: 0 }} />
+            <item.icon size={18} strokeWidth={2.5} style={{ flexShrink: 0 }} />
             {expanded && item.label}
           </NavLink>
         ))}
       </nav>
 
-      <div style={{ marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
+      {expanded && <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem', paddingLeft: '0.6rem', marginTop: 'auto' }}>SETTINGS</div>}
+      <div style={{ marginTop: expanded ? 0 : 'auto', paddingTop: expanded ? 0 : '1rem', borderTop: expanded ? 'none' : '1px solid var(--border-color)' }}>
         <button
           onClick={handleSignOut}
           title={!expanded ? '登出' : undefined}
           style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            padding: expanded ? '0.45rem 0.6rem' : '0.45rem',
-            width: '100%', borderRadius: '0.35rem', color: 'var(--text-secondary)',
+            display: 'flex', alignItems: 'center', gap: '0.6rem',
+            padding: expanded ? '0.6rem 0.8rem' : '0.6rem',
+            width: '100%', borderRadius: '0.5rem', color: '#ef4444',
             background: 'none', border: 'none', cursor: 'pointer',
             justifyContent: expanded ? 'flex-start' : 'center',
-            whiteSpace: 'nowrap', overflow: 'hidden', fontSize: '0.78rem',
+            whiteSpace: 'nowrap', overflow: 'hidden', fontSize: '0.85rem', fontWeight: 600,
+            transition: 'background-color 0.15s ease'
           }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
         >
-          <LogOut size={15} style={{ flexShrink: 0 }} />
+          <LogOut size={18} strokeWidth={2.5} style={{ flexShrink: 0 }} />
           {expanded && '登出'}
         </button>
       </div>
