@@ -73,6 +73,7 @@ export interface SharedTemplate{
   referenceUrl:string;resultUrls:string[];settings:TemplateSettings;
   avgRating:number;ratingCount:number;ratings:Record<string,number>;createdAt:number;
 }
+const ADMIN_EMAIL='lcy101120@gmail.com';
 const TMPL_INDEX=doc(db,'templateGalleryIndex','v1');
 
 async function loadIndexFromFirestore():Promise<StoredTemplate[]>{
@@ -504,7 +505,9 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
 
   const renderCommunityCard=(t:SharedTemplate)=>{
     const uid=auth.currentUser?.uid||'';
+    const isAdmin=auth.currentUser?.email===ADMIN_EMAIL;
     const isOwner=t.userId===uid;
+    const canDelete=isOwner||isAdmin;
     const myRating=t.ratings?.[uid]||0;
     const displayRating=myRating||Math.round(t.avgRating||0);
     return(
@@ -565,9 +568,9 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
                   {t.avgRating?.toFixed(1)||'–'} ({t.ratingCount||0})
                 </span>
               </div>
-              {isOwner&&(
+              {(isOwner||canDelete)&&(
                 <div style={{display:'flex',gap:'0.25rem'}}>
-                  <button onClick={e=>{e.stopPropagation();handleEditCommunity(t);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'var(--text-secondary)'}} title="編輯"><Pencil size={12}/></button>
+                  {isOwner&&<button onClick={e=>{e.stopPropagation();handleEditCommunity(t);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'var(--text-secondary)'}} title="編輯"><Pencil size={12}/></button>}
                   <button onClick={e=>{e.stopPropagation();handleDeleteCommunity(t.id);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'#e53e3e'}} title="刪除"><Trash2 size={12}/></button>
                 </div>
               )}
