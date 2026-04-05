@@ -1052,7 +1052,8 @@ export const ProjectEditor: React.FC = () => {
       setSavingProgress(null);
     }
   };
-  const handleImageUpload = async (files: FileList) => {
+  const handleImageUpload = async (fileList: FileList) => {
+    const files = Array.from(fileList); // snapshot — FileList is a live ref cleared when input resets
     if (!id || files.length === 0) return;
     setSavingProgress({ current: 0, total: files.length });
     try {
