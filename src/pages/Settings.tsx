@@ -27,13 +27,23 @@ const PRICING_INFO = [
 
 export const Settings: React.FC = () => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('geminiApiKey') || '');
+  const [channel, setChannel] = useState<'platform' | 'gemini' | 'vertex'>(
+    (localStorage.getItem('apiChannel') as 'platform' | 'gemini' | 'vertex') || 'platform'
+  );
+  const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('geminiApiKey') || '');
+  const [vertexApiKey, setVertexApiKey] = useState(localStorage.getItem('vertexApiKey') || '');
   const [model, setModel] = useState(localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-3.1-flash-image-preview');
   const [showPricingModal, setShowPricingModal] = useState(false);
 
   const GEMINI_MODELS = [
     { label: 'gemini-3.1-flash-image-preview（預設，快速）', value: 'gemini-3.1-flash-image-preview' },
     { label: 'gemini-3-pro-image-preview（高品質）', value: 'gemini-3-pro-image-preview' },
+  ];
+
+  const CHANNEL_OPTIONS: { value: 'platform' | 'gemini' | 'vertex'; label: string; desc: string }[] = [
+    { value: 'platform', label: '平台預設', desc: '使用平台提供的 API，不需額外設定' },
+    { value: 'gemini',   label: 'Gemini API', desc: '走 generativelanguage.googleapis.com 通道' },
+    { value: 'vertex',   label: 'Vertex AI', desc: '走 aiplatform.googleapis.com Express Mode 通道' },
   ];
 
   useEffect(() => {
@@ -44,28 +54,42 @@ export const Settings: React.FC = () => {
     }
   }, [theme]);
 
-  const doSave = async (saveKey: boolean) => {
+  const doSave = async (confirmKey: boolean) => {
     localStorage.setItem('theme', theme);
-    if (saveKey) {
-      localStorage.setItem('geminiApiKey', apiKey);
-    } else {
-      localStorage.removeItem('geminiApiKey');
-    }
+    localStorage.setItem('apiChannel', channel);
     localStorage.setItem('vertexModel', model);
     localStorage.setItem('geminiModel', model);
+    if (confirmKey) {
+      if (channel === 'gemini') localStorage.setItem('geminiApiKey', geminiApiKey);
+      if (channel === 'vertex') localStorage.setItem('vertexApiKey', vertexApiKey);
+    } else {
+      // User cancelled — revert to platform
+      setChannel('platform');
+      localStorage.setItem('apiChannel', 'platform');
+    }
     setShowPricingModal(false);
-    await showAlert(saveKey ? '設定已儲存！將使用您自己的 Gemini API Key。' : '設定已儲存！將使用預設 Vertex API（您的 API Key 未啟用）。', '設定已儲存');
+    const msgs: Record<string, string> = {
+      platform: '設定已儲存！將使用平台預設 API。',
+      gemini: '設定已儲存！將使用您自己的 Gemini API Key。',
+      vertex: '設定已儲存！將使用您自己的 Vertex AI API Key。',
+    };
+    await showAlert(confirmKey ? msgs[channel] : msgs['platform'], '設定已儲存');
   };
 
   const handleSaveConfigs = () => {
     localStorage.setItem('theme', theme);
     localStorage.setItem('vertexModel', model);
     localStorage.setItem('geminiModel', model);
-    if (apiKey.trim()) {
+    const hasCustomKey = (channel === 'gemini' && geminiApiKey.trim()) || (channel === 'vertex' && vertexApiKey.trim());
+    if (hasCustomKey) {
       setShowPricingModal(true);
     } else {
-      localStorage.removeItem('geminiApiKey');
-      showAlert('設定已儲存！將使用預設 Vertex API。', '設定已儲存');
+      localStorage.setItem('apiChannel', channel);
+      if (channel === 'platform') {
+        localStorage.removeItem('geminiApiKey');
+        localStorage.removeItem('vertexApiKey');
+      }
+      showAlert('設定已儲存！將使用平台預設 API。', '設定已儲存');
     }
   };
 
@@ -83,9 +107,12 @@ export const Settings: React.FC = () => {
       {showPricingModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
           <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>⚠️ 使用自己的 Gemini API Key 前請確認費用</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>⚠️ 使用自己的 API Key 前請確認費用</h3>
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              使用您自己的 API Key 將由 <strong>Google 直接向您計費</strong>。以下為最新官方定價（匯率約 1 USD ≈ {USD_TO_TWD} TWD）：
+              使用您自己的 API Key 將由 <strong>Google 直接向您計費</strong>。
+              {channel === 'gemini' && ' 通道：Gemini API（generativelanguage.googleapis.com）'}
+              {channel === 'vertex' && ' 通道：Vertex AI Express Mode（aiplatform.googleapis.com）'}
+              。以下為最新官方定價（匯率約 1 USD ≈ {USD_TO_TWD} TWD）：
             </p>
             {PRICING_INFO.map(info => (
               <div key={info.model}>
@@ -111,10 +138,10 @@ export const Settings: React.FC = () => {
               </div>
             ))}
             <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              若不確定，建議取消並繼續使用<strong>預設 Vertex API</strong>（由平台提供，不需額外付費）。
+              若不確定，建議取消並繼續使用<strong>平台預設</strong>（不需額外付費）。
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <Button onClick={() => doSave(false)}>取消，使用預設 Vertex API</Button>
+              <Button onClick={() => doSave(false)}>取消，使用平台預設</Button>
               <Button onClick={() => doSave(true)}>確認，使用我自己的 API Key</Button>
             </div>
           </div>
@@ -158,20 +185,68 @@ export const Settings: React.FC = () => {
         <Card>
           <h3 style={{ marginBottom: '1.5rem' }}>API 設定</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-              <Input
-                label="Gemini API Key（選填，留空則使用平台預設）"
-                type="password"
-                placeholder="AIza... （留空 = 使用預設 Vertex API）"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-              {apiKey.trim() && (
-                <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#d97706' }}>
-                  ⚠️ 已填入自訂 API Key，儲存後將向您的 Google 帳號計費。
-                </p>
-              )}
+
+            {/* Channel selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>API 通道</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                {CHANNEL_OPTIONS.map(opt => (
+                  <div
+                    key={opt.value}
+                    onClick={() => setChannel(opt.value)}
+                    style={{
+                      padding: '0.85rem 0.75rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      border: channel === opt.value ? '2px solid var(--accent-color)' : '1px solid var(--border-color)',
+                      backgroundColor: channel === opt.value ? 'rgba(59,130,246,0.06)' : 'transparent',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem' }}>{opt.label}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{opt.desc}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Gemini API Key */}
+            {channel === 'gemini' && (
+              <div>
+                <Input
+                  label="Gemini API Key"
+                  type="password"
+                  placeholder="AIza..."
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                />
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#d97706' }}>
+                  ⚠️ 使用自訂 API Key 將由 Google 直接向您計費（走 generativelanguage.googleapis.com）。
+                </p>
+              </div>
+            )}
+
+            {/* Vertex AI API Key */}
+            {channel === 'vertex' && (
+              <div>
+                <Input
+                  label="Vertex AI API Key"
+                  type="password"
+                  placeholder="AIza..."
+                  value={vertexApiKey}
+                  onChange={(e) => setVertexApiKey(e.target.value)}
+                />
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#d97706' }}>
+                  ⚠️ 使用自訂 API Key 將由 Google 直接向您計費（走 aiplatform.googleapis.com Express Mode）。
+                </p>
+              </div>
+            )}
+
+            {/* Platform default hint */}
+            {channel === 'platform' && (
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                使用平台提供的 API，不需要輸入任何 Key。
+              </p>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Gemini 模型</label>
               <select

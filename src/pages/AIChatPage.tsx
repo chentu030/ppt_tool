@@ -4,7 +4,7 @@ import { showAlert, showConfirm } from '../utils/dialog';
 import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus } from 'lucide-react';
 import { collection, doc, setDoc, addDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { chatWithGemini, generateChatTitle, transformSlideText } from '../utils/gemini';
+import { chatWithGemini, generateChatTitle, transformSlideText, getApiKey } from '../utils/gemini';
 import { uploadHQToStorage, uploadToDrive, fetchImageAsBase64 } from '../utils/storageHelper';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import type { TransformOp } from '../utils/gemini';
@@ -169,7 +169,7 @@ export const AIChatPage: React.FC = () => {
   const handleGenerateRef = useRef<(retryIds?: string[]) => void>(() => {});
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
-  const apiKey = localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
+  const apiKey = getApiKey();
 
   const allFiles = messages.flatMap(m => m.attachments);
 

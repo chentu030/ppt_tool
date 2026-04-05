@@ -1,9 +1,14 @@
 import { getValidBearerToken } from './auth';
 
-// Both paths use aiplatform.googleapis.com (Vertex AI billing) — never generativelanguage.googleapis.com
-// Bearer token → v1 regional endpoint (GCP project credits)
-// API key     → v1beta1 Express Mode (still Vertex AI, still GCP billing)
+// API channel: 'gemini' → generativelanguage.googleapis.com
+//              'vertex' → aiplatform.googleapis.com (user's own Vertex API Key)
+//              'platform' (default) → aiplatform.googleapis.com (platform-provided key)
+// Bearer token → v1 regional endpoint (GCP project credits, only for Vertex channels)
 const getBaseUrl = (hasBearerToken: boolean) => {
+  const channel = localStorage.getItem('apiChannel') || 'platform';
+  if (channel === 'gemini') {
+    return 'https://generativelanguage.googleapis.com/v1beta/models';
+  }
   if (hasBearerToken) {
     const project = localStorage.getItem('gcpProjectId') || '';
     const region  = localStorage.getItem('vertexRegion')  || 'us-central1';
@@ -14,11 +19,24 @@ const getBaseUrl = (hasBearerToken: boolean) => {
 
 // Use global location for grounding/newer models not available in regional endpoints
 const getGlobalBaseUrl = (hasBearerToken: boolean) => {
+  const channel = localStorage.getItem('apiChannel') || 'platform';
+  if (channel === 'gemini') {
+    return 'https://generativelanguage.googleapis.com/v1beta/models';
+  }
   if (hasBearerToken) {
     const project = localStorage.getItem('gcpProjectId') || '';
     return `https://aiplatform.googleapis.com/v1/projects/${project}/locations/global/publishers/google/models`;
   }
   return 'https://aiplatform.googleapis.com/v1beta1/publishers/google/models';
+};
+
+/** Centralised API key resolution based on the selected channel */
+export const getApiKey = (): string => {
+  const channel = localStorage.getItem('apiChannel') || 'platform';
+  if (channel === 'gemini') return localStorage.getItem('geminiApiKey') || '';
+  if (channel === 'vertex') return localStorage.getItem('vertexApiKey') || '';
+  // platform default: env var → vertexApiKey fallback → geminiApiKey fallback
+  return (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_VERTEX_API_KEY) || localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
 };
 
 

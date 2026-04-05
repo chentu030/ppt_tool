@@ -12,6 +12,7 @@ import { db, auth, storage } from '../firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, compressForFirestore, uploadToDrive } from '../utils/storageHelper';
+import { getApiKey } from '../utils/gemini';
 
 interface Slide {
   id: string;
@@ -331,7 +332,7 @@ export const ProjectEditor: React.FC = () => {
     setIsPolishing(true);
     setPolishedPreview(null);
     try {
-      const apiKey = localStorage.getItem('vertexApiKey') || import.meta.env.VITE_VERTEX_API_KEY || localStorage.getItem('geminiApiKey') || '';
+      const apiKey = getApiKey();
       const { polishTextWithAI } = await import('../utils/gemini');
       const polished = await polishTextWithAI(text, polishDirection, apiKey);
       // Show preview instead of directly replacing original text
@@ -1071,7 +1072,7 @@ export const ProjectEditor: React.FC = () => {
          initialBatch.update(doc(db, 'projects', id, 'slides', slideId), { status: 'generating' });
       });
       await initialBatch.commit();
-      const apiKey = localStorage.getItem('vertexApiKey') || import.meta.env.VITE_VERTEX_API_KEY || localStorage.getItem('geminiApiKey') || '';
+      const apiKey = getApiKey();
       const model = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || "gemini-3.1-flash-image-preview";
       
       const { generateImageDesign } = await import('../utils/gemini');
