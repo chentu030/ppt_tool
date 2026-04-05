@@ -9,6 +9,7 @@ export const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHoveringText, setIsHoveringText] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -26,8 +27,49 @@ export const Landing: React.FC = () => {
       backgroundColor: 'var(--bg-primary)',
       backgroundImage: 'radial-gradient(circle at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%)',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      cursor: 'none' // Hide default cursor
     }}>
+      {/* Custom Cursor - Inner Dot */}
+      <motion.div
+        animate={{
+          x: mousePos.x - 4,
+          y: mousePos.y - 4,
+          scale: isHoveringText ? 2.5 : 1,
+          opacity: isHoveringText ? 0.5 : 1
+        }}
+        transition={{ type: 'spring', stiffness: 1000, damping: 28, mass: 0.1 }}
+        style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          width: '8px', height: '8px',
+          backgroundColor: 'var(--accent-color)',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          zIndex: 9999,
+          mixBlendMode: 'difference'
+        }}
+      />
+      {/* Custom Cursor - Outer Ring */}
+      <motion.div
+        animate={{
+          x: mousePos.x - 20,
+          y: mousePos.y - 20,
+          scale: isHoveringText ? 1.5 : 1,
+          opacity: isHoveringText ? 0 : 1
+        }}
+        transition={{ type: 'spring', stiffness: 250, damping: 20, mass: 0.5 }}
+        style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          width: '40px', height: '40px',
+          border: '1px solid rgba(59, 130, 246, 0.4)',
+          borderRadius: '50%',
+          pointerEvents: 'none',
+          zIndex: 9998
+        }}
+      />
+
       {/* Interactive Spotlight Effect */}
       <div 
         style={{
@@ -110,7 +152,11 @@ export const Landing: React.FC = () => {
             <Sparkles size={16} /> Awwwards 級別的 AI 簡報設計
           </motion.div>
           
-          <h1 style={{ fontSize: '4.5rem', marginBottom: '1.5rem', lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h1 
+            style={{ fontSize: '4.5rem', marginBottom: '1.5rem', lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            onMouseEnter={() => setIsHoveringText(true)}
+            onMouseLeave={() => setIsHoveringText(false)}
+          >
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>
               {Array.from('讓 AI 為你設計').map((char, i) => (
                 <motion.span
@@ -145,7 +191,11 @@ export const Landing: React.FC = () => {
             </div>
           </h1>
           
-          <p style={{ fontSize: '1.25rem', marginBottom: '3rem', maxWidth: '600px', margin: '0 auto 3rem auto', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <p 
+            style={{ fontSize: '1.25rem', marginBottom: '3rem', maxWidth: '600px', margin: '0 auto 3rem auto', color: 'var(--text-secondary)', lineHeight: 1.6 }}
+            onMouseEnter={() => setIsHoveringText(true)}
+            onMouseLeave={() => setIsHoveringText(false)}
+          >
             只需上傳草稿、選擇喜歡的風格，讓強大的 Gemini 模型為你自動重繪、排版，瞬間打造出專家級的視覺體驗。
           </p>
           
