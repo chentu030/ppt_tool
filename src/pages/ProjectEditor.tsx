@@ -2023,14 +2023,14 @@ export const ProjectEditor: React.FC = () => {
               )}
             </div>
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
-              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)' }}>
+              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                  <button onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem', fontWeight: 600, border: isDrawingMode ? 'none' : '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', background: isDrawingMode ? 'var(--accent-color)' : 'var(--bg-secondary)', color: isDrawingMode ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: isDrawingMode ? 'var(--shadow-md)' : 'none' }}>
-                    {isDrawingMode ? <X size={15} /> : <Circle size={15} />}
-                    {isDrawingMode ? '清除並關閉' : '局部重繪'}
-                  </button>
+                  <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
+                    {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
+                    {isDrawingMode ? 'Clear & Close' : 'Draw Area'}
+                  </Button>
                   {isDrawingMode && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.75rem', borderLeft: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
                       <Circle size={12} style={{ color: 'var(--text-secondary)' }} />
                       <input type="range" min="5" max="100" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '80px', accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
                       <Circle size={20} style={{ color: 'var(--text-secondary)' }} />
@@ -2042,52 +2042,46 @@ export const ProjectEditor: React.FC = () => {
                     const canRedo = !!hist && hist.pos < hist.stack.length - 1;
                     if (!hist || hist.stack.length === 0) return null;
                     const btnStyle = (enabled: boolean): React.CSSProperties => ({
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
-                      padding: '0.5rem 0.75rem', cursor: enabled ? 'pointer' : 'not-allowed',
-                      opacity: enabled ? 1 : 0.5, color: 'var(--text-secondary)',
-                      display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s ease'
+                      background: 'none', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)',
+                      padding: '0.3rem 0.45rem', cursor: enabled ? 'pointer' : 'not-allowed',
+                      opacity: enabled ? 1 : 0.35, color: 'var(--text-secondary)',
+                      display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem',
                     });
                     return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.5rem', paddingLeft: '1rem', borderLeft: '1px solid var(--border-color)' }}>
-                        <button style={btnStyle(canUndo)} disabled={!canUndo} title="上一步" onClick={() => handleUndo(activeSlideId)}
-                          onMouseEnter={e => { if(canUndo) { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; } }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}>
-                          <ChevronLeft size={14} strokeWidth={2.5} /> 上一步
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.5rem', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border-color)' }}>
+                        <button style={btnStyle(canUndo)} disabled={!canUndo} title="上一步" onClick={() => handleUndo(activeSlideId)}>
+                          <ChevronLeft size={13} /> 上一步
                         </button>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', minWidth: '32px', textAlign: 'center', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', minWidth: '28px', textAlign: 'center' }}>
                           {hist.pos + 1}/{hist.stack.length}
                         </span>
-                        <button style={btnStyle(canRedo)} disabled={!canRedo} title="下一步（最新版）" onClick={() => handleRedo(activeSlideId)}
-                          onMouseEnter={e => { if(canRedo) { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; } }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}>
-                          下一步 <ChevronRight size={14} strokeWidth={2.5} />
+                        <button style={btnStyle(canRedo)} disabled={!canRedo} title="下一步（最新版）" onClick={() => handleRedo(activeSlideId)}>
+                          下一步 <ChevronRight size={13} />
                         </button>
-                        <button style={{ ...btnStyle(true), marginLeft: '0.4rem', borderColor: 'var(--border-color)', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.05)' }} title="還原原始圖片" onClick={() => handleRevertToOriginal(activeSlideId)}
-                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.05)'; }}>
-                          <RotateCcw size={14} strokeWidth={2.5} /> 原圖
+                        <button style={{ ...btnStyle(true), marginLeft: '0.2rem', borderColor: 'var(--border-color)' }} title="還原原始圖片" onClick={() => handleRevertToOriginal(activeSlideId)}>
+                          <RotateCcw size={13} /> 原圖
                         </button>
                       </div>
                     );
                   })()}
                 </div>
                 <input
-                  placeholder="你想修改什麼內容？ (例如：背景換成藍色)"
+                  placeholder="What do you want Gemini to change?"
                   value={promptDraft}
                   onChange={(e) => setPromptDraft(e.target.value)}
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
-                  onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                  onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
-                  style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', outline: 'none', fontSize: '0.9rem', color: 'var(--text-primary)', padding: '0.8rem 1.2rem', transition: 'border-color 0.2s', boxShadow: 'var(--shadow-inner)' }}
-                  onFocus={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
+                  style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
                   onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
-                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', backgroundColor: isGenerating ? 'var(--bg-tertiary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-lg)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.95rem', fontWeight: 600, whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: isGenerating ? 'none' : 'var(--shadow-md)' }}
-                  onMouseEnter={e => { if(!isGenerating) e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={e => { if(!isGenerating) e.currentTarget.style.transform = 'none'; }}
+                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
-                  <Sparkles size={16} style={{ animation: isGenerating ? 'spin 2s linear infinite' : 'none' }} strokeWidth={2.5} />
-                  {isGenerating ? '生成中...' : '開始生成'}
+                  <Sparkles size={14} style={{ animation: isGenerating ? 'spin 2s linear infinite' : 'none' }} />
+                  {isGenerating ? '生成中...' : '生成'}
                 </button>
               </div>
             )}
@@ -2099,10 +2093,10 @@ export const ProjectEditor: React.FC = () => {
       {showShareModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
           onClick={() => { if (!isSharing) setShowShareModal(false); }}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-float)', padding: '2rem', width: '560px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflow: 'hidden' }}
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-color)' }}><Share2 size={18} strokeWidth={2.5} /> 分享模板到社群</h3>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}><Share2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />分享模板到社群</h3>
               <button onClick={() => setShowShareModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
             </div>
 

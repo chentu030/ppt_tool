@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { showAlert, showConfirm } from '../utils/dialog';
 import { Plus, LayoutTemplate, Trash2, Edit2, Presentation, BookOpen, FileText, BarChart3, PieChart, Target, Lightbulb, Rocket, Globe, Briefcase, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -59,6 +59,9 @@ export const Home: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Slide thumbnails per project: projectId -> [imageUrl, imageUrl]
+  const [projectThumbs, setProjectThumbs] = useState<Record<string, (string | null)[]>>({});
+
   // Auth Listener — empty deps so it only subscribes ONCE (navigate is stable via ref)
   React.useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -103,6 +106,33 @@ export const Home: React.FC = () => {
     });
     return () => unsubscribe();
   }, [userId]);
+
+  // Fetch first 2 slide thumbnails for each project
+  React.useEffect(() => {
+    if (projects.length === 0) return;
+    const fetchThumbs = async () => {
+      const thumbs: Record<string, (string | null)[]> = {};
+      await Promise.all(projects.map(async (proj) => {
+        try {
+          const slidesQ = query(
+            collection(db, 'projects', proj.id, 'slides'),
+            orderBy('order', 'asc'),
+            limit(2)
+          );
+          const snap = await getDocs(slidesQ);
+          const imgs = snap.docs.map(d => {
+            const data = d.data();
+            return data.generatedImage || data.originalImage || null;
+          });
+          thumbs[proj.id] = imgs;
+        } catch {
+          thumbs[proj.id] = [];
+        }
+      }));
+      setProjectThumbs(thumbs);
+    };
+    fetchThumbs();
+  }, [projects]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !userId) return;
@@ -235,51 +265,40 @@ export const Home: React.FC = () => {
               key={project.id}
               style={{ cursor: 'pointer', position: 'relative', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', padding: '0.85rem 1rem', transition: 'box-shadow 0.2s, border-color 0.2s' }}
               onClick={() => navigate(`/project/${project.id}`)}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--text-secondary)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border-color)'; (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}
             >
-              {/* Delete / Edit Buttons */}
-              <div style={{
-                position: 'absolute', top: '1rem', right: '1rem',
-                display: 'flex', gap: '0.4rem'
-              }}>
-                <button
-                  onClick={(e) => startEdit(e, project)}
-                  title="編輯專案"
-                  style={{
-                    background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%',
-                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', color: 'var(--text-secondary)', transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={(e) => handleDelete(e, project.id)}
-                  title="刪除專案"
-                  style={{
-                    background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%',
-                    width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', color: '#ef4444', transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                >
-                  <Trash2 size={14} />
-                </button>
+              {/* Slide thumbnails */}
+              <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.6rem' }}>
+                {[0, 1].map(i => {
+                  const thumbs = projectThumbs[project.id] || [];
+                  const src = thumbs[i] || null;
+                  return (
+                    <div key={i} style={{ flex: 1, aspectRatio: '16/9', borderRadius: '0.3rem', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
+                      {src ? (
+                        <img src={src} alt={`Slide ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', backgroundColor: '#fff' }} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <div style={{ 
-                  backgroundColor: `${project.color}15`, color: project.color,
-                  padding: '0.6rem', borderRadius: '0.6rem',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '0.35rem',
+                  backgroundColor: `${project.color}18`, color: project.color,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <ProjectIcon size={20} />
+                  <ProjectIcon size={16} />
+                </div>
+                <div style={{ display: 'flex', gap: '0.2rem' }}>
+                  <button onClick={(e) => startEdit(e, project)} title="編輯" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: 'var(--text-secondary)', opacity: 0.5 }}><Edit2 size={13} /></button>
+                  <button onClick={(e) => handleDelete(e, project.id)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', color: '#ef4444', opacity: 0.5 }}><Trash2 size={13} /></button>
                 </div>
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>編輯於 {project.date}</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>編輯於 {project.date}</div>
             </div>
           );
         })}

@@ -108,13 +108,13 @@ export const Settings: React.FC = () => {
   const thStyle: React.CSSProperties = { ...tdStyle, fontWeight: 700, textAlign: 'left', background: 'var(--bg-secondary)' };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%', padding: '1rem 0' }}>
+    <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
       {/* Pricing Confirmation Modal */}
       {showPricingModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-float)', padding: '2rem', width: '560px', maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>⚠️ 使用自己的 API Key 前請確認費用</h3>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>⚠️ 使用自己的 API Key 前請確認費用</h3>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               使用您自己的 API Key 將由 <strong>Google 直接向您計費</strong>。
               {channel === 'gemini' && ' 通道：Gemini API（generativelanguage.googleapis.com）'}
               {channel === 'vertex' && ' 通道：Vertex AI Express Mode（aiplatform.googleapis.com）'}
@@ -122,8 +122,8 @@ export const Settings: React.FC = () => {
             </p>
             {PRICING_INFO.map(info => (
               <div key={info.model}>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '0.5rem', color: 'var(--accent-color)' }}>{info.model}</div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--border-color)', borderRadius: '0.5rem', overflow: 'hidden' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.4rem' }}>{info.model}</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
                   <thead>
                     <tr>
                       <th style={thStyle}>規格</th>
@@ -143,35 +143,33 @@ export const Settings: React.FC = () => {
                 </table>
               </div>
             ))}
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: '0.5rem' }}>
+            <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
               若不確定，建議取消並繼續使用<strong>平台預設</strong>（不需額外付費）。
             </p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-              <Button variant="secondary" onClick={() => doSave(false)} style={{ borderRadius: '0.5rem', fontWeight: 600 }}>取消，使用平台預設</Button>
-              <Button onClick={() => doSave(true)} style={{ borderRadius: '0.5rem', fontWeight: 600 }}>確認，使用我自己的 API Key</Button>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <Button onClick={() => doSave(false)}>取消，使用平台預設</Button>
+              <Button onClick={() => doSave(true)}>確認，使用我自己的 API Key</Button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginBottom: '2.5rem' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '-0.02em' }}>設定</h1>
-        <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>管理你的帳號與工具偏好</p>
+      <div style={{ marginBottom: '2rem' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>設定</h1>
+        <p>管理你的帳號與工具偏好</p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        <Card style={{ borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 700 }}>外觀</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <Card>
+          <h3 style={{ marginBottom: '1.5rem' }}>外觀</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div
               onClick={() => handleThemeChange('light')}
               style={{
                 padding: '1.5rem', borderRadius: 'var(--radius-md)',
-                cursor: 'pointer', textAlign: 'center', fontWeight: 600, fontSize: '0.95rem',
+                cursor: 'pointer', textAlign: 'center', fontWeight: 500,
                 border: theme === 'light' ? '2px solid var(--accent-color)' : '1px solid var(--border-color)',
-                backgroundColor: '#ffffff', color: '#1e1e2d',
-                boxShadow: theme === 'light' ? '0 4px 12px rgba(99, 102, 241, 0.15)' : 'none',
-                transition: 'all 0.2s ease'
+                backgroundColor: '#ffffff', color: '#09090b'
               }}
             >
               淺色模式
@@ -180,11 +178,9 @@ export const Settings: React.FC = () => {
               onClick={() => handleThemeChange('dark')}
               style={{
                 padding: '1.5rem', borderRadius: 'var(--radius-md)',
-                cursor: 'pointer', textAlign: 'center', fontWeight: 600, fontSize: '0.95rem',
+                cursor: 'pointer', textAlign: 'center', fontWeight: 500,
                 border: theme === 'dark' ? '2px solid var(--accent-color)' : '1px solid var(--border-color)',
-                backgroundColor: '#09090b', color: '#fafafa',
-                boxShadow: theme === 'dark' ? '0 4px 12px rgba(99, 102, 241, 0.15)' : 'none',
-                transition: 'all 0.2s ease'
+                backgroundColor: '#09090b', color: '#fafafa'
               }}
             >
               深色模式
@@ -192,28 +188,27 @@ export const Settings: React.FC = () => {
           </div>
         </Card>
 
-        <Card style={{ borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-color)' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 700 }}>API 設定</h3>
+        <Card>
+          <h3 style={{ marginBottom: '1.5rem' }}>API 設定</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
             {/* Channel selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>API 通道</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>API 通道</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                 {CHANNEL_OPTIONS.map(opt => (
                   <div
                     key={opt.value}
                     onClick={() => setChannel(opt.value)}
                     style={{
-                      padding: '1rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      padding: '0.85rem 0.75rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
                       border: channel === opt.value ? '2px solid var(--accent-color)' : '1px solid var(--border-color)',
-                      backgroundColor: channel === opt.value ? 'var(--accent-light)' : 'var(--bg-secondary)',
-                      transition: 'all 0.2s ease',
-                      boxShadow: channel === opt.value ? '0 4px 12px rgba(99, 102, 241, 0.12)' : 'none'
+                      backgroundColor: channel === opt.value ? 'rgba(59,130,246,0.06)' : 'transparent',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.3rem', color: channel === opt.value ? 'var(--accent-color)' : 'var(--text-primary)' }}>{opt.label}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{opt.desc}</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.25rem' }}>{opt.label}</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{opt.desc}</div>
                   </div>
                 ))}
               </div>
@@ -228,9 +223,8 @@ export const Settings: React.FC = () => {
                   placeholder="AIza..."
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
-                  style={{ borderRadius: '0.5rem', background: 'var(--bg-secondary)' }}
                 />
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: '#d97706', fontWeight: 500 }}>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#d97706' }}>
                   ⚠️ 使用自訂 API Key 將由 Google 直接向您計費（走 generativelanguage.googleapis.com）。
                 </p>
               </div>
@@ -245,9 +239,8 @@ export const Settings: React.FC = () => {
                   placeholder="AIza..."
                   value={vertexApiKey}
                   onChange={(e) => setVertexApiKey(e.target.value)}
-                  style={{ borderRadius: '0.5rem', background: 'var(--bg-secondary)' }}
                 />
-                <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: '#d97706', fontWeight: 500 }}>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: '#d97706' }}>
                   ⚠️ 使用自訂 API Key 將由 Google 直接向您計費（走 aiplatform.googleapis.com Express Mode）。
                 </p>
               </div>
@@ -255,22 +248,20 @@ export const Settings: React.FC = () => {
 
             {/* Platform default hint */}
             {channel === 'platform' && (
-              <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  使用平台提供的 Vertex API，不需要輸入任何 Key。
-                </p>
-              </div>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                使用平台提供的 Vertex API，不需要輸入任何 Key。
+              </p>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Gemini 模型</label>
+              <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>Gemini 模型</label>
               <select
                 value={model}
                 onChange={e => setModel(e.target.value)}
                 style={{
-                  padding: '0.6rem 0.8rem', borderRadius: '0.5rem',
-                  border: '1px solid var(--border-color)', background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)', fontSize: '0.9rem', cursor: 'pointer', outline: 'none'
+                  padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                  color: 'var(--text-primary)', fontSize: '0.875rem', cursor: 'pointer'
                 }}
               >
                 {GEMINI_MODELS.map(m => (
@@ -278,8 +269,8 @@ export const Settings: React.FC = () => {
                 ))}
               </select>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <Button onClick={handleSaveConfigs} style={{ borderRadius: '0.5rem', fontWeight: 600, boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)', padding: '0.6rem 1.5rem' }}>儲存設定</Button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button onClick={handleSaveConfigs}>儲存設定</Button>
             </div>
           </div>
         </Card>
