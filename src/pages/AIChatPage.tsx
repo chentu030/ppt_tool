@@ -935,16 +935,16 @@ export const AIChatPage: React.FC = () => {
   const removeImage = (idx: number) => { setGalleryImages(prev => prev.filter((_, i) => i !== idx)); };
 
   // ── Styles ─────────────────────────────────────────────────────────────
-  const bubbleBase: React.CSSProperties = { maxWidth: '85%', padding: '0.7rem 1rem', borderRadius: '1rem', fontSize: '0.85rem', lineHeight: 1.6, wordBreak: 'break-word' };
-  const userBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--accent-color)', color: '#fff', borderBottomRightRadius: '0.3rem', marginLeft: 'auto' };
-  const aiBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderBottomLeftRadius: '0.3rem' };
-  const panelHeader: React.CSSProperties = { padding: '0.6rem 0.75rem', fontWeight: 700, fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 };
+  const bubbleBase: React.CSSProperties = { maxWidth: '85%', padding: '0.85rem 1.1rem', borderRadius: '1.25rem', fontSize: '0.88rem', lineHeight: 1.6, wordBreak: 'break-word', boxShadow: 'var(--shadow-sm)' };
+  const userBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--accent-color)', color: '#fff', borderBottomRightRadius: '0.35rem', marginLeft: 'auto' };
+  const aiBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderBottomLeftRadius: '0.35rem' };
+  const panelHeader: React.CSSProperties = { padding: '0.8rem 1rem', fontWeight: 700, fontSize: '0.85rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, backgroundColor: 'var(--bg-primary)' };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', margin: '-1.5rem', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-body)' }}>
 
       {/* ── Left Sidebar: History ── */}
-      <div style={{ width: leftSidebarOpen ? `${leftSidebarWidth}px` : '36px', minWidth: leftSidebarOpen ? `${leftSidebarWidth}px` : '36px', borderRight: 'none', display: 'flex', flexDirection: 'row', background: 'var(--bg-primary)', position: 'relative', flexShrink: 0 }}>
+      <div style={{ width: leftSidebarOpen ? `${leftSidebarWidth}px` : '48px', minWidth: leftSidebarOpen ? `${leftSidebarWidth}px` : '48px', display: 'flex', flexDirection: 'row', background: 'var(--bg-primary)', position: 'relative', flexShrink: 0, borderRight: '1px solid var(--border-color)', transition: 'width 0.2s ease, min-width 0.2s ease', zIndex: 10 }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', borderRight: '1px solid var(--border-color)' }}>
         <div style={{ ...panelHeader, justifyContent: 'space-between', minWidth: 0 }}>
           {leftSidebarOpen && <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap', overflow: 'hidden' }}><MessageSquare size={14} /> 歷史對話</span>}
