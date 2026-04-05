@@ -110,16 +110,39 @@ export const Landing: React.FC = () => {
             <Sparkles size={16} /> Awwwards 級別的 AI 簡報設計
           </motion.div>
           
-          <h1 style={{ fontSize: '4.5rem', marginBottom: '1.5rem', lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.02em' }}>
-            讓 AI 為你設計<br />
-            <span style={{ 
+          <h1 style={{ fontSize: '4.5rem', marginBottom: '1.5rem', lineHeight: 1.1, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {Array.from('讓 AI 為你設計').map((char, i) => (
+                <motion.span
+                  key={`line1-${i}`}
+                  whileHover={{ y: -8, scale: 1.05 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                  style={{ display: 'inline-block', whiteSpace: char === ' ' ? 'pre' : 'normal' }}
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </div>
+            <div style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              justifyContent: 'center',
               background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               color: 'var(--text-secondary)' 
             }}>
-              令人驚豔的專業簡報
-            </span>
+              {Array.from('令人驚豔的專業簡報').map((char, i) => (
+                <motion.span
+                  key={`line2-${i}`}
+                  whileHover={{ y: -8, scale: 1.05 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                  style={{ display: 'inline-block' }}
+                >
+                  {char}
+                </motion.span>
+              ))}
+            </div>
           </h1>
           
           <p style={{ fontSize: '1.25rem', marginBottom: '3rem', maxWidth: '600px', margin: '0 auto 3rem auto', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
