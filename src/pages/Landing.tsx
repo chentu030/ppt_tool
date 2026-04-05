@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, useAnimation } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { AuthModal } from '../components/AuthModal';
@@ -9,7 +9,6 @@ export const Landing: React.FC = () => {
   const navigate = useNavigate();
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const controls = useAnimation();
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
