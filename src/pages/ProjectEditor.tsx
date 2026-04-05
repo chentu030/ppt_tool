@@ -78,6 +78,7 @@ export const ProjectEditor: React.FC = () => {
   const [backedUpIds, setBackedUpIds] = useState<Set<string>>(new Set());
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const backupFailCount = useRef(0);
   const [isExporting, setIsExporting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -370,11 +371,12 @@ export const ProjectEditor: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [slides, activeSlideId]);
 
-  // Always-on auto-backup: triggers 2s after any new unbacked image appears
+  // Always-on auto-backup: triggers after new unbacked images appear, with exponential backoff on failure
   React.useEffect(() => {
     const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
-    if (unbacked.length === 0 || isBackingUp) return;
-    const timer = setTimeout(() => { handleBackup(); }, 2000);
+    if (unbacked.length === 0 || isBackingUp || backupFailCount.current >= 3) return;
+    const delay = backupFailCount.current === 0 ? 2000 : Math.min(5000 * Math.pow(2, backupFailCount.current - 1), 30000);
+    const timer = setTimeout(() => { handleBackup(); }, delay);
     return () => clearTimeout(timer);
   }, [pendingImages, backedUpIds, isBackingUp]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -711,7 +713,7 @@ export const ProjectEditor: React.FC = () => {
 
   const handleBackup = async () => {
     const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
-    if (!id || unbacked.length === 0 || isBackingUp) return;
+    if (!id || !userId || unbacked.length === 0 || isBackingUp) return;
     setIsBackingUp(true);
     try {
       const newlyBacked = new Set<string>();
@@ -736,9 +738,15 @@ export const ProjectEditor: React.FC = () => {
       // Keep pendingImages in memory (original quality for this session)
       setBackedUpIds(prev => new Set([...prev, ...newlyBacked]));
       setLastBackupTime(new Date());
+      backupFailCount.current = 0;
     } catch (err) {
       console.error('Backup failed:', err);
-      showAlert('備份失敗，請稍後再試。', '錯誤');
+      backupFailCount.current += 1;
+      if (backupFailCount.current >= 3) {
+        showAlert('備份多次失敗，請手動點擊備份按鈕或重新整理頁面再試。', '錯誤');
+      } else {
+        showToast(`備份失敗，${Math.round(5 * Math.pow(2, backupFailCount.current - 1))} 秒後自動重試…`, 'error');
+      }
     } finally {
       setIsBackingUp(false);
     }
@@ -1550,7 +1558,7 @@ export const ProjectEditor: React.FC = () => {
           {pendingImages.size > 0 && (() => {
             const unbackedCount = pendingImages.size - backedUpIds.size;
             return unbackedCount > 0 ? (
-              <button onClick={handleBackup} disabled={isBackingUp}
+              <button onClick={() => { backupFailCount.current = 0; handleBackup(); }} disabled={isBackingUp}
                 style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1 }}>
                 {isBackingUp ? '備份中...' : `備份 (${unbackedCount})`}
               </button>
