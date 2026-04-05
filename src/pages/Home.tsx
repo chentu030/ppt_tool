@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { showAlert, showConfirm } from '../utils/dialog';
 import { Plus, LayoutTemplate, Trash2, Edit2, Presentation, BookOpen, FileText, BarChart3, PieChart, Target, Lightbulb, Rocket, Globe, Briefcase, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -59,9 +59,6 @@ export const Home: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Slide thumbnails per project: projectId -> [imageUrl, imageUrl]
-  const [projectThumbs, setProjectThumbs] = useState<Record<string, (string | null)[]>>({});
-
   // Auth Listener — empty deps so it only subscribes ONCE (navigate is stable via ref)
   React.useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -106,33 +103,6 @@ export const Home: React.FC = () => {
     });
     return () => unsubscribe();
   }, [userId]);
-
-  // Fetch first 2 slide thumbnails for each project
-  React.useEffect(() => {
-    if (projects.length === 0) return;
-    const fetchThumbs = async () => {
-      const thumbs: Record<string, (string | null)[]> = {};
-      await Promise.all(projects.map(async (proj) => {
-        try {
-          const slidesQ = query(
-            collection(db, 'projects', proj.id, 'slides'),
-            orderBy('order', 'asc'),
-            limit(2)
-          );
-          const snap = await getDocs(slidesQ);
-          const imgs = snap.docs.map(d => {
-            const data = d.data();
-            return data.generatedImage || data.originalImage || null;
-          });
-          thumbs[proj.id] = imgs;
-        } catch {
-          thumbs[proj.id] = [];
-        }
-      }));
-      setProjectThumbs(thumbs);
-    };
-    fetchThumbs();
-  }, [projects]);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !userId) return;
