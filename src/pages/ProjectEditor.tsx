@@ -2195,13 +2195,16 @@ export const ProjectEditor: React.FC = () => {
       {showShareModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
           onClick={() => { if (!isSharing) setShowShareModal(false); }}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '1rem', overflow: 'hidden' }}
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', padding: '1.75rem', width: '520px', maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Header - fixed */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', flexShrink: 0 }}>
               <h3 style={{ margin: 0, fontSize: '1.1rem' }}><Share2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />分享模板到社群</h3>
               <button onClick={() => setShowShareModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
             </div>
 
+            {/* Scrollable content */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>模板名稱</label>
               <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder="例：極簡商務風、科技藍白風格"
@@ -2232,7 +2235,7 @@ export const ProjectEditor: React.FC = () => {
             {slides.filter(s => s.generatedImage).length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>選擇效果圖（最多 3 張）</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem', maxHeight: '220px', overflowY: 'auto', borderRadius: '6px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem', borderRadius: '6px' }}>
                   {slides.filter(s => s.generatedImage).map(s => {
                     const selected = shareSelectedResults.has(s.id);
                     return (
@@ -2256,8 +2259,10 @@ export const ProjectEditor: React.FC = () => {
                 </div>
               </div>
             )}
+            </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
+            {/* Footer - fixed */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.75rem', flexShrink: 0, borderTop: '1px solid var(--border-color)' }}>
               <Button variant="secondary" onClick={() => setShowShareModal(false)} disabled={isSharing}>取消</Button>
               <Button onClick={handleShareTemplate} icon={Share2} disabled={isSharing || !shareLabel.trim()}
                 style={{ backgroundColor: 'var(--accent-color)', color: '#fff' }}>
