@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { showAlert } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -70,6 +70,7 @@ export const ProjectEditor: React.FC = () => {
   const maskSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generateAbortController = useRef<AbortController | null>(null);
   const textFileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageUploadInputRef = useRef<HTMLInputElement | null>(null);
   const globalReferenceRef = useRef<string | null>(null);
   const defaultPromptRef = useRef<string>('');
   const activeSlideIdRef = useRef<string>('');
@@ -1029,6 +1030,47 @@ export const ProjectEditor: React.FC = () => {
       setSavingProgress(null);
     }
   };
+  const handleImageUpload = async (files: FileList) => {
+    if (!id || files.length === 0) return;
+    setSavingProgress({ current: 0, total: files.length });
+    try {
+      const baseTimestamp = Date.now();
+      const defaultPrompt = defaultPromptRef.current || '';
+      const newSlideIds: string[] = [];
+      const fb = writeBatch(db);
+      for (let i = 0; i < files.length; i++) {
+        setSavingProgress({ current: i, total: files.length });
+        const file = files[i];
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const imageUrl = await compressForFirestore(base64);
+        const newId = `${baseTimestamp}_img_${i}`;
+        const hqUrl = await uploadHQToStorage(id, newId, 'originalImage', base64);
+        newSlideIds.push(newId);
+        fb.set(doc(db, 'projects', id as string, 'slides', newId), {
+          originalImage: imageUrl,
+          originalImageHQ: hqUrl || null,
+          generatedImage: null, generatedImageHQ: null, maskImage: null,
+          prompt: defaultPrompt, status: 'draft',
+          createdAt: baseTimestamp + i, order: (baseTimestamp + i) * 1000,
+        });
+      }
+      await fb.commit();
+      setSavingProgress({ current: files.length, total: files.length });
+      setSelectedSlides(new Set(newSlideIds));
+      setActiveSlideId(newSlideIds[0]);
+    } catch (err) {
+      console.error(err);
+      showAlert('上傳圖片時發生錯誤。', '錯誤');
+    } finally {
+      setSavingProgress(null);
+    }
+  };
+
   // ────────────────────────────────────────────────────────────────────────
 
   const handleCancelGenerate = () => {
@@ -1703,6 +1745,19 @@ export const ProjectEditor: React.FC = () => {
                   const file = e.target.files?.[0];
                   if (!file) return;
                   handleTextFileProcess(file);
+                  e.target.value = '';
+                }} />
+              <button
+                disabled={parsingProgress !== null || savingProgress !== null}
+                onClick={() => imageUploadInputRef.current?.click()}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: (parsingProgress || savingProgress) ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.6rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                <ImagePlus size={13} /> 上傳圖片
+              </button>
+              <input ref={imageUploadInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleImageUpload(e.target.files);
+                  }
                   e.target.value = '';
                 }} />
               <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}><Plus size={13} /> 新增頁面</Button>
