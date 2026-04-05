@@ -104,6 +104,7 @@ export const ProjectEditor: React.FC = () => {
   const [shareSelectedResults, setShareSelectedResults] = useState<Set<string>>(new Set());
   const [isSharing, setIsSharing] = useState(false);
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
@@ -635,6 +636,27 @@ export const ProjectEditor: React.FC = () => {
       await deleteDoc(doc(db, 'projects', id, 'slides', slideId));
     } catch (err) {
       console.error('Delete failed:', err);
+      showAlert('刪除失敗，請稍後再試。', '錯誤');
+    }
+  };
+
+  const deleteSelectedSlides = async () => {
+    if (!id || selectedSlides.size === 0) return;
+    const toDelete = new Set(selectedSlides);
+    // Optimistic UI
+    setSlides(prev => prev.filter(s => !toDelete.has(s.id)));
+    if (toDelete.has(activeSlideId)) {
+      const remaining = slides.filter(s => !toDelete.has(s.id));
+      setActiveSlideId(remaining.length > 0 ? remaining[0].id : '');
+    }
+    setSelectedSlides(new Set());
+    setShowDeleteConfirm(false);
+    try {
+      const fb = writeBatch(db);
+      toDelete.forEach(sid => fb.delete(doc(db, 'projects', id as string, 'slides', sid)));
+      await fb.commit();
+    } catch (err) {
+      console.error('Batch delete failed:', err);
       showAlert('刪除失敗，請稍後再試。', '錯誤');
     }
   };
@@ -1517,6 +1539,29 @@ export const ProjectEditor: React.FC = () => {
           </div>
         </div>
       )}
+
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setShowDeleteConfirm(false)}>
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', padding: '2rem', width: '360px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+            onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: '#ef4444' }}>確認刪除</h3>
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                確定要刪除選取的 <strong>{selectedSlides.size}</strong> 張投影片嗎？此操作無法復原。
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <Button onClick={deleteSelectedSlides} style={{ flex: 1, justifyContent: 'center', backgroundColor: '#ef4444', color: '#fff', border: 'none' }}>
+                確認刪除
+              </Button>
+              <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1, justifyContent: 'center' }}>
+                取消
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Word/TXT format instructions modal */}
       {showTextUploadModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}
@@ -1590,6 +1635,12 @@ export const ProjectEditor: React.FC = () => {
             <button onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }}
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 500, border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>
               {selectedSlides.size === slides.length ? '取消全選' : '全選所有頁面'}
+            </button>
+          )}
+          {!previewOpen && selectedSlides.size > 0 && (
+            <button onClick={() => setShowDeleteConfirm(true)}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 500, border: '1px solid #ef4444', borderRadius: '0.3rem', cursor: 'pointer', background: 'var(--bg-primary)', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <Trash2 size={12} /> 刪除 ({selectedSlides.size})
             </button>
           )}
           {!previewOpen && (
