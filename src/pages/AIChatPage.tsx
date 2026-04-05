@@ -935,10 +935,10 @@ export const AIChatPage: React.FC = () => {
   const removeImage = (idx: number) => { setGalleryImages(prev => prev.filter((_, i) => i !== idx)); };
 
   // ── Styles ─────────────────────────────────────────────────────────────
-  const bubbleBase: React.CSSProperties = { maxWidth: '85%', padding: '0.85rem 1.1rem', borderRadius: '1.25rem', fontSize: '0.88rem', lineHeight: 1.6, wordBreak: 'break-word', boxShadow: 'var(--shadow-sm)' };
-  const userBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--accent-color)', color: '#fff', borderBottomRightRadius: '0.35rem', marginLeft: 'auto' };
-  const aiBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderBottomLeftRadius: '0.35rem' };
-  const panelHeader: React.CSSProperties = { padding: '0.8rem 1rem', fontWeight: 700, fontSize: '0.85rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, backgroundColor: 'var(--bg-primary)' };
+  const bubbleBase: React.CSSProperties = { maxWidth: '85%', padding: '1rem 1.4rem', borderRadius: 'var(--radius-lg)', fontSize: '0.95rem', lineHeight: 1.6, wordBreak: 'break-word', boxShadow: 'var(--shadow-sm)' };
+  const userBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--accent-color)', color: '#fff', borderBottomRightRadius: '0.25rem', marginLeft: 'auto' };
+  const aiBubble: React.CSSProperties = { ...bubbleBase, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderBottomLeftRadius: '0.25rem' };
+  const panelHeader: React.CSSProperties = { padding: '1rem 1.25rem', fontWeight: 600, fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, backgroundColor: 'var(--bg-primary)' };
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-body)' }}>

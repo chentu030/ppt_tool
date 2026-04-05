@@ -2023,9 +2023,9 @@ export const ProjectEditor: React.FC = () => {
               )}
             </div>
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
-              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: '1.25rem', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-md)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                  <button onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem', fontWeight: 600, border: isDrawingMode ? 'none' : '1px solid var(--border-color)', borderRadius: '0.5rem', cursor: 'pointer', background: isDrawingMode ? 'var(--accent-color)' : 'var(--bg-secondary)', color: isDrawingMode ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', transition: 'all 0.15s ease', boxShadow: isDrawingMode ? '0 2px 8px rgba(99, 102, 241, 0.25)' : 'none' }}>
+                  <button onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ padding: '0.6rem 1rem', fontSize: '0.85rem', fontWeight: 600, border: isDrawingMode ? 'none' : '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: 'pointer', background: isDrawingMode ? 'var(--accent-color)' : 'var(--bg-secondary)', color: isDrawingMode ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: isDrawingMode ? 'var(--shadow-md)' : 'none' }}>
                     {isDrawingMode ? <X size={15} /> : <Circle size={15} />}
                     {isDrawingMode ? '清除並關閉' : '局部重繪'}
                   </button>
@@ -2042,27 +2042,27 @@ export const ProjectEditor: React.FC = () => {
                     const canRedo = !!hist && hist.pos < hist.stack.length - 1;
                     if (!hist || hist.stack.length === 0) return null;
                     const btnStyle = (enabled: boolean): React.CSSProperties => ({
-                      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.4rem',
-                      padding: '0.35rem 0.5rem', cursor: enabled ? 'pointer' : 'not-allowed',
-                      opacity: enabled ? 1 : 0.4, color: 'var(--text-secondary)',
-                      display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600, transition: 'all 0.15s ease'
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+                      padding: '0.5rem 0.75rem', cursor: enabled ? 'pointer' : 'not-allowed',
+                      opacity: enabled ? 1 : 0.5, color: 'var(--text-secondary)',
+                      display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.2s ease'
                     });
                     return (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.5rem', paddingLeft: '1rem', borderLeft: '1px solid var(--border-color)' }}>
                         <button style={btnStyle(canUndo)} disabled={!canUndo} title="上一步" onClick={() => handleUndo(activeSlideId)}
                           onMouseEnter={e => { if(canUndo) { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; } }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}>
-                          <ChevronLeft size={13} strokeWidth={2.5} /> 上一步
+                          <ChevronLeft size={14} strokeWidth={2.5} /> 上一步
                         </button>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', minWidth: '32px', textAlign: 'center', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', minWidth: '32px', textAlign: 'center', fontWeight: 600 }}>
                           {hist.pos + 1}/{hist.stack.length}
                         </span>
                         <button style={btnStyle(canRedo)} disabled={!canRedo} title="下一步（最新版）" onClick={() => handleRedo(activeSlideId)}
                           onMouseEnter={e => { if(canRedo) { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'; } }} onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}>
-                          下一步 <ChevronRight size={13} strokeWidth={2.5} />
+                          下一步 <ChevronRight size={14} strokeWidth={2.5} />
                         </button>
                         <button style={{ ...btnStyle(true), marginLeft: '0.4rem', borderColor: 'var(--border-color)', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.05)' }} title="還原原始圖片" onClick={() => handleRevertToOriginal(activeSlideId)}
                           onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.05)'; }}>
-                          <RotateCcw size={13} strokeWidth={2.5} /> 原圖
+                          <RotateCcw size={14} strokeWidth={2.5} /> 原圖
                         </button>
                       </div>
                     );
@@ -2076,17 +2076,17 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
-                  style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.8rem', outline: 'none', fontSize: '0.85rem', color: 'var(--text-primary)', padding: '0.6rem 1rem', transition: 'border-color 0.2s', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)' }}
+                  style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', outline: 'none', fontSize: '0.9rem', color: 'var(--text-primary)', padding: '0.8rem 1.2rem', transition: 'border-color 0.2s', boxShadow: 'var(--shadow-inner)' }}
                   onFocus={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
                 />
                 <button
                   onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
-                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1.25rem', backgroundColor: isGenerating ? 'var(--bg-tertiary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: '0.8rem', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.15s ease', boxShadow: isGenerating ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.25)' }}
-                  onMouseEnter={e => { if(!isGenerating) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', backgroundColor: isGenerating ? 'var(--bg-tertiary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-lg)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.95rem', fontWeight: 600, whiteSpace: 'nowrap', transition: 'all 0.2s ease', boxShadow: isGenerating ? 'none' : 'var(--shadow-md)' }}
+                  onMouseEnter={e => { if(!isGenerating) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                   onMouseLeave={e => { if(!isGenerating) e.currentTarget.style.transform = 'none'; }}
                 >
-                  <Sparkles size={15} style={{ animation: isGenerating ? 'spin 2s linear infinite' : 'none' }} strokeWidth={2.5} />
+                  <Sparkles size={16} style={{ animation: isGenerating ? 'spin 2s linear infinite' : 'none' }} strokeWidth={2.5} />
                   {isGenerating ? '生成中...' : '開始生成'}
                 </button>
               </div>

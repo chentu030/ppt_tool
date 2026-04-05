@@ -39,30 +39,31 @@ export const Sidebar: React.FC = () => {
         minWidth: expanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
         height: '100vh',
         borderRight: '1px solid var(--border-color)',
-        padding: expanded ? '1rem 0.8rem' : '1rem 0.4rem',
+        padding: expanded ? '1.5rem 1rem' : '1.5rem 0.4rem',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: 'var(--bg-primary)',
         position: 'sticky',
         top: 0,
-        transition: 'width 0.2s ease, min-width 0.2s ease, padding 0.2s ease',
+        transition: 'width var(--transition-smooth), min-width var(--transition-smooth), padding var(--transition-smooth)',
         overflow: 'hidden',
         flexShrink: 0,
+        zIndex: 50,
       }}
     >
       {/* Logo + Pin */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center', marginBottom: '2rem', padding: expanded ? '0 0.4rem' : '0', minHeight: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, justifyContent: expanded ? 'flex-start' : 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center', marginBottom: '2.5rem', padding: expanded ? '0 0.4rem' : '0', minHeight: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, justifyContent: expanded ? 'flex-start' : 'center' }}>
           <div style={{
             backgroundColor: 'var(--accent-color)', color: 'var(--accent-text)',
-            padding: '0.4rem', borderRadius: '0.4rem',
+            padding: '0.5rem', borderRadius: 'var(--radius-md)',
             flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
-            <Presentation size={18} />
+            <Presentation size={20} />
           </div>
           {expanded && (
-            <span style={{ fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Designt.io</span>
+            <span style={{ fontSize: '1.1rem', fontWeight: 800, whiteSpace: 'nowrap', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>Designt.io</span>
           )}
         </div>
         {expanded && (
@@ -71,22 +72,22 @@ export const Sidebar: React.FC = () => {
             title={pinned ? '取消釘選' : '釘選側邊欄'}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '4px', borderRadius: '0.3rem',
+              padding: '6px', borderRadius: 'var(--radius-sm)',
               color: pinned ? 'var(--accent-color)' : 'var(--text-secondary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, opacity: 0.7, transition: 'all 0.15s'
+              flexShrink: 0, opacity: 0.6, transition: 'all var(--transition-fast)'
             }}
             onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-            onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '0.6'}
           >
-            {pinned ? <Pin size={14} /> : <PinOff size={14} />}
+            {pinned ? <Pin size={16} /> : <PinOff size={16} />}
           </button>
         )}
       </div>
 
-      {expanded && <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem', paddingLeft: '0.6rem' }}>OVERVIEW</div>}
+      {expanded && <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem', paddingLeft: '0.8rem' }}>OVERVIEW</div>}
 
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -95,9 +96,9 @@ export const Sidebar: React.FC = () => {
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
-              gap: '0.6rem',
-              padding: expanded ? '0.6rem 0.8rem' : '0.6rem',
-              borderRadius: '0.5rem',
+              gap: '0.75rem',
+              padding: expanded ? '0.75rem 0.8rem' : '0.75rem',
+              borderRadius: 'var(--radius-md)',
               color: isActive ? 'var(--accent-color)' : 'var(--text-secondary)',
               backgroundColor: isActive ? 'var(--accent-light)' : 'transparent',
               fontSize: '0.85rem',
