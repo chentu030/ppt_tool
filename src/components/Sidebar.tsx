@@ -49,8 +49,8 @@ export const Sidebar: React.FC = () => {
       }}
     >
       {/* Logo + Pin */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: expanded ? '0.3rem 0.4rem' : '0.3rem 0', minHeight: '28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center', marginBottom: '1rem', padding: expanded ? '0.3rem 0.4rem' : '0.3rem 0', minHeight: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, justifyContent: expanded ? 'flex-start' : 'center' }}>
           <div style={{
             backgroundColor: 'var(--accent-color)', color: 'var(--accent-text)',
             padding: '0.3rem', borderRadius: '0.3rem',
