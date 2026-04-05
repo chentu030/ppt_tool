@@ -1154,7 +1154,7 @@ export const ProjectEditor: React.FC = () => {
             ? (capturedPrompt || 'Edit the masked area.')
             : (slideTextContent + bgColorPrompt + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
-          // Auto-retry every 5 s on 429 for up to 60 s before escalating to modal
+          // Auto-retry every 5 s on 429/499 for up to 60 s before escalating
           let generatedImg = '';
           {
             const RETRY_INTERVAL = 5_000;
@@ -1170,9 +1170,10 @@ export const ProjectEditor: React.FC = () => {
               } catch (e: unknown) {
                 if ((e as {name?:string})?.name === 'AbortError') throw e;
                 lastErr = e;
-                const is429 = String((e as {message?:string})?.message ?? e).includes('429');
-                if (!is429 || Date.now() >= RETRY_DEADLINE) { throw lastErr; }
-                console.warn('[429] 5 秒後自動重試...');
+                const errMsg = String((e as {message?:string})?.message ?? e);
+                const isRetryable = errMsg.includes('429') || errMsg.includes('499') || errMsg.includes('CANCELLED');
+                if (!isRetryable || Date.now() >= RETRY_DEADLINE) { throw lastErr; }
+                console.warn(`[${errMsg.includes('429') ? '429' : '499'}] 5 秒後自動重試...`);
                 await new Promise<void>(r => {
                   const t = setTimeout(r, RETRY_INTERVAL);
                   abort.signal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
@@ -1196,14 +1197,14 @@ export const ProjectEditor: React.FC = () => {
         } catch (err: any) {
           if (err?.name === 'AbortError') throw err;
           const msg = err?.message || String(err);
-          const is429 = msg.includes('429');
+          const isQuotaErr = msg.includes('429') || msg.includes('499') || msg.includes('CANCELLED');
           console.error(`Slide ${slideId} failed:`, msg);
           failedSlides.push({ slideId, error: msg });
           await updateDoc(doc(db, 'projects', id, 'slides', slideId), { status: 'draft' }).catch(() => {});
           completedCount++;
           setGenerateProgress({ current: completedCount, total });
-          // Stop all remaining slides on quota exhaustion — quota won't recover mid-run
-          if (is429) throw new Error('QUOTA_EXHAUSTED:' + msg);
+          // Stop all remaining slides on quota/server exhaustion
+          if (isQuotaErr) throw new Error('QUOTA_EXHAUSTED:' + msg);
           return null;
         }
       };
