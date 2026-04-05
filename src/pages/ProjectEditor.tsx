@@ -1406,11 +1406,6 @@ export const ProjectEditor: React.FC = () => {
     setAutoRetryStatus(null);
   };
 
-  const fmtCountdown = (sec: number) => {
-    if (sec < 0) return '生成中...';
-    const m = Math.floor(sec / 60), s = sec % 60;
-    return m > 0 ? `${m} 分 ${String(s).padStart(2,'0')} 秒` : `${s} 秒`;
-  };
 
   return (
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column' }}>
