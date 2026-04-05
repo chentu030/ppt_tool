@@ -145,8 +145,8 @@ async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|nul
   }catch(err){console.warn('[Firebase] templateGallery load failed:',err);return null;}
 }
 
-async function deleteCommunity(tid:string):Promise<boolean>{
-  try{await deleteDoc(doc(db,'sharedTemplates',tid));return true;}catch(err){console.warn('[community] delete failed:',err);return false;}
+async function deleteCommunity(tid:string):Promise<string|true>{
+  try{await deleteDoc(doc(db,'sharedTemplates',tid));return true;}catch(err:any){const msg=err?.message||String(err);console.warn('[community] delete failed:',msg);return msg;}
 }
 async function updateCommunity(tid:string,data:Partial<SharedTemplate>):Promise<boolean>{
   try{await updateDoc(doc(db,'sharedTemplates',tid),data);return true;}catch(err){console.warn('[community] update failed:',err);return false;}
@@ -451,8 +451,9 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
   };
   const handleDeleteCommunity=async(tid:string)=>{
     if(!window.confirm('確定要刪除這個社群模板嗎？'))return;
-    const ok=await deleteCommunity(tid);
-    if(ok)setCommunityItems(prev=>prev.filter(t=>t.id!==tid));
+    const result=await deleteCommunity(tid);
+    if(result===true)setCommunityItems(prev=>prev.filter(t=>t.id!==tid));
+    else window.alert('刪除失敗：'+result);
   };
   const handleEditCommunity=(t:SharedTemplate)=>{
     setEditingCommunity({id:t.id,label:t.label,settings:{...t.settings}});
