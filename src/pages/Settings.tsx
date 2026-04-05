@@ -41,9 +41,9 @@ export const Settings: React.FC = () => {
   ];
 
   const CHANNEL_OPTIONS: { value: 'platform' | 'gemini' | 'vertex'; label: string; desc: string }[] = [
-    { value: 'platform', label: '平台預設', desc: '使用平台提供的 API，不需額外設定' },
-    { value: 'gemini',   label: 'Gemini API', desc: '走 generativelanguage.googleapis.com 通道' },
-    { value: 'vertex',   label: 'Vertex AI', desc: '走 aiplatform.googleapis.com Express Mode 通道' },
+    { value: 'platform', label: '平台預設（Vertex）', desc: '使用平台提供的 Vertex API，不需額外設定' },
+    { value: 'gemini',   label: '自訂 Gemini API', desc: '使用自己的 Gemini API Key（從 AI Studio 取得，走 generativelanguage 通道）' },
+    { value: 'vertex',   label: '自訂 Vertex AI', desc: '使用自己的 Vertex AI API Key（走 aiplatform Express Mode 通道）' },
   ];
 
   useEffect(() => {
@@ -80,16 +80,22 @@ export const Settings: React.FC = () => {
     localStorage.setItem('theme', theme);
     localStorage.setItem('vertexModel', model);
     localStorage.setItem('geminiModel', model);
-    const hasCustomKey = (channel === 'gemini' && geminiApiKey.trim()) || (channel === 'vertex' && vertexApiKey.trim());
+    if (channel === 'gemini' && !geminiApiKey.trim()) {
+      showAlert('請輸入 Gemini API Key，或切換回「平台預設」。', '缺少 API Key');
+      return;
+    }
+    if (channel === 'vertex' && !vertexApiKey.trim()) {
+      showAlert('請輸入 Vertex AI API Key，或切換回「平台預設」。', '缺少 API Key');
+      return;
+    }
+    const hasCustomKey = channel === 'gemini' || channel === 'vertex';
     if (hasCustomKey) {
       setShowPricingModal(true);
     } else {
-      localStorage.setItem('apiChannel', channel);
-      if (channel === 'platform') {
-        localStorage.removeItem('geminiApiKey');
-        localStorage.removeItem('vertexApiKey');
-      }
-      showAlert('設定已儲存！將使用平台預設 API。', '設定已儲存');
+      localStorage.setItem('apiChannel', 'platform');
+      localStorage.removeItem('geminiApiKey');
+      localStorage.removeItem('vertexApiKey');
+      showAlert('設定已儲存！將使用平台預設 Vertex API。', '設定已儲存');
     }
   };
 
@@ -243,7 +249,7 @@ export const Settings: React.FC = () => {
             {/* Platform default hint */}
             {channel === 'platform' && (
               <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                使用平台提供的 API，不需要輸入任何 Key。
+                使用平台提供的 Vertex API，不需要輸入任何 Key。
               </p>
             )}
 
