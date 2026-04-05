@@ -1455,8 +1455,8 @@ export const AIChatPage: React.FC = () => {
       </div>
 
       {showSaveProjectModal && (
-        <div onClick={() => setShowSaveProjectModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', borderRadius: '0.75rem', padding: '1.5rem', width: '360px', maxWidth: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: '0.75rem', padding: '1.5rem', width: '360px', maxWidth: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <FolderPlus size={16} style={{ color: 'var(--accent-color)' }} />
