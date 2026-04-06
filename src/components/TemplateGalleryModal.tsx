@@ -759,14 +759,33 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
 
         {/* Scrollable grid */}
         <div ref={scrollRef} style={{overflowY:'auto',padding:'1rem 1.25rem',flex:1}}>
-          <div style={{columnCount:3,columnGap:'0.75rem'}}>
-            {tab==='history'
-              ?(sortedHistory.length>0?sortedHistory.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
-              :tab==='community'
-              ?(communityLoading?<div style={{display:'flex',alignItems:'center',gap:'0.5rem',color:'var(--text-secondary)',fontSize:'0.85rem'}}><Loader size={14} style={{animation:'spin 1s linear infinite'}}/>社群模板載入中…</div>
-                :communityItems.length>0?communityItems.map(renderCommunityCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無社群模板</p>)
-              :(visibleItems.length>0?visibleItems.map(renderTemplateCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':'Drive 模板載入中…'}</p>)}
-          </div>
+          {(()=>{
+            // Determine which items to render
+            let cards:React.ReactNode[];
+            let emptyMsg:React.ReactNode=null;
+            if(tab==='history'){
+              if(sortedHistory.length>0)cards=sortedHistory.map(renderHistoryCard);
+              else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>;}
+            }else if(tab==='community'){
+              if(communityLoading){cards=[];emptyMsg=<div style={{display:'flex',alignItems:'center',gap:'0.5rem',color:'var(--text-secondary)',fontSize:'0.85rem'}}><Loader size={14} style={{animation:'spin 1s linear infinite'}}/>社群模板載入中…</div>;}
+              else if(communityItems.length>0)cards=communityItems.map(renderCommunityCard);
+              else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無社群模板</p>;}
+            }else{
+              if(visibleItems.length>0)cards=visibleItems.map(renderTemplateCard);
+              else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':'Drive 模板載入中…'}</p>;}
+            }
+            if(emptyMsg)return emptyMsg;
+            // Round-robin distribute into 3 columns
+            const cols:[React.ReactNode[],React.ReactNode[],React.ReactNode[]]=[[],[],[]];
+            cards.forEach((c,i)=>cols[i%3].push(c));
+            return(
+              <div style={{display:'flex',gap:'0.75rem',alignItems:'flex-start'}}>
+                {cols.map((col,ci)=>(
+                  <div key={ci} style={{flex:1,display:'flex',flexDirection:'column'}}>{col}</div>
+                ))}
+              </div>
+            );
+          })()}
           {hasMore&&tab!=='history'&&<div ref={sentinelRef} style={{height:'40px',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <Loader size={16} style={{animation:'spin 1s linear infinite',color:'var(--text-secondary)'}}/>
           </div>}
