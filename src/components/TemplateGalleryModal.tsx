@@ -781,7 +781,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
             return(
               <div style={{display:'flex',gap:'0.75rem',alignItems:'flex-start'}}>
                 {cols.map((col,ci)=>(
-                  <div key={ci} style={{flex:1,display:'flex',flexDirection:'column'}}>{col}</div>
+                  <div key={ci} style={{flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>{col}</div>
                 ))}
               </div>
             );
