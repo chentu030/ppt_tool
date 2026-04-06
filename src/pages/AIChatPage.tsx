@@ -348,10 +348,11 @@ export const AIChatPage: React.FC = () => {
       setAutoRetryStatus(null);
       return;
     }
-    // Still failing — continue, 5 seconds then retry
+    // Still failing — continue with backoff: every 5th retry waits N minutes
     config.toRetryIds = another429.toRetryIds;
     setRetryModal429(null);
-    let cd = 5;
+    const isBackoff = newDone > 0 && newDone % 5 === 0;
+    let cd = isBackoff ? (newDone / 5) * 60 : 5;
     setAutoRetryStatus({ countdown: cd, doneCount: newDone, pendingCount: another429.toRetryIds.length });
     if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
     autoRetryTimerRef.current = setInterval(() => {
@@ -861,7 +862,7 @@ export const AIChatPage: React.FC = () => {
     const cfg = { toRetryIds: [...toRetryIds], doneCount: 0 };
     autoRetryConfigRef.current = cfg;
     setRetryModal429(null);
-    let cd = 5;
+    let cd = 5; // first attempt always 5s
     setAutoRetryStatus({ countdown: cd, doneCount: 0, pendingCount: toRetryIds.length });
     if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
     autoRetryTimerRef.current = setInterval(() => {
@@ -1517,7 +1518,9 @@ export const AIChatPage: React.FC = () => {
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
             {autoRetryStatus.countdown < 0
               ? '正在生成...'
-              : `${autoRetryStatus.countdown} 秒後重試`}
+              : autoRetryStatus.countdown >= 60
+                ? `${Math.floor(autoRetryStatus.countdown / 60)}:${String(autoRetryStatus.countdown % 60).padStart(2, '0')} 後重試（冷卻中）`
+                : `${autoRetryStatus.countdown} 秒後重試`}
             {autoRetryStatus.pendingCount > 0 && `（待重試 ${autoRetryStatus.pendingCount} 張）`}
           </div>
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
