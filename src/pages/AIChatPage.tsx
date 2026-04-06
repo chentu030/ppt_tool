@@ -792,7 +792,7 @@ export const AIChatPage: React.FC = () => {
         try {
           const slideStylePrompt = slide.templatePrompt || stylePrompt || '';
           const advParts = [fontFamily && `Font: ${fontFamily}`, mainColor && `Main color: ${mainColor}`, highlightColor && `Highlight: ${highlightColor}`, bgColor && `Background: ${bgColor}`, specialMark && `Special: ${specialMark}`].filter(Boolean).join(', ');
-          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${advParts ? `Design settings: ${advParts}\n` : ''}${slideStylePrompt ? `Style: ${slideStylePrompt}\n` : ''}This is slide ${slide.pageNum} of ${plans.length}.`;
+          const promptText = `Create a professional presentation slide image.\nTitle: ${slide.title}\nContent: ${slide.content}\n${advParts ? `Design settings: ${advParts}\n` : ''}${slideStylePrompt ? `Style: ${slideStylePrompt}\n` : ''}`.trimEnd();
           const imgHistory: GeminiChatMessage[] = [{ role: 'user', parts: [{ text: promptText }] }];
           const refImg = slide.templateImage || referenceImage;
           let resolvedRef = refImg;
