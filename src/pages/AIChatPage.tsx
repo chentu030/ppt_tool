@@ -520,7 +520,7 @@ export const AIChatPage: React.FC = () => {
     if (messages.length === 0) { showAlert('請先跟 AI 討論要生成的內容。', '提示'); return; }
     setIsPlanLoading(true);
     try {
-      const req = `根據我們的對話內容，請規劃 ${pageCount} 頁簡報，每頁包含標題和內容文字。回覆純 JSON 陣列格式，不要加任何說明：[{"title":"標題","content":"內容文字"}]。內容要具體、簡潔，適合放在投影片上。`;
+      const req = `根據我們的對話內容，請規劃 ${pageCount} 頁簡報，每頁包含標題和內容文字。回覆純 JSON 陣列格式，不要加任何說明：[{"title":"標題","content":"內容文字"}]。\n\n重要：每頁的 content 必須詳細且完整，包含所有關鍵資訊、數據、要點，字數至少 80-150 字。不要只寫一兩句話的摘要，要把該頁主題的重要細節都寫進去，讓讀者光看投影片就能理解完整內容。`;
       const history = buildTextHistory(messages, [{ text: req }], stylePrompt || undefined);
       const resp = await chatWithGemini(history, apiKey, { generateImage: false });
       // Parse JSON from response
