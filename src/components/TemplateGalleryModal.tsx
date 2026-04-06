@@ -1,5 +1,5 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight, Pin } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
 
 import { db, auth, storage } from '../firebase';
@@ -24,13 +24,15 @@ interface TemplateItem {
 // ─── No local templates — all loaded from Google Drive ─────────────────────
 const LOCAL_TEMPLATES: TemplateItem[] = [];
 
-const STARRED_LS='templateGalleryStarred', HISTORY_LS='styleRefHistory', ANALYSIS_MODEL='gemini-3-flash-preview';
+const STARRED_LS='templateGalleryStarred', HISTORY_LS='styleRefHistory', PINNED_LS='styleRefPinned', ANALYSIS_MODEL='gemini-3-flash-preview';
 
 // ─── localStorage helpers (instant initial state + offline fallback) ─────────
 function lsLoadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_LS)||'[]'));}catch{return new Set();}}
 function lsSaveStarred(s:Set<string>){localStorage.setItem(STARRED_LS,JSON.stringify([...s]));}
 function lsLoadHistory():HistoryEntry[]{try{return JSON.parse(localStorage.getItem(HISTORY_LS)||'[]');}catch{return[];}}
 function lsSaveHistory(h:HistoryEntry[]){localStorage.setItem(HISTORY_LS,JSON.stringify(h));}
+function lsLoadPinned():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(PINNED_LS)||'[]'));}catch{return new Set();}}
+function lsSavePinned(s:Set<string>){localStorage.setItem(PINNED_LS,JSON.stringify([...s]));}
 
 // ─── Compress data URL to small thumbnail before storing in Firestore ────────
 async function compressImageUrl(imageUrl:string,maxW=200):Promise<string>{
@@ -51,18 +53,20 @@ async function compressImageUrl(imageUrl:string,maxW=200):Promise<string>{
 }
 
 // ─── Firebase helpers (sync across devices) ───────────────────────────────────
-async function fbSave(starred:Set<string>,history:HistoryEntry[]){
+async function fbSave(starred:Set<string>,history:HistoryEntry[],pinned?:Set<string>){
   // Write to localStorage IMMEDIATELY (uncompressed) so re-open always has latest data
   lsSaveStarred(starred);
   lsSaveHistory(history);
+  if(pinned)lsSavePinned(pinned);
   // Then compress data URLs and write to Firestore asynchronously
   const user=auth.currentUser;if(!user)return;
   try{
     const safeHistory=await Promise.all(history.map(async e=>({
       ...e,imageUrl:await compressImageUrl(e.imageUrl),
     })));
-    await setDoc(doc(db,'users',user.uid,'templateGallery','data'),
-      {starred:[...starred],history:safeHistory},{merge:false});
+    const payload:Record<string,unknown>={starred:[...starred],history:safeHistory};
+    if(pinned)payload.pinned=[...pinned];
+    await setDoc(doc(db,'users',user.uid,'templateGallery','data'),payload,{merge:true});
     lsSaveHistory(safeHistory); // update localStorage with compressed versions
   }catch(err){console.warn('[Firebase] templateGallery save failed:',err);}
 }
@@ -135,13 +139,13 @@ async function syncDriveToFirebase(
   return allTemplates;
 }
 
-async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[]}|null>{
+async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[];pinned:Set<string>}|null>{
   const user=auth.currentUser;if(!user)return null;
   try{
     const snap=await getDoc(doc(db,'users',user.uid,'templateGallery','data'));
     if(!snap.exists())return null;
     const d=snap.data();
-    return{starred:new Set(d.starred??[]),history:d.history??[]};
+    return{starred:new Set(d.starred??[]),history:d.history??[],pinned:new Set(d.pinned??[])};
   }catch(err){console.warn('[Firebase] templateGallery load failed:',err);return null;}
 }
 
@@ -204,6 +208,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
   // Initial state from localStorage (instant); Firebase will overwrite when ready
   const [starred,setStarred]=useState<Set<string>>(lsLoadStarred);
   const [history,setHistory]=useState<HistoryEntry[]>(()=>{const h=lsLoadHistory();historyRef.current=h;return h;});
+  const [pinned,setPinned]=useState<Set<string>>(lsLoadPinned);
   const [hoveredCard,setHoveredCard]=useState<string|null>(null);
 
   const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
@@ -257,6 +262,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
         setStarred(data.starred);
         setHistory(data.history);
         historyRef.current=data.history;
+        if(data.pinned.size>0)setPinned(data.pinned);
         data.history.forEach(entry=>{
           if(entry.imageUrl&&!entry.imageUrl.startsWith('data:')){
             const img=new Image();img.src=entry.imageUrl;
@@ -322,12 +328,11 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
     });
   },[]);
 
-  // ── Load community templates on tab switch ──────────────────────────────
+  // ── Pre-load community templates on mount (so count shows immediately) ──
   useEffect(()=>{
-    if(tab!=='community')return;
     setCommunityLoading(true);
     loadCommunity().then(items=>{setCommunityItems(items);setCommunityLoading(false);});
-  },[tab]);
+  },[]);
 
   // ── Reset visible count on tab change ─────────────────────────────────────
   useEffect(()=>{setVisibleCount(15);},[tab]);
@@ -475,6 +480,15 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
       return next;
     });
   };
+  const togglePin=(id:string,e:React.MouseEvent)=>{
+    e.stopPropagation();
+    setPinned(prev=>{
+      const next=new Set(prev);
+      if(next.has(id))next.delete(id);else next.add(id);
+      fbSave(starred,history,next);
+      return next;
+    });
+  };
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
@@ -582,27 +596,44 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
     );
   };
 
-  const renderHistoryCard=(entry:HistoryEntry)=>(
-    <div key={entry.id} style={{display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}>
-      <button onClick={()=>applyFromHistory(entry)}
-        style={{padding:0,border:'2px solid var(--border-color)',borderRadius:'0.6rem',cursor:'pointer',background:'none',overflow:'hidden',display:'flex',flexDirection:'column',textAlign:'left',width:'100%',transition:'border-color 0.15s'}}
-        onMouseEnter={e=>(e.currentTarget.style.borderColor='var(--accent-color)')}
-        onMouseLeave={e=>(e.currentTarget.style.borderColor='var(--border-color)')}>
-        <img src={entry.imageUrl} alt={entry.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.display='none';}}/>
-        <div style={{padding:'0.4rem 0.5rem',fontSize:'0.7rem',background:'var(--bg-secondary)',width:'100%',boxSizing:'border-box'}}>
-          <div style={{fontWeight:700,color:'var(--text-primary)'}}>{entry.label}</div>
-          {entry.settings?.fontFamily&&<div style={{color:'var(--text-secondary)'}}>{entry.settings.fontFamily}{entry.settings.highlightColor?` · ${entry.settings.highlightColor}`:''}</div>}
-          {entry.resolvedExtraPrompt&&<div style={{color:'var(--text-secondary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{entry.resolvedExtraPrompt.slice(0,40)}{entry.resolvedExtraPrompt.length>40?'…':''}</div>}
-          <div style={{color:'var(--text-secondary)',marginTop:'0.1rem',fontSize:'0.65rem'}}>{new Date(entry.timestamp).toLocaleDateString()}</div>
-        </div>
-      </button>
-    </div>
-  );
+  const renderHistoryCard=(entry:HistoryEntry)=>{
+    const isPinned=pinned.has(entry.id);
+    return(
+      <div key={entry.id} style={{position:'relative',display:'inline-block',width:'100%',marginBottom:'0.75rem',breakInside:'avoid'}}
+        onMouseEnter={()=>setHoveredCard('h_'+entry.id)} onMouseLeave={()=>setHoveredCard(null)}>
+        <button onClick={()=>applyFromHistory(entry)}
+          style={{padding:0,border:`2px solid ${isPinned?'var(--accent-color)':'var(--border-color)'}`,borderRadius:'0.6rem',cursor:'pointer',background:'none',overflow:'hidden',display:'flex',flexDirection:'column',textAlign:'left',width:'100%',transition:'border-color 0.15s'}}
+          onMouseEnter={e=>(e.currentTarget.style.borderColor='var(--accent-color)')}
+          onMouseLeave={e=>{if(!isPinned)e.currentTarget.style.borderColor='var(--border-color)';}}>
+          <img src={entry.imageUrl} alt={entry.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.display='none';}}/>
+          <div style={{padding:'0.4rem 0.5rem',fontSize:'0.7rem',background:'var(--bg-secondary)',width:'100%',boxSizing:'border-box'}}>
+            <div style={{fontWeight:700,color:'var(--text-primary)'}}>{entry.label}</div>
+            {entry.settings?.fontFamily&&<div style={{color:'var(--text-secondary)'}}>{entry.settings.fontFamily}{entry.settings.highlightColor?` · ${entry.settings.highlightColor}`:''}</div>}
+            {entry.resolvedExtraPrompt&&<div style={{color:'var(--text-secondary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{entry.resolvedExtraPrompt.slice(0,40)}{entry.resolvedExtraPrompt.length>40?'…':''}</div>}
+            <div style={{color:'var(--text-secondary)',marginTop:'0.1rem',fontSize:'0.65rem'}}>{new Date(entry.timestamp).toLocaleDateString()}</div>
+          </div>
+        </button>
+        {(hoveredCard==='h_'+entry.id||isPinned)&&(
+          <button onClick={e=>togglePin(entry.id,e)}
+            style={{position:'absolute',top:'0.3rem',right:'0.3rem',background:isPinned?'var(--accent-color)':'rgba(0,0,0,0.5)',border:'none',borderRadius:'50%',width:'24px',height:'24px',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:0}}
+            title={isPinned?'取消釘選':'釘選到頂部'}>
+            <Pin size={13} color="#fff" style={{transform:isPinned?'rotate(0deg)':'rotate(45deg)'}}/>
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const starredItems=allItems.filter(t=>starred.has(t.id));
   const tabItems=tab==='all'?allItems:tab==='starred'?starredItems:[];
   const visibleItems=tabItems.slice(0,visibleCount);
   const hasMore=visibleCount<tabItems.length;
+  // Sort history: pinned first, then by timestamp desc
+  const sortedHistory=[...history].sort((a,b)=>{
+    const ap=pinned.has(a.id)?1:0,bp=pinned.has(b.id)?1:0;
+    if(ap!==bp)return bp-ap;
+    return b.timestamp-a.timestamp;
+  });
 
   // ── JSX ──────────────────────────────────────────────────────────────────
   return(
@@ -730,7 +761,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
         <div ref={scrollRef} style={{overflowY:'auto',padding:'1rem 1.25rem',flex:1}}>
           <div style={{columnCount:3,columnGap:'0.75rem'}}>
             {tab==='history'
-              ?(history.length>0?history.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
+              ?(sortedHistory.length>0?sortedHistory.map(renderHistoryCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無歷史記錄</p>)
               :tab==='community'
               ?(communityLoading?<div style={{display:'flex',alignItems:'center',gap:'0.5rem',color:'var(--text-secondary)',fontSize:'0.85rem'}}><Loader size={14} style={{animation:'spin 1s linear infinite'}}/>社群模板載入中…</div>
                 :communityItems.length>0?communityItems.map(renderCommunityCard):<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無社群模板</p>)
