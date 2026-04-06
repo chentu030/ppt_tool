@@ -24,7 +24,7 @@ interface TemplateItem {
 // ─── No local templates — all loaded from Google Drive ─────────────────────
 const LOCAL_TEMPLATES: TemplateItem[] = [];
 
-const STARRED_LS='templateGalleryStarred', HISTORY_LS='styleRefHistory', MAX_HISTORY=30, ANALYSIS_MODEL='gemini-3-flash-preview';
+const STARRED_LS='templateGalleryStarred', HISTORY_LS='styleRefHistory', ANALYSIS_MODEL='gemini-3-flash-preview';
 
 // ─── localStorage helpers (instant initial state + offline fallback) ─────────
 function lsLoadStarred():Set<string>{try{return new Set(JSON.parse(localStorage.getItem(STARRED_LS)||'[]'));}catch{return new Set();}}
@@ -54,11 +54,11 @@ async function compressImageUrl(imageUrl:string,maxW=200):Promise<string>{
 async function fbSave(starred:Set<string>,history:HistoryEntry[]){
   // Write to localStorage IMMEDIATELY (uncompressed) so re-open always has latest data
   lsSaveStarred(starred);
-  lsSaveHistory(history.slice(0,MAX_HISTORY));
+  lsSaveHistory(history);
   // Then compress data URLs and write to Firestore asynchronously
   const user=auth.currentUser;if(!user)return;
   try{
-    const safeHistory=await Promise.all(history.slice(0,MAX_HISTORY).map(async e=>({
+    const safeHistory=await Promise.all(history.map(async e=>({
       ...e,imageUrl:await compressImageUrl(e.imageUrl),
     })));
     await setDoc(doc(db,'users',user.uid,'templateGallery','data'),
@@ -352,7 +352,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
     const entry:HistoryEntry={id:Date.now().toString(),imageUrl,settings,resolvedExtraPrompt:extraPrompt,timestamp:Date.now(),label};
     // Compute next synchronously using ref (not inside updater) so fbSave runs
     // BEFORE onApply closes the modal and unmounts the component
-    const next=[entry,...historyRef.current.filter(h=>h.imageUrl!==imageUrl)].slice(0,MAX_HISTORY);
+    const next=[entry,...historyRef.current.filter(h=>h.imageUrl!==imageUrl)];
     historyRef.current=next;
     fbSave(starred,next); // writes localStorage immediately (sync part runs before onApply)
     setHistory(next);
