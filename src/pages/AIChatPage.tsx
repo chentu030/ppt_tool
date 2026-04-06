@@ -23,7 +23,7 @@ interface ChatMsg {
   id: string; role: 'user' | 'assistant'; text: string;
   images: string[]; attachments: Attachment[]; timestamp: number;
 }
-interface Conversation { id: string; title: string; messages: ChatMsg[]; createdAt: number; updatedAt: number; }
+interface Conversation { id: string; title: string; titleLocked?: boolean; messages: ChatMsg[]; createdAt: number; updatedAt: number; }
 interface SlidePlan {
   id: string; pageNum: number; title: string; content: string;
   templateImage?: string; templateLabel?: string; templatePrompt?: string;
@@ -145,6 +145,8 @@ export const AIChatPage: React.FC = () => {
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [leftSidebarWidth, setLeftSidebarWidth] = useState(220);
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(300);
   const dragHandleRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -184,7 +186,7 @@ export const AIChatPage: React.FC = () => {
     setConversations(prev => {
       let updated: Conversation[];
       if (activeId && prev.find(c => c.id === activeId)) {
-        updated = prev.map(c => c.id === activeId ? { ...c, messages, title: deriveTitle(messages), updatedAt: Date.now() } : c);
+        updated = prev.map(c => c.id === activeId ? { ...c, messages, ...(c.titleLocked ? {} : { title: deriveTitle(messages) }), updatedAt: Date.now() } : c);
       } else {
         const newId = activeId || Date.now().toString();
         if (!activeId) setActiveId(newId);
@@ -383,6 +385,20 @@ export const AIChatPage: React.FC = () => {
     setConversations(prev => { const u = prev.filter(c => c.id !== id); saveConversations(u); return u; });
     if (activeId === id) newConversation();
   };
+  const startRename = (conv: Conversation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingConvId(conv.id);
+    setRenameValue(conv.title);
+  };
+  const commitRename = () => {
+    if (!renamingConvId) return;
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      setConversations(prev => { const u = prev.map(c => c.id === renamingConvId ? { ...c, title: trimmed, titleLocked: true } : c); saveConversations(u); return u; });
+    }
+    setRenamingConvId(null);
+    setRenameValue('');
+  };
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
@@ -506,7 +522,7 @@ export const AIChatPage: React.FC = () => {
       setMessages(prev => [...prev, { id: aiMsgId, role: 'assistant', text: displayText, images: [], attachments: [], timestamp: Date.now() }]);
       if (isNew && trimmed) {
         generateChatTitle(trimmed, apiKey).then(title => {
-          setConversations(prev => { const u = prev.map(c => c.id === convId ? { ...c, title } : c); saveConversations(u); return u; });
+          setConversations(prev => { const u = prev.map(c => c.id === convId ? { ...c, title, titleLocked: true } : c); saveConversations(u); return u; });
         });
       }
     } catch (err: any) {
@@ -949,13 +965,23 @@ export const AIChatPage: React.FC = () => {
           <div style={{ flex: 1, overflowY: 'auto', padding: '0.3rem', minHeight: 0 }}>
             {conversations.length === 0 && <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1rem 0.5rem' }}>尚無歷史紀錄</p>}
             {conversations.map(conv => (
-              <div key={conv.id} onClick={() => loadConversation(conv)}
+              <div key={conv.id} onClick={() => { if (renamingConvId !== conv.id) loadConversation(conv); }}
                 style={{ padding: '0.5rem 0.6rem', borderRadius: '0.4rem', cursor: 'pointer', marginBottom: '2px', background: conv.id === activeId ? 'var(--accent-color)' : 'transparent', color: conv.id === activeId ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem' }}>
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.title}</div>
+                  {renamingConvId === conv.id ? (
+                    <input autoFocus value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                      onBlur={commitRename} onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setRenamingConvId(null); setRenameValue(''); } }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: '100%', fontSize: '0.76rem', fontWeight: 600, padding: '0.1rem 0.25rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                  ) : (
+                    <div style={{ fontSize: '0.76rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.title}</div>
+                  )}
                   <div style={{ fontSize: '0.62rem', opacity: 0.7, marginTop: '1px' }}>{new Date(conv.updatedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} · {conv.messages.length} 則</div>
                 </div>
-                <button onClick={e => deleteConversation(conv.id, e)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: conv.id === activeId ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', flexShrink: 0 }}><Trash2 size={12} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
+                  {renamingConvId !== conv.id && <button onClick={e => startRename(conv, e)} title="重新命名" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: conv.id === activeId ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)' }}><Edit3 size={11} /></button>}
+                  <button onClick={e => deleteConversation(conv.id, e)} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: conv.id === activeId ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)' }}><Trash2 size={12} /></button>
+                </div>
               </div>
             ))}
           </div>
