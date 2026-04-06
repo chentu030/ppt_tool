@@ -1512,7 +1512,7 @@ export const AIChatPage: React.FC = () => {
             <span style={{ fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem' }}>
               ⚠ 429 錯誤 — 自動重試中
             </span>
-            <button onClick={stopAutoRetry} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '2px', display: 'flex', alignItems: 'center' }} title="停止自動重試"><X size={14}/></button>
+            <button onClick={stopAutoRetry} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.15rem 0.45rem', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>停止重試</button>
           </div>
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
             {autoRetryStatus.countdown < 0
