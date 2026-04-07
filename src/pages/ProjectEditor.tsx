@@ -198,17 +198,27 @@ export const ProjectEditor: React.FC = () => {
     localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor }));
   }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor]);
 
+  // Build a localStorage key scoped to the current API channel + key so different users don't clash
+  const getGeneratingKey = () => {
+    const ch = localStorage.getItem('apiChannel') || 'platform';
+    const k = ch === 'platform' ? '' : (localStorage.getItem(ch === 'vertex' ? 'vertexApiKey' : 'geminiApiKey') || '').slice(-6);
+    return `vertexGenerating_${ch}_${k}`;
+  };
+
   // Check for previous unfinished generation on mount
   React.useEffect(() => {
-    const ts = localStorage.getItem('vertexGenerating');
+    const key = getGeneratingKey();
+    const ts = localStorage.getItem(key);
     if (ts) {
       const elapsed = Date.now() - Number(ts);
       if (elapsed < 5 * 60 * 1000) { // within 5 minutes
         setPrevSessionWarning(Number(ts));
       } else {
-        localStorage.removeItem('vertexGenerating');
+        localStorage.removeItem(key);
       }
     }
+    // Also clean up legacy key
+    localStorage.removeItem('vertexGenerating');
   }, []);
 
   // Auth State
@@ -1090,7 +1100,7 @@ export const ProjectEditor: React.FC = () => {
     const total = slideIds.length;
     setGenerateProgress({ current: 0, total });
     setIsGenerating(true);
-    localStorage.setItem('vertexGenerating', Date.now().toString());
+    localStorage.setItem(getGeneratingKey(), Date.now().toString());
 
     const handledSlideIds = new Set<string>();
     try {
@@ -1264,7 +1274,7 @@ export const ProjectEditor: React.FC = () => {
       } catch (_) { /* best effort */ }
       setGenerateProgress(null);
       setIsGenerating(false);
-      localStorage.removeItem('vertexGenerating');
+      localStorage.removeItem(getGeneratingKey());
       setPrevSessionWarning(null);
     }
   };
@@ -1567,7 +1577,7 @@ export const ProjectEditor: React.FC = () => {
       {prevSessionWarning && !isGenerating && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', marginBottom: '0.5rem', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: '#b45309' }}>
           <span>⚠️ 偵測到上一次的生成可能還在 Vertex AI 執行中（{Math.round((Date.now() - prevSessionWarning) / 1000)} 秒前開始）。建議等待約 60 秒再重新生成，避免 429 錯誤。</span>
-          <button onClick={() => { localStorage.removeItem('vertexGenerating'); setPrevSessionWarning(null); }}
+          <button onClick={() => { localStorage.removeItem(getGeneratingKey()); setPrevSessionWarning(null); }}
             style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#b45309', fontWeight: 600, whiteSpace: 'nowrap' }}>
             忽略
           </button>
