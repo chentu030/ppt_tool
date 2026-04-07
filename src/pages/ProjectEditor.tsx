@@ -77,7 +77,6 @@ export const ProjectEditor: React.FC = () => {
   const lastAnchorId = useRef<string | null>(null);
   const dragStartPos = useRef<{x: number, y: number} | null>(null);
   const [dragBox, setDragBox] = useState<{x1:number, y1:number, x2:number, y2:number} | null>(null);
-  const maskSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generateAbortController = useRef<AbortController | null>(null);
   const textFileInputRef = useRef<HTMLInputElement | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -156,31 +155,6 @@ export const ProjectEditor: React.FC = () => {
     return r >= 1 ? '1:1' : '1:1';
   };
 
-  // Convert canvas mask → white-on-black PNG at the same resolution as the base image
-  const buildLocalMask = (canvasDataUrl: string, baseDataUrl: string): Promise<string> =>
-    new Promise((resolve) => {
-      const baseImg = new Image();
-      baseImg.onload = () => {
-        const maskImg = new Image();
-        maskImg.onload = () => {
-          const c = document.createElement('canvas');
-          c.width = baseImg.naturalWidth; c.height = baseImg.naturalHeight;
-          const ctx = c.getContext('2d')!;
-          ctx.fillStyle = 'black'; ctx.fillRect(0, 0, c.width, c.height);
-          ctx.drawImage(maskImg, 0, 0, c.width, c.height);
-          const d = ctx.getImageData(0, 0, c.width, c.height);
-          for (let i = 0; i < d.data.length; i += 4) {
-            const bright = d.data[i] > 10 || d.data[i+1] > 10 || d.data[i+2] > 10 || d.data[i+3] > 10;
-            d.data[i] = bright ? 255 : 0; d.data[i+1] = bright ? 255 : 0;
-            d.data[i+2] = bright ? 255 : 0; d.data[i+3] = 255;
-          }
-          ctx.putImageData(d, 0, 0);
-          resolve(c.toDataURL('image/png'));
-        };
-        maskImg.src = canvasDataUrl;
-      };
-      baseImg.src = baseDataUrl;
-    });
 
   // Preview panel state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -1128,7 +1102,6 @@ export const ProjectEditor: React.FC = () => {
         try {
           // Local modify: use the captured current image (with strokes baked in) directly
           const capturedBase = localBaseDataRef.current;
-          const capturedMask = localMaskDataRef.current;
           const capturedPrompt = localPromptRef.current;
           const capturedAspectRatio = localAspectRatioRef.current;
           localBaseDataRef.current = null;
