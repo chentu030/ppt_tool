@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showAlert, showConfirm } from '../utils/dialog';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus, Globe } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus, Globe, BookOpen } from 'lucide-react';
 import { collection, doc, setDoc, addDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { chatWithGemini, generateChatTitle, transformSlideText, getApiKey } from '../utils/gemini';
@@ -141,6 +141,7 @@ export const AIChatPage: React.FC = () => {
   const [showToneMenu, setShowToneMenu] = useState(false);
   const [chatGrounding, setChatGrounding] = useState(false);
   const [userCustomPrompt, setUserCustomPrompt] = useState(() => localStorage.getItem('aiChatCustomPrompt') || '');
+  const [showMemoryPopover, setShowMemoryPopover] = useState(false);
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
@@ -1008,6 +1009,28 @@ export const AIChatPage: React.FC = () => {
             <Sparkles size={18} color="var(--accent-color)" /> AI 協作
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowMemoryPopover(v => !v)} title="AI 記憶（個人化指示）"
+                style={{ padding: '0.25rem 0.55rem', fontSize: '0.72rem', border: `1px solid ${showMemoryPopover || userCustomPrompt.trim() ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.4rem', cursor: 'pointer', background: showMemoryPopover ? 'var(--accent-color)' : userCustomPrompt.trim() ? 'rgba(52,152,219,0.1)' : 'var(--bg-secondary)', color: showMemoryPopover ? '#fff' : userCustomPrompt.trim() ? 'var(--accent-color)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', transition: 'all 0.2s' }}>
+                <BookOpen size={12} /> AI 記憶
+              </button>
+              {showMemoryPopover && (
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', width: '320px', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.5rem', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', padding: '0.75rem', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><BookOpen size={14} /> 個人化指示</span>
+                    <button onClick={() => setShowMemoryPopover(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)' }}><X size={13} /></button>
+                  </div>
+                  <textarea value={userCustomPrompt} onChange={e => { setUserCustomPrompt(e.target.value); localStorage.setItem('aiChatCustomPrompt', e.target.value); }} placeholder="告訴 AI 關於你的背景和偏好，例如：\n• 我是高中數學老師\n• 偏好簡潔學術風格\n• 公式請用 LaTeX 格式\n• 回答請詳細且有條理" rows={5}
+                    style={{ width: '100%', padding: '0.5rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', borderRadius: '0.35rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }} />
+                  <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)' }}>此指示會在每次對話中自動提供給 AI</span>
+                  {userCustomPrompt.trim() && (
+                    <button onClick={() => { setUserCustomPrompt(''); localStorage.removeItem('aiChatCustomPrompt'); }} style={{ padding: '0.25rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
+                      <Trash2 size={10} /> 清除
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             {slidePlans.length > 0 && (
               <button onClick={() => setSlidePlanVisible(v => !v)}
                 title={slidePlanVisible ? '隱藏投影片規劃' : '顯示投影片規劃'}
@@ -1168,12 +1191,6 @@ export const AIChatPage: React.FC = () => {
                       <textarea value={stylePrompt} onChange={e => setStylePrompt(e.target.value)} placeholder="例如：不要太花俏，背景簡潔，文字清晰可讀…" rows={3}
                         style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此提示詞會附加到每張投影片的圖片生成指令中</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>個人化指示（AI 記憶）</label>
-                      <textarea value={userCustomPrompt} onChange={e => { setUserCustomPrompt(e.target.value); localStorage.setItem('aiChatCustomPrompt', e.target.value); }} placeholder="例如：我是高中數學老師、偏好簡潔風格、公式請用 LaTeX…" rows={3}
-                        style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
-                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此指示會在每次對話中提供給 AI，讓 AI 記住你的偏好</span>
                     </div>
                     {(stylePrompt || fontFamily || mainColor || highlightColor || bgColor || specialMark) && (
                       <button onClick={() => { setStylePrompt(''); setFontFamily(''); setMainColor(''); setHighlightColor(''); setBgColor(''); setSpecialMark(''); }} style={{ padding: '0.3rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
