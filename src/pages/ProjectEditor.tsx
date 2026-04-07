@@ -56,7 +56,17 @@ export const ProjectEditor: React.FC = () => {
   
   // Real Drawing state
   const [isDrawingMode, setIsDrawingMode] = useState(false);
-  const [brushSize, setBrushSize] = useState(40);
+  const [brushSize, setBrushSize] = useState(4);
+  const PEN_COLORS: { color: string; label: string }[] = [
+    { color: '#ef4444', label: '紅色' },
+    { color: '#f97316', label: '橘色' },
+    { color: '#eab308', label: '黃色' },
+    { color: '#22c55e', label: '綠色' },
+    { color: '#3b82f6', label: '藍色' },
+    { color: '#a855f7', label: '紫色' },
+    { color: '#ffffff', label: '白色' },
+  ];
+  const [penColor, setPenColor] = useState(PEN_COLORS[0].color);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -916,13 +926,8 @@ export const ProjectEditor: React.FC = () => {
     ctx.lineWidth = brushSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
-    // Add strong shadow for contrast against both light and dark slides
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 1)'; // Draw a solid mask
-    
-    // For visual overlay, mix-blend-mode or opacity handled by canvas CSS
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = penColor;
     ctx.lineTo(x, y);
     ctx.stroke();
   };
@@ -2072,7 +2077,7 @@ export const ProjectEditor: React.FC = () => {
               ) : (
                 <>
                   <img ref={imgRef} src={(activeSlideId ? pendingImages.get(activeSlideId) : undefined) || activeSlide?.generatedImage || activeSlide?.originalImage || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
-                  <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 0.6, mixBlendMode: 'normal', zIndex: 10 }} />
+                  <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 1, mixBlendMode: 'normal', zIndex: 10 }} />
                   {activeSlide?.status === 'generating' && (
                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-primary)', padding: '1rem 2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', fontWeight: 500, zIndex: 20 }}>
                       <Sparkles size={16} style={{ display: 'inline', marginRight: '0.5rem', animation: 'spin 2s linear infinite' }} /> Generating with Gemini...
@@ -2119,10 +2124,15 @@ export const ProjectEditor: React.FC = () => {
                     {isDrawingMode ? '清除並關閉' : '塗改區域'}
                   </Button>
                   {isDrawingMode && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
-                      <Circle size={12} style={{ color: 'var(--text-secondary)' }} />
-                      <input type="range" min="5" max="100" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '80px', accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
-                      <Circle size={20} style={{ color: 'var(--text-secondary)' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
+                      {PEN_COLORS.map(pc => (
+                        <button key={pc.color} title={pc.label} onClick={() => setPenColor(pc.color)}
+                          style={{ width: '20px', height: '20px', borderRadius: '50%', border: penColor === pc.color ? '2px solid var(--accent-color)' : '2px solid var(--border-color)', backgroundColor: pc.color, cursor: 'pointer', padding: 0, flexShrink: 0, boxShadow: penColor === pc.color ? '0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-color)' : 'none', transition: 'box-shadow 0.15s' }} />
+                      ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.5rem', paddingLeft: '0.5rem', borderLeft: '1px solid var(--border-color)' }}>
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>粗細</span>
+                        <input type="range" min="2" max="20" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '60px', accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2133,11 +2143,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasMask = canvasRef.current && canvasRef.current.getContext('2d')?.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height).data.some((v, i) => i % 4 === 3 && v > 0); localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasMask && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; localPromptRef.current = promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { const hasMask = canvasRef.current && canvasRef.current.getContext('2d')?.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height).data.some((v, i) => i % 4 === 3 && v > 0); localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasMask && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
