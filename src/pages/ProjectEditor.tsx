@@ -340,7 +340,7 @@ export const ProjectEditor: React.FC = () => {
   };
 
   React.useEffect(() => {
-    setPromptDraft(activeSlide?.prompt || '');
+    setPromptDraft('');
     // Clear canvas when switching slides to prevent mask bleed-over
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
@@ -2088,7 +2088,7 @@ export const ProjectEditor: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                   <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
                     {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
-                    {isDrawingMode ? 'Clear & Close' : 'Draw Area'}
+                    {isDrawingMode ? '清除並關閉' : '塗改區域'}
                   </Button>
                   {isDrawingMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
@@ -2127,7 +2127,7 @@ export const ProjectEditor: React.FC = () => {
                   })()}
                 </div>
                 <input
-                  placeholder="What do you want Gemini to change?"
+                  placeholder="描述想修改的方向，例如：把標題放大、換背景顏色..."
                   value={promptDraft}
                   onChange={(e) => setPromptDraft(e.target.value)}
                   onCompositionStart={() => { isComposing.current = true; }}
