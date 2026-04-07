@@ -495,7 +495,9 @@ export const ProjectEditor: React.FC = () => {
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
   };
 
+  const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const generateShareLabel = async () => {
+    setIsGeneratingLabel(true);
     try {
       const { geminiApiFetch } = await import('../utils/gemini');
       const modelName = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-2.0-flash';
@@ -503,11 +505,12 @@ export const ProjectEditor: React.FC = () => {
       const resp = await geminiApiFetch(modelName, {
         contents: [{ role: 'user', parts: [{ text: `請用8個字以內為以下投影片模板風格取一個簡短好記的名稱，直接回覆名稱文字，不要加標點符號或其他說明：\n${styleDesc}` }] }],
       });
-      if (!resp.ok) return;
+      if (!resp.ok) { console.error('AI naming failed:', resp.status); return; }
       const data = await resp.json();
       const name = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
       if (name) setShareLabel(name);
-    } catch (_) { /* non-critical, user can type manually */ }
+    } catch (err) { console.error('AI naming error:', err); }
+    finally { setIsGeneratingLabel(false); }
   };
 
   const handleShareTemplate = async () => {
@@ -2169,10 +2172,10 @@ export const ProjectEditor: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>模板名稱</label>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder="例：極簡商務風、科技藍白風格"
+                <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder={isGeneratingLabel ? 'AI 命名中...' : '例：極簡商務風、科技藍白風格'}
                   style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.88rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                <button onClick={generateShareLabel} title="AI 自動命名" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-color)', cursor: 'pointer' }}>
-                  <Sparkles size={16} />
+                <button onClick={generateShareLabel} disabled={isGeneratingLabel} title="AI 自動命名" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', backgroundColor: isGeneratingLabel ? 'var(--accent-color)' : 'var(--bg-secondary)', color: isGeneratingLabel ? 'white' : 'var(--accent-color)', cursor: isGeneratingLabel ? 'wait' : 'pointer', transition: 'all 0.2s' }}>
+                  <Sparkles size={16} style={{ animation: isGeneratingLabel ? 'spin 1s linear infinite' : 'none' }} />
                 </button>
               </div>
             </div>
