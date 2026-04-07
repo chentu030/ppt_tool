@@ -105,7 +105,6 @@ export const ProjectEditor: React.FC = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [addSlideType, setAddSlideType] = useState<'image' | 'text'>('image');
   const [addSlideCount, setAddSlideCount] = useState(1);
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
   const [appModal, setAppModal] = useState<{ title: string; body: React.ReactNode; type?: 'error' | 'success' | 'warning' | 'info' } | null>(null);
@@ -2331,50 +2330,33 @@ export const ProjectEditor: React.FC = () => {
       {showAddSlideModal && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setShowAddSlideModal(false)}>
-          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: '1.75rem', width: '360px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+          <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', padding: '1.75rem', width: '320px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>新增頁面</h3>
               <button onClick={() => setShowAddSlideModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', padding: '2px' }}><X size={18}/></button>
             </div>
 
-            {/* Type selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>頁面類型</span>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                {([['image', '🖼️', '圖片投影片', '上傳或生成圖片'], ['text', '📝', '文字頁', '純文字編輯頁']] as const).map(([type, emoji, label, desc]) => (
-                  <button key={type} onClick={() => setAddSlideType(type)}
-                    style={{ flex: 1, padding: '0.75rem', borderRadius: 'var(--radius-md)', border: `2px solid ${addSlideType === type ? 'var(--accent-color)' : 'var(--border-color)'}`, background: addSlideType === type ? 'rgba(var(--accent-rgb,99,102,241),0.07)' : 'var(--bg-secondary)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem', transition: 'border-color 0.15s' }}>
-                    <span style={{ fontSize: '1.5rem' }}>{emoji}</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: addSlideType === type ? 'var(--accent-color)' : 'var(--text-primary)' }}>{label}</span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Count input */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>新增頁數</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>要新增幾頁？</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <button onClick={() => setAddSlideCount(c => Math.max(1, c - 1))}
                   style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>−</button>
-                <input type="number" min={1} max={20} value={addSlideCount}
-                  onChange={e => setAddSlideCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                <input type="number" min={1} max={99} value={addSlideCount}
+                  onChange={e => setAddSlideCount(Math.max(1, Math.min(99, Number(e.target.value) || 1)))}
                   style={{ width: '56px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', fontSize: '0.95rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
-                <button onClick={() => setAddSlideCount(c => Math.min(20, c + 1))}
+                <button onClick={() => setAddSlideCount(c => Math.min(99, c + 1))}
                   style={{ width: '32px', height: '32px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>+</button>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>頁（最多 20）</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>頁（上限 99）</span>
               </div>
             </div>
 
-            {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowAddSlideModal(false)}
                 style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'none', cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                 取消
               </button>
-              <button onClick={async () => { setShowAddSlideModal(false); await addSlide(addSlideType, addSlideCount); }}
+              <button onClick={async () => { setShowAddSlideModal(false); await addSlide('text', addSlideCount); }}
                 style={{ padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-md)', border: 'none', backgroundColor: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Plus size={14}/> 新增 {addSlideCount} 頁
               </button>
