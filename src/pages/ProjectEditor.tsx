@@ -1074,6 +1074,7 @@ export const ProjectEditor: React.FC = () => {
     setIsGenerating(true);
     localStorage.setItem('vertexGenerating', Date.now().toString());
 
+    const handledSlideIds = new Set<string>();
     try {
       // Set initiating state using batch
       const initialBatch = writeBatch(db);
@@ -1169,6 +1170,7 @@ export const ProjectEditor: React.FC = () => {
           pushToHistory(slideId, generatedImg);
           const compressedGen = await compressImage(generatedImg, 1200, 0.7);
           await updateDoc(doc(db, 'projects', id, 'slides', slideId), { status: 'done', generatedImage: compressedGen });
+          handledSlideIds.add(slideId);
           completedCount++;
           setGenerateProgress({ current: completedCount, total });
           return { slideId, genUrl: generatedImg };
@@ -1179,6 +1181,7 @@ export const ProjectEditor: React.FC = () => {
           console.error(`Slide ${slideId} failed:`, msg);
           failedSlides.push({ slideId, error: msg });
           await updateDoc(doc(db, 'projects', id, 'slides', slideId), { status: 'draft' }).catch(() => {});
+          handledSlideIds.add(slideId);
           completedCount++;
           setGenerateProgress({ current: completedCount, total });
           // Stop all remaining slides on quota/server exhaustion
@@ -1234,12 +1237,12 @@ export const ProjectEditor: React.FC = () => {
       console.error('Generation failed:', e);
       showToast('生成失敗，請稍後再試。', 'error');
     } finally {
-      // Always reset any still-generating slides back to draft
+      // Reset only slides that were set to 'generating' but never handled (e.g. aborted mid-loop)
       try {
         const resetBatch = writeBatch(db);
-        const stillGenerating = slides.filter(s => s.status === 'generating');
-        stillGenerating.forEach(s => resetBatch.update(doc(db, 'projects', id, 'slides', s.id), { status: 'draft' }));
-        if (stillGenerating.length > 0) await resetBatch.commit();
+        const unhandled = slideIds.filter(sid => !handledSlideIds.has(sid));
+        unhandled.forEach(sid => resetBatch.update(doc(db, 'projects', id, 'slides', sid), { status: 'draft' }));
+        if (unhandled.length > 0) await resetBatch.commit();
       } catch (_) { /* best effort */ }
       setGenerateProgress(null);
       setIsGenerating(false);
