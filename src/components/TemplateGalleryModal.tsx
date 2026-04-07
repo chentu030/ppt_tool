@@ -1,6 +1,5 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight, Pin } from 'lucide-react';
-import { getValidBearerToken } from '../utils/auth';
 import { geminiApiFetch } from '../utils/gemini';
 
 import { db, auth, storage } from '../firebase';

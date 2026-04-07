@@ -84,7 +84,7 @@ export const transformSlideText = async (
   content: string,
   title: string,
   operation: TransformOp,
-  apiKey: string,
+  _apiKey?: string,
   signal?: AbortSignal,
   conversationContext?: string
 ): Promise<string> => {
@@ -126,7 +126,7 @@ export const transformSlideText = async (
 export const polishTextWithAI = async (
   text: string,
   direction: string,
-  apiKey: string,
+  _apiKey?: string,
   signal?: AbortSignal
 ): Promise<string> => {
   const modelName = 'gemini-3-flash-preview';
@@ -151,7 +151,7 @@ export const polishTextWithAI = async (
 };
 
 // Generate a short conversation title (≤10 chars)
-export const generateChatTitle = async (firstMessage: string, apiKey: string): Promise<string> => {
+export const generateChatTitle = async (firstMessage: string, _apiKey?: string): Promise<string> => {
   const modelName = 'gemini-3-flash-preview';
   const requestBody = {
     contents: [{ role: 'user', parts: [{ text: `請用10個字以內為以下對話開頭取一個簡短標題，直接回覆標題文字，不要加標點符號或其他說明：\n\n${firstMessage.slice(0, 300)}` }] }],
@@ -176,7 +176,7 @@ export interface ChatResponse {
 }
 export const chatWithGemini = async (
   history: ChatMessage[],
-  apiKey: string,
+  _apiKey?: string,
   options?: { generateImage?: boolean; referenceImage?: string | null; aspectRatio?: string; resolution?: string; grounding?: boolean },
   signal?: AbortSignal
 ): Promise<ChatResponse> => {
@@ -230,7 +230,7 @@ export const generateImageDesign = async (
   referenceImage: string | null,
   maskImage: string | null,
   prompt: string,
-  apiKey: string,
+  _apiKey?: string,
   modelName: string = 'gemini-3.1-flash-image-preview',
   aspectRatio: string = '16:9',
   resolution: string = '2K',
