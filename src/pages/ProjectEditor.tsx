@@ -2086,17 +2086,6 @@ export const ProjectEditor: React.FC = () => {
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
               <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                  <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
-                    {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
-                    {isDrawingMode ? '清除並關閉' : '塗改區域'}
-                  </Button>
-                  {isDrawingMode && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
-                      <Circle size={12} style={{ color: 'var(--text-secondary)' }} />
-                      <input type="range" min="5" max="100" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '80px', accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
-                      <Circle size={20} style={{ color: 'var(--text-secondary)' }} />
-                    </div>
-                  )}
                   {(() => {
                     const hist = activeSlideId ? imageHistories.get(activeSlideId) : undefined;
                     const canUndo = !!hist && hist.pos > 0;
@@ -2109,7 +2098,7 @@ export const ProjectEditor: React.FC = () => {
                       display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem',
                     });
                     return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.5rem', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', paddingRight: '0.75rem', borderRight: '1px solid var(--border-color)' }}>
                         <button style={btnStyle(canUndo)} disabled={!canUndo} title="上一步" onClick={() => handleUndo(activeSlideId)}>
                           <ChevronLeft size={13} /> 上一步
                         </button>
@@ -2125,6 +2114,17 @@ export const ProjectEditor: React.FC = () => {
                       </div>
                     );
                   })()}
+                  <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
+                    {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
+                    {isDrawingMode ? '清除並關閉' : '塗改區域'}
+                  </Button>
+                  {isDrawingMode && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.5rem', padding: '0 0.5rem', borderLeft: '1px solid var(--border-color)' }}>
+                      <Circle size={12} style={{ color: 'var(--text-secondary)' }} />
+                      <input type="range" min="5" max="100" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} style={{ width: '80px', accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
+                      <Circle size={20} style={{ color: 'var(--text-secondary)' }} />
+                    </div>
+                  )}
                 </div>
                 <input
                   placeholder="描述想修改的方向，例如：把標題放大、換背景顏色..."
