@@ -1400,8 +1400,8 @@ export const AIChatPage: React.FC = () => {
           <button onClick={() => fileInputRef.current?.click()} title="上傳檔案" style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.4rem', padding: '0.45rem', cursor: 'pointer', color: 'var(--text-secondary)', flexShrink: 0 }}><Paperclip size={16} /></button>
           <input ref={fileInputRef} type="file" multiple accept="*/*" style={{ display: 'none' }} onChange={handleFileUpload} />
           <button onClick={() => setChatGrounding(v => !v)} title={chatGrounding ? '聯網搜尋：開啟（點擊關閉）' : '聯網搜尋：關閉（點擊開啟）'}
-            style={{ background: chatGrounding ? 'rgba(52,152,219,0.12)' : 'none', border: `1px solid ${chatGrounding ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.4rem', padding: '0.45rem 0.55rem', cursor: 'pointer', color: chatGrounding ? 'var(--accent-color)' : 'var(--text-secondary)', flexShrink: 0, fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.2rem', transition: 'all 0.15s' }}>
-            <Globe size={16} />{chatGrounding ? ' ON' : ''}
+            style={{ background: chatGrounding ? 'rgba(52,152,219,0.12)' : 'none', border: `1px solid ${chatGrounding ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.4rem', padding: '0.45rem', cursor: 'pointer', color: chatGrounding ? 'var(--accent-color)' : 'var(--text-secondary)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+            <Globe size={16} />
           </button>
           <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatGrounding ? '聯網模式：AI 可上網搜尋最新資訊…' : '輸入訊息，與 AI 討論圖卡內容…'} rows={1}
             style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.6rem', fontSize: '0.85rem', resize: 'none', outline: 'none', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', lineHeight: 1.5 }} />
