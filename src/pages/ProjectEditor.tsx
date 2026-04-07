@@ -890,21 +890,33 @@ export const ProjectEditor: React.FC = () => {
     updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { prompt });
   };
 
+  // Load current slide image onto the canvas so strokes are drawn directly on the image
+  const enterDrawingMode = () => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img) { setIsDrawingMode(true); return; }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { setIsDrawingMode(true); return; }
+    // Set canvas internal resolution to match image natural size
+    canvas.width = img.naturalWidth || img.offsetWidth;
+    canvas.height = img.naturalHeight || img.offsetHeight;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    setIsDrawingMode(true);
+  };
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawingMode || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Initialize dimensions if not set
-    if (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight) {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    }
-
     const rect = canvas.getBoundingClientRect();
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top  : (e as React.MouseEvent).clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = ('touches' in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = ('touches' in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -920,10 +932,14 @@ export const ProjectEditor: React.FC = () => {
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const x = ('touches' in e) ? e.touches[0].clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-    const y = ('touches' in e) ? e.touches[0].clientY - rect.top  : (e as React.MouseEvent).clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = ('touches' in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = ('touches' in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
 
-    ctx.lineWidth = brushSize;
+    ctx.lineWidth = brushSize * scaleX;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowBlur = 0;
@@ -935,30 +951,17 @@ export const ProjectEditor: React.FC = () => {
   const stopDrawing = () => {
     if (!isDrawing) return;
     setIsDrawing(false);
-
-    // Debounce mask save: only write after 800ms of no new strokes
-    if (maskSaveTimer.current) clearTimeout(maskSaveTimer.current);
-    maskSaveTimer.current = setTimeout(() => {
-      if (canvasRef.current && activeSlideId && id) {
-        const maskDataUrl = canvasRef.current.toDataURL('image/png');
-        uploadImageToStorage(id, activeSlideId, 'maskImage', maskDataUrl)
-          .then(maskUrl => updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { maskImage: maskUrl }))
-          .catch(err => console.error('Mask upload failed:', err));
-      }
-    }, 800);
   };
 
   const clearCanvas = () => {
-    if (canvasRef.current && activeSlideId && id) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      }
-      // Only write to Firestore if the slide actually has a mask saved
-      const activeSlide = slides.find(s => s.id === activeSlideId);
-      if (activeSlide?.maskImage) {
-        updateDoc(doc(db, 'projects', id, 'slides', activeSlideId), { maskImage: null });
-      }
+    if (!canvasRef.current) return;
+    // Re-draw the base image to clear strokes
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (ctx && img) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     }
   };
 
@@ -1123,7 +1126,7 @@ export const ProjectEditor: React.FC = () => {
           return null;
         }
         try {
-          // Local modify: use the captured current image & canvas mask directly
+          // Local modify: use the captured current image (with strokes baked in) directly
           const capturedBase = localBaseDataRef.current;
           const capturedMask = localMaskDataRef.current;
           const capturedPrompt = localPromptRef.current;
@@ -1132,17 +1135,15 @@ export const ProjectEditor: React.FC = () => {
           localMaskDataRef.current = null;
           localPromptRef.current = '';
           localAspectRatioRef.current = '';
-          const isLocalModify = !!capturedMask;
+          const isLocalModify = !!capturedPrompt;
           // Always fetch base as proper data URL (fetchImageAsBase64 handles data: URLs as-is)
           const base64Original = capturedBase
             ? await fetchImageAsBase64(capturedBase)
             : (slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null);
           const base64Ref = (!isLocalModify && globalReference) ? await fetchImageAsBase64(globalReference) : null;
-          // For local modify: scale canvas mask to match base image dimensions & convert to white-on-black
+          // For local modify: strokes are already baked into capturedBase, no separate mask needed
           let base64Mask: string | null = null;
-          if (isLocalModify && capturedMask && base64Original) {
-            base64Mask = await buildLocalMask(capturedMask, base64Original);
-          } else if (!isLocalModify && slide.maskImage) {
+          if (!isLocalModify && slide.maskImage) {
             base64Mask = await fetchImageAsBase64(slide.maskImage);
           }
           // For local modify: use only the toolbar prompt, no globalExtraPrompt
@@ -2119,7 +2120,7 @@ export const ProjectEditor: React.FC = () => {
                       </div>
                     );
                   })()}
-                  <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { setIsDrawingMode(!isDrawingMode); if (isDrawingMode) clearCanvas(); }} style={{ whiteSpace: 'nowrap' }}>
+                  <Button variant={isDrawingMode ? 'primary' : 'secondary'} onClick={() => { if (isDrawingMode) { clearCanvas(); setIsDrawingMode(false); } else { enterDrawingMode(); } }} style={{ whiteSpace: 'nowrap' }}>
                     {isDrawingMode ? <X size={18} style={{ marginRight: '0.5rem' }} /> : <Circle size={18} style={{ marginRight: '0.5rem' }} />}
                     {isDrawingMode ? '清除並關閉' : '塗改區域'}
                   </Button>
@@ -2143,11 +2144,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasMask = canvasRef.current && canvasRef.current.getContext('2d')?.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height).data.some((v, i) => i % 4 === 3 && v > 0); localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasMask && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { const hasMask = canvasRef.current && canvasRef.current.getContext('2d')?.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height).data.some((v, i) => i % 4 === 3 && v > 0); localMaskDataRef.current = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null; localBaseDataRef.current = pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasMask && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
