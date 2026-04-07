@@ -35,9 +35,47 @@ export const getApiKey = (): string => {
   const channel = localStorage.getItem('apiChannel') || 'platform';
   if (channel === 'gemini') return localStorage.getItem('geminiApiKey') || '';
   if (channel === 'vertex') return localStorage.getItem('vertexApiKey') || '';
-  // platform default: env var → vertexApiKey fallback → geminiApiKey fallback
-  return (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_VERTEX_API_KEY) || localStorage.getItem('vertexApiKey') || localStorage.getItem('geminiApiKey') || '';
+  // platform channel: API key is on the server (proxy), no client-side key needed
+  return '';
 };
+
+/** Centralized fetch for Gemini API — routes through /api/gemini-proxy for platform channel to hide API key */
+export async function geminiApiFetch(
+  model: string,
+  requestBody: any,
+  options?: { signal?: AbortSignal; useGlobal?: boolean }
+): Promise<Response> {
+  const bearerToken = await getValidBearerToken();
+  if (bearerToken) {
+    const baseUrlFn = options?.useGlobal ? getGlobalBaseUrl : getBaseUrl;
+    const url = `${baseUrlFn(true)}/${model}:generateContent`;
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bearerToken}` },
+      body: JSON.stringify(requestBody),
+      signal: options?.signal,
+    });
+  }
+  const channel = localStorage.getItem('apiChannel') || 'platform';
+  if (channel === 'platform') {
+    return fetch('/api/gemini-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, body: requestBody, useGlobal: options?.useGlobal }),
+      signal: options?.signal,
+    });
+  }
+  // Custom key channels (gemini / vertex) — user's own key, sent directly
+  const apiKey = getApiKey();
+  const baseUrlFn = options?.useGlobal ? getGlobalBaseUrl : getBaseUrl;
+  const url = `${baseUrlFn(false)}/${model}:generateContent?key=${apiKey}`;
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+    signal: options?.signal,
+  });
+}
 
 
 export type TransformOp = 'expand' | 'shorten' | 'tone-formal' | 'tone-casual' | 'tone-academic' | 'grounding';
@@ -73,16 +111,7 @@ export const transformSlideText = async (
     requestBody.tools = [{ googleSearch: {} }];
   }
 
-  const bearerToken = await getValidBearerToken();
-  // Grounding and newer models require the global endpoint to avoid 404 on regional URLs
-  const baseUrlFn = useGrounding ? getGlobalBaseUrl : getBaseUrl;
-  const url = bearerToken
-    ? `${baseUrlFn(true)}/${modelName}:generateContent`
-    : `${baseUrlFn(false)}/${modelName}:generateContent?key=${apiKey}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
-
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody), signal });
+  const response = await geminiApiFetch(modelName, requestBody, { signal, useGlobal: useGrounding });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API Error: ${response.status} — ${errorText.slice(0, 200)}`);
@@ -109,14 +138,7 @@ export const polishTextWithAI = async (
     contents: [{ role: 'user', parts: [{ text: `${instruction}\n\n原始文字：\n${text}` }] }]
   };
 
-  const bearerToken = await getValidBearerToken();
-  const url = bearerToken
-    ? `${getBaseUrl(true)}/${modelName}:generateContent`
-    : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
-
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody), signal });
+  const response = await geminiApiFetch(modelName, requestBody, { signal });
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Polish API failed:', errorText);
@@ -135,13 +157,7 @@ export const generateChatTitle = async (firstMessage: string, apiKey: string): P
     contents: [{ role: 'user', parts: [{ text: `請用10個字以內為以下對話開頭取一個簡短標題，直接回覆標題文字，不要加標點符號或其他說明：\n\n${firstMessage.slice(0, 300)}` }] }],
   };
   try {
-    const bearerToken = await getValidBearerToken();
-    const url = bearerToken
-      ? `${getBaseUrl(true)}/${modelName}:generateContent`
-      : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
-    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody) });
+    const resp = await geminiApiFetch(modelName, requestBody);
     if (!resp.ok) return firstMessage.slice(0, 10);
     const data = await resp.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
@@ -194,15 +210,7 @@ export const chatWithGemini = async (
     requestBody.tools = [{ googleSearch: {} }];
   }
 
-  const bearerToken = await getValidBearerToken();
-  const baseUrlFn = wantGrounding ? getGlobalBaseUrl : getBaseUrl;
-  const url = bearerToken
-    ? `${baseUrlFn(true)}/${modelName}:generateContent`
-    : `${baseUrlFn(false)}/${modelName}:generateContent?key=${apiKey}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
-
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(requestBody), signal });
+  const response = await geminiApiFetch(modelName, requestBody, { signal, useGlobal: wantGrounding });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API Error ${response.status}: ${errorText.slice(0, 200)}`);
@@ -277,19 +285,7 @@ export const generateImageDesign = async (
       await new Promise(r => setTimeout(r, delayMs));
     }
   try {
-    const bearerToken = await getValidBearerToken();
-    const url = bearerToken
-      ? `${getBaseUrl(true)}/${modelName}:generateContent`
-      : `${getBaseUrl(false)}/${modelName}:generateContent?key=${apiKey}`;
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-      signal
-    });
+    const response = await geminiApiFetch(modelName, requestBody, { signal });
 
     if (!response.ok) {
       const errorText = await response.text();

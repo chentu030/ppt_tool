@@ -1,6 +1,7 @@
 ﻿import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Upload, Sparkles, Loader, Star, Clock, Users, Trash2, Pencil, ChevronLeft, ChevronRight, Pin } from 'lucide-react';
 import { getValidBearerToken } from '../utils/auth';
+import { geminiApiFetch } from '../utils/gemini';
 
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -386,9 +387,6 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
   };
   const runGeminiAnalysis=async()=>{
     if(!geminiPending)return;
-    const apiKey=localStorage.getItem('vertexApiKey')||localStorage.getItem('geminiApiKey')||import.meta.env.VITE_VERTEX_API_KEY||'';
-    const bearerToken=await getValidBearerToken();
-    if(!bearerToken&&!apiKey){setAnalyzeError('找不到 API Key（請先在設定中填入 Gemini API Key）');return;}
     setIsAnalyzing(true);setAnalyzeError(null);
     try{
       let base64:string;let mimeType='image/jpeg';
@@ -416,12 +414,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
         base64=await new Promise<string>((res,rej)=>{const fr=new FileReader();fr.onload=()=>res((fr.result as string).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});
       }
       const prompt=`請仔細分析這張投影片或設計風格圖的視覺風格，以 JSON 格式回傳建議設定。只回傳 JSON：\n{"fontFamily":"字體（Noto Sans/襯線體/等寬長字/草寫體）","mainColor":"主文字顏色","highlightColor":"重點標示方式","specialMark":"特殊標記或無","backgroundColor":"背景色（白色/淺灰色/深藍色等）","extraPrompt":"風格視覺特點50~150字"}`;
-      const url=bearerToken
-        ?`https://aiplatform.googleapis.com/v1/projects/${localStorage.getItem('gcpProjectId')||''}/locations/${localStorage.getItem('vertexRegion')||'us-central1'}/publishers/google/models/${ANALYSIS_MODEL}:generateContent`
-        :`https://aiplatform.googleapis.com/v1beta1/publishers/google/models/${ANALYSIS_MODEL}:generateContent?key=${apiKey}`;
-      const hdrs:Record<string,string>={'Content-Type':'application/json'};
-      if(bearerToken)hdrs['Authorization']=`Bearer ${bearerToken}`;
-      const res=await fetch(url,{method:'POST',headers:hdrs,body:JSON.stringify({contents:[{role:'user',parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]})});
+      const res=await geminiApiFetch(ANALYSIS_MODEL,{contents:[{role:'user',parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]});
       if(!res.ok){const t=await res.text();throw new Error(`Gemini API 錯誤 ${res.status}: ${t.slice(0,200)}`);}
       const json=await res.json();
       const raw=json?.candidates?.[0]?.content?.parts?.[0]?.text??'{}';
