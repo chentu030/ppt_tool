@@ -439,7 +439,8 @@ export const AIChatPage: React.FC = () => {
     if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
     if (currentSlides && currentSlides.length > 0) {
       const slidesJson = JSON.stringify(currentSlides.map(s => ({ pageNum: s.pageNum, title: s.title, content: s.content })));
-      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改、刪除或擴充投影片，請在回覆末尾附上以下 JSON 格式（使用者會看到預覽並決定是否套用）：\n[SLIDE_UPDATE]\n[{"action":"update","pageNum":1,"title":"新標題","content":"新內容"},{"action":"delete","pageNum":3},{"action":"add","pageNum":${currentSlides.length + 1},"title":"新頁標題","content":"新頁內容"}]\n[/SLIDE_UPDATE]\n\naction 說明：\n- "update"：修改指定頁的標題或內容（只需提供要改的欄位）\n- "delete"：刪除指定頁\n- "add"：新增頁面，pageNum 從 ${currentSlides.length + 1} 開始遞增\n\n注意：先描述你的修改計畫，再附上 [SLIDE_UPDATE] 區塊。使用者會在介面上預覽變更後決定是否套用。`;
+      sys += `\n\n當前投影片規劃（共 ${currentSlides.length} 頁）：\n${slidesJson}\n\n如果使用者要求修改、刪除或擴充投影片，請在回覆末尾附上以下 JSON 格式（使用者會看到預覽並決定是否套用）：\n[SLIDE_UPDATE]\n[{"action":"update","pageNum":1,"title":"新標題","content":"新內容"},{"action":"delete","pageNum":3},{"action":"add","pageNum":${currentSlides.length + 1},"title":"新頁標題","content":"新頁內容"}]\n[/SLIDE_UPDATE]\n\naction 說明：\n- "update"：修改指定頁的標題或內容（只需提供要改的欄位）\n- "delete"：刪除指定頁\n- "add"：新增頁面，pageNum 從 ${currentSlides.length + 1} 開始遞增\n\n注意：先描述你的修改計畫，再附上 [SLIDE_UPDATE] 區塊。使用者會在介面上預覽變更後決定是否套用。
+重要：[SLIDE_UPDATE] 區塊內只放純 JSON，不要加 \`\`\`json 或 \`\`\` 等 Markdown 標記。JSON 字串中的反斜線必須用 \\\\ 轉義（例如 LaTeX 的 \\pi 在 JSON 中要寫成 \\\\pi）。`;
     }
     const h: GeminiChatMessage[] = [
       { role: 'user', parts: [{ text: sys }] },
@@ -506,7 +507,12 @@ export const AIChatPage: React.FC = () => {
       const aiMsgId = (Date.now() + 1).toString();
       if (updateMatch) {
         try {
-          let rawOps = JSON.parse(updateMatch[1].trim()) as any[];
+          let jsonStr = updateMatch[1].trim();
+          // Strip markdown code fences if AI wrapped them
+          jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/,  '');
+          // Fix unescaped backslashes (common in LaTeX): turn single \ not already escaped into \\
+          jsonStr = jsonStr.replace(/(?<!\\)\\(?![\\"nrtbfu/])/g, '\\\\');
+          let rawOps = JSON.parse(jsonStr) as any[];
           // Normalise: legacy format (no action) → 'update' or 'add'
           const existingNums = new Set(slidePlans.map(s => s.pageNum));
           const ops: SlideOperation[] = rawOps.map(o => ({
