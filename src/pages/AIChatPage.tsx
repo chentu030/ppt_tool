@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showAlert, showConfirm } from '../utils/dialog';
-import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus } from 'lucide-react';
+import { Send, Paperclip, Image as ImageIcon, X, Loader, Download, Sparkles, Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, MessageSquare, FileText, Images, Play, Square, Edit3, FileDown, EyeOff, Eye, Check, Settings, FolderPlus, Globe } from 'lucide-react';
 import { collection, doc, setDoc, addDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { chatWithGemini, generateChatTitle, transformSlideText, getApiKey } from '../utils/gemini';
@@ -1281,7 +1281,7 @@ export const AIChatPage: React.FC = () => {
                             {/* Grounding */}
                             <button onClick={() => handleContentTransform(slide.id, 'grounding')} disabled={isGenerating || isContentProcessing || !slide.content.trim()} title="上網搜尋並擴充內容"
                               style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.5rem', fontSize: '0.68rem', fontWeight: 600, border: '1px solid var(--accent-color)', borderRadius: '0.25rem', cursor: (isGenerating || isContentProcessing || !slide.content.trim()) ? 'not-allowed' : 'pointer', background: 'rgba(52,152,219,0.08)', color: 'var(--accent-color)', opacity: (isGenerating || isContentProcessing) ? 0.4 : 1 }}>
-                              🌐 聯網擴充
+                              <Globe size={12} /> 聯網擴充
                             </button>
                           </div>
                         </div>
@@ -1401,7 +1401,7 @@ export const AIChatPage: React.FC = () => {
           <input ref={fileInputRef} type="file" multiple accept="*/*" style={{ display: 'none' }} onChange={handleFileUpload} />
           <button onClick={() => setChatGrounding(v => !v)} title={chatGrounding ? '聯網搜尋：開啟（點擊關閉）' : '聯網搜尋：關閉（點擊開啟）'}
             style={{ background: chatGrounding ? 'rgba(52,152,219,0.12)' : 'none', border: `1px solid ${chatGrounding ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.4rem', padding: '0.45rem 0.55rem', cursor: 'pointer', color: chatGrounding ? 'var(--accent-color)' : 'var(--text-secondary)', flexShrink: 0, fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.2rem', transition: 'all 0.15s' }}>
-            🌐{chatGrounding ? ' ON' : ''}
+            <Globe size={16} />{chatGrounding ? ' ON' : ''}
           </button>
           <textarea ref={textareaRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={chatGrounding ? '聯網模式：AI 可上網搜尋最新資訊…' : '輸入訊息，與 AI 討論圖卡內容…'} rows={1}
             style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.6rem', fontSize: '0.85rem', resize: 'none', outline: 'none', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', lineHeight: 1.5 }} />
