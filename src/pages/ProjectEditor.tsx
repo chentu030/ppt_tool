@@ -495,6 +495,21 @@ export const ProjectEditor: React.FC = () => {
     if (resolvedExtraPrompt !== null) setGlobalExtraPrompt(resolvedExtraPrompt);
   };
 
+  const generateShareLabel = async () => {
+    try {
+      const { geminiApiFetch } = await import('../utils/gemini');
+      const modelName = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-2.0-flash';
+      const styleDesc = `字體：${fontFamily}，主色：${mainColor}，重點色：${highlightColor}${specialMark ? `，標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}`;
+      const resp = await geminiApiFetch(modelName, {
+        contents: [{ role: 'user', parts: [{ text: `請用8個字以內為以下投影片模板風格取一個簡短好記的名稱，直接回覆名稱文字，不要加標點符號或其他說明：\n${styleDesc}` }] }],
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const name = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      if (name) setShareLabel(name);
+    } catch (_) { /* non-critical, user can type manually */ }
+  };
+
   const handleShareTemplate = async () => {
     if (!id || !globalReference || !shareLabel.trim()) return;
     setIsSharing(true);
@@ -1765,7 +1780,7 @@ export const ProjectEditor: React.FC = () => {
                     <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <button onClick={() => setShowShareModal(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }} title="分享模板到社群"><Share2 size={11}/> 分享</button>
+                    <button onClick={() => { setShowShareModal(true); setShareLabel(''); generateShareLabel(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }} title="分享模板到社群"><Share2 size={11}/> 分享</button>
                     <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }}><X size={11}/> 移除</button>
                   </div>
                 </div>
