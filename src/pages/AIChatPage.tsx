@@ -140,6 +140,7 @@ export const AIChatPage: React.FC = () => {
   const [isContentProcessing, setIsContentProcessing] = useState(false);
   const [showToneMenu, setShowToneMenu] = useState(false);
   const [chatGrounding, setChatGrounding] = useState(false);
+  const [userCustomPrompt, setUserCustomPrompt] = useState(() => localStorage.getItem('aiChatCustomPrompt') || '');
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
@@ -435,7 +436,8 @@ export const AIChatPage: React.FC = () => {
   };
 
   const buildHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string, currentSlides?: SlidePlan[]): GeminiChatMessage[] => {
-    let sys = '你是專業設計助手，可以整理文件、規劃圖卡內容、回答問題。用繁體中文回答。不要自己生成圖片，圖片生成由系統另外處理。';
+    let sys = '你是專業設計助手，可以整理文件、規劃圖卡內容、回答問題。用繁體中文回答。不要自己生成圖片，圖片生成由系統另外處理。如果內容包含數學公式，請使用 LaTeX 格式（行內用 $...$，獨立公式用 $$...$$），投影片規劃的內容也可以用 LaTeX 公式。';
+    if (userCustomPrompt.trim()) sys += `\n\n使用者個人化指示：${userCustomPrompt.trim()}`;
     if (extraStylePrompt) sys += `\n\n風格設定：${extraStylePrompt}`;
     if (currentSlides && currentSlides.length > 0) {
       const slidesJson = JSON.stringify(currentSlides.map(s => ({ pageNum: s.pageNum, title: s.title, content: s.content })));
@@ -461,7 +463,7 @@ export const AIChatPage: React.FC = () => {
     }
     h.push({ role: 'user', parts: userParts });
     return h;
-  }, []);
+  }, [userCustomPrompt]);
 
   // Text-only history (no attachments) for plan generation to avoid re-sending large files
   const buildTextHistory = useCallback((msgs: ChatMsg[], userParts: GeminiChatMessage['parts'], extraStylePrompt?: string): GeminiChatMessage[] => {
@@ -1166,6 +1168,12 @@ export const AIChatPage: React.FC = () => {
                       <textarea value={stylePrompt} onChange={e => setStylePrompt(e.target.value)} placeholder="例如：不要太花俏，背景簡潔，文字清晰可讀…" rows={3}
                         style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
                       <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此提示詞會附加到每張投影片的圖片生成指令中</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-secondary)' }}>個人化指示（AI 記憶）</label>
+                      <textarea value={userCustomPrompt} onChange={e => { setUserCustomPrompt(e.target.value); localStorage.setItem('aiChatCustomPrompt', e.target.value); }} placeholder="例如：我是高中數學老師、偏好簡潔風格、公式請用 LaTeX…" rows={3}
+                        style={{ width: '100%', padding: '0.5rem', fontSize: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '0.3rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box' }} />
+                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>此指示會在每次對話中提供給 AI，讓 AI 記住你的偏好</span>
                     </div>
                     {(stylePrompt || fontFamily || mainColor || highlightColor || bgColor || specialMark) && (
                       <button onClick={() => { setStylePrompt(''); setFontFamily(''); setMainColor(''); setHighlightColor(''); setBgColor(''); setSpecialMark(''); }} style={{ padding: '0.3rem', fontSize: '0.68rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', cursor: 'pointer', background: 'var(--bg-secondary)', color: '#e74c3c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
