@@ -1780,7 +1780,7 @@ export const ProjectEditor: React.FC = () => {
                     <img src={globalReference} alt="Ref" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <button onClick={() => { setShowShareModal(true); setShareLabel(''); generateShareLabel(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }} title="分享模板到社群"><Share2 size={11}/> 分享</button>
+                    <button onClick={() => { setShowShareModal(true); setShareLabel(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }} title="分享模板到社群"><Share2 size={11}/> 分享</button>
                     <button onClick={() => setGlobalReference(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.7rem' }}><X size={11}/> 移除</button>
                   </div>
                 </div>
@@ -2168,8 +2168,13 @@ export const ProjectEditor: React.FC = () => {
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>模板名稱</label>
-              <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder="例：極簡商務風、科技藍白風格"
-                style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.88rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input value={shareLabel} onChange={e => setShareLabel(e.target.value)} placeholder="例：極簡商務風、科技藍白風格"
+                  style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.88rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+                <button onClick={generateShareLabel} title="AI 自動命名" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '34px', height: '34px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-color)', cursor: 'pointer' }}>
+                  <Sparkles size={16} />
+                </button>
+              </div>
             </div>
 
             {globalReference && (
