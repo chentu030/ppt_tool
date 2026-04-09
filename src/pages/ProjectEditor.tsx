@@ -87,9 +87,10 @@ export const ProjectEditor: React.FC = () => {
   const defaultPromptRef = useRef<string>('');
   const activeSlideIdRef = useRef<string>('');
 
-  // Progressive HQ preview: lazy-load original-quality images in background
-  const [hqPreviewUrls, setHqPreviewUrls] = useState<Map<string, string>>(new Map());
+  // Progressive HQ preview: ref avoids re-rendering 200+ grid cards on every HQ load
+  const hqPreviewUrls = useRef<Map<string, string>>(new Map());
   const hqLoadingSet = useRef<Set<string>>(new Set());
+  const [activeHqTick, setActiveHqTick] = useState(0); // bump to re-render canvas when active slide HQ loads
 
   // Local-first generation state
   const [pendingImages, setPendingImages] = useState<Map<string, string>>(new Map());
@@ -268,9 +269,10 @@ export const ProjectEditor: React.FC = () => {
   // Grid/thumbnails: use compressed images to avoid scroll lag with many slides
   const getPreviewSrc = (slideId: string, slide: Slide): string | null =>
     pendingImages.get(slideId) || slide.generatedImage || slide.originalImage || null;
-  // Editor canvas: use HQ for sharp preview
+  // Editor canvas: use HQ for sharp preview (activeHqTick forces re-read of ref when HQ loads)
   const getCanvasSrc = (slideId: string, slide: Slide): string | null =>
-    pendingImages.get(slideId) || slide.generatedImage || hqPreviewUrls.get(slideId) || slide.originalImage || null;
+    pendingImages.get(slideId) || slide.generatedImage || hqPreviewUrls.current.get(slideId) || slide.originalImage || null;
+  void activeHqTick; // ensure React re-renders when active HQ loads
 
   // Initialize text history for text-only slides
   React.useEffect(() => {
@@ -368,7 +370,8 @@ export const ProjectEditor: React.FC = () => {
       const jumpTo = (nextSlide: Slide) => {
         // Instant canvas update before React re-renders 200+ cards
         if (imgRef.current) {
-          const src = pendingImages.get(nextSlide.id) || nextSlide.generatedImage || nextSlide.originalImage;
+          const src = pendingImages.get(nextSlide.id) || nextSlide.generatedImage
+            || hqPreviewUrls.current.get(nextSlide.id) || nextSlide.originalImage;
           if (src) imgRef.current.src = src;
         }
         setActiveSlideId(nextSlide.id);
@@ -411,7 +414,7 @@ export const ProjectEditor: React.FC = () => {
   activeSlideIdRef.current = activeSlideId;
   retryModal429Ref.current = retryModal429;
 
-  // Lazy-load HQ preview images: active slide first, then expand outward
+  // Lazy-load HQ preview images: active slide first, then nearby
   const hqQueueRef = useRef<string[]>([]);
   const hqActiveCount = useRef(0);
   const HQ_CONCURRENCY = 2;
@@ -426,7 +429,9 @@ export const ProjectEditor: React.FC = () => {
       hqActiveCount.current++;
       const img = new Image();
       img.onload = () => {
-        setHqPreviewUrls(prev => { const next = new Map(prev); next.set(slideId, hqSrc); return next; });
+        hqPreviewUrls.current.set(slideId, hqSrc);
+        // Only trigger re-render if this is the active slide's HQ
+        if (slideId === activeSlideIdRef.current) setActiveHqTick(t => t + 1);
         hqActiveCount.current--;
         loadNextHQ();
       };
@@ -436,13 +441,16 @@ export const ProjectEditor: React.FC = () => {
   }, [slides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
+    // If active slide already has HQ in ref but canvas hasn't shown it yet, trigger render
+    if (activeSlideId && hqPreviewUrls.current.has(activeSlideId)) {
+      setActiveHqTick(t => t + 1);
+    }
     const activeIdx = slides.findIndex(s => s.id === activeSlideId);
-    // Build queue sorted by distance from active slide
     const candidates = slides
       .map((s, i) => ({ id: s.id, dist: activeIdx >= 0 ? Math.abs(i - activeIdx) : i }))
       .filter(c => {
         const s = slides.find(sl => sl.id === c.id);
-        return s?.originalImageHQ && !hqPreviewUrls.has(c.id) && !hqLoadingSet.current.has(c.id);
+        return s?.originalImageHQ && !hqPreviewUrls.current.has(c.id) && !hqLoadingSet.current.has(c.id);
       })
       .sort((a, b) => a.dist - b.dist)
       .map(c => c.id);
