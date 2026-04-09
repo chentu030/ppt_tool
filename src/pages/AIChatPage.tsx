@@ -142,6 +142,7 @@ export const AIChatPage: React.FC = () => {
   const [chatGrounding, setChatGrounding] = useState(false);
   const [userCustomPrompt, setUserCustomPrompt] = useState(() => localStorage.getItem('aiChatCustomPrompt') || '');
   const [showMemoryPopover, setShowMemoryPopover] = useState(false);
+  const [isDragOverChat, setIsDragOverChat] = useState(false);
   const [pendingSlideUpdate, setPendingSlideUpdate] = useState<{ msgId: string; ops: SlideOperation[] } | null>(null);
   const [slidePlanVisible, setSlidePlanVisible] = useState(false);
   const [slidePlanHeight, setSlidePlanHeight] = useState(45);
@@ -414,6 +415,19 @@ export const AIChatPage: React.FC = () => {
     }
     setAttachments(prev => [...prev, ...arr]);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleChatFileDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOverChat(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const arr: Attachment[] = [];
+    for (const f of files) {
+      if (f.size > 20 * 1024 * 1024) { showAlert(`${f.name} 超過 20MB，請選擇較小的檔案。`, '檔案過大'); continue; }
+      arr.push({ name: f.name, mimeType: f.type || 'application/octet-stream', dataUrl: await fileToDataUrl(f) });
+    }
+    setAttachments(prev => [...prev, ...arr]);
   };
 
   const urlToBase64 = async (url: string): Promise<string> => {
@@ -1003,7 +1017,19 @@ export const AIChatPage: React.FC = () => {
       </div>
 
       {/* ── Center: Chat ── */}
-      <div data-chat-center="1" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-secondary)' }}>
+      <div data-chat-center="1" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--bg-secondary)', position: 'relative' }}
+        onDragOver={e => { e.preventDefault(); setIsDragOverChat(true); }}
+        onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverChat(false); }}
+        onDrop={handleChatFileDrop}>
+        {isDragOverChat && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 9999, background: 'rgba(52,152,219,0.12)', border: '3px dashed var(--accent-color)', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <div style={{ background: 'var(--bg-primary)', padding: '1.5rem 2.5rem', borderRadius: '1rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📎</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>拖放檔案到對話</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>支援圖片、文件等各種格式</div>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 1rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0, background: 'var(--bg-primary)' }}>
           <h2 style={{ margin: 0, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
             <Sparkles size={18} color="var(--accent-color)" /> AI 協作

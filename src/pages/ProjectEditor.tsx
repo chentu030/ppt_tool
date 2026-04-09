@@ -100,6 +100,7 @@ export const ProjectEditor: React.FC = () => {
   const imageHistoriesRef = useRef<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [isDragOverPage, setIsDragOverPage] = useState(false);
   const [globalExtraPrompt, setGlobalExtraPrompt] = useState('');
   const [textHistories, setTextHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [textSaving, setTextSaving] = useState(false);
@@ -1029,6 +1030,62 @@ export const ProjectEditor: React.FC = () => {
       setSavingProgress(null);
     }
   };
+  const handlePPTUpload = async (file: File) => {
+    if (!file || !id) return;
+    let exactTotalSlides = 1;
+    try { const zip = new JSZip(); const content = await zip.loadAsync(file); const sf = Object.keys(content.files).filter(n => n.startsWith('ppt/slides/slide') && n.endsWith('.xml')); if (sf.length > 0) exactTotalSlides = sf.length; } catch(err) { console.warn('slide count fail'); }
+    setParsingProgress({ current: 0, total: exactTotalSlides });
+    const progressInterval = setInterval(() => { setParsingProgress(prev => { if (!prev) return prev; const next = prev.current + 1; return { ...prev, current: next >= prev.total ? prev.total - 1 : next }; }); }, 2000);
+    try {
+      const formData = new FormData(); formData.append('file', file);
+      const backendUrl = localStorage.getItem('backendUrl') || import.meta.env.VITE_BACKEND_URL || '';
+      const res = await fetch(`${backendUrl}/upload-ppt/`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Failed to parse PPT.');
+      const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
+      if (totalSlidesReturned === 0) { showAlert('找不到投影片，請確認 PPT 檔案格式正確。', '錯誤'); clearInterval(progressInterval); setParsingProgress(null); return; }
+      clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
+      await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
+      setSavingProgress({ current: 0, total: totalSlidesReturned });
+      const newSlideIds: string[] = []; const baseTimestamp = Date.now();
+      const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
+      const UPLOAD_CONCURRENCY = 4;
+      for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
+        const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
+        const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
+        allUploadResults.push(...chunkRes);
+        setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
+      }
+      const fb = writeBatch(db);
+      allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+      await fb.commit();
+      setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+    } catch (err) { console.error(err); showAlert('儲存 PPT 時發生錯誤。', '錯誤'); }
+    finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); }
+  };
+
+  const handleFileDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOverPage(false);
+    if (parsingProgress || savingProgress || !id) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const pptFiles = files.filter(f => f.name.endsWith('.pptx'));
+    const textFiles = files.filter(f => f.name.endsWith('.docx') || f.name.endsWith('.txt'));
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    // Process PPT files sequentially
+    for (const f of pptFiles) await handlePPTUpload(f);
+    // Process text files sequentially
+    for (const f of textFiles) await handleTextFileProcess(f);
+    // Process images in batch
+    if (imageFiles.length > 0) {
+      const dt = new DataTransfer();
+      imageFiles.forEach(f => dt.items.add(f));
+      await handleImageUpload(dt.files);
+    }
+    const skipped = files.length - pptFiles.length - textFiles.length - imageFiles.length;
+    if (skipped > 0) showToast(`已跳過 ${skipped} 個不支援的檔案`, 'info');
+  };
+
   const handleImageUpload = async (fileList: FileList) => {
     const files = Array.from(fileList); // snapshot — FileList is a live ref cleared when input resets
     if (!id || files.length === 0) return;
@@ -1418,7 +1475,19 @@ export const ProjectEditor: React.FC = () => {
 
 
   return (
-    <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column', position: 'relative' }}
+      onDragOver={e => { e.preventDefault(); setIsDragOverPage(true); }}
+      onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverPage(false); }}
+      onDrop={handleFileDrop}>
+      {isDragOverPage && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 9999, background: 'rgba(52,152,219,0.12)', border: '3px dashed var(--accent-color)', borderRadius: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ background: 'var(--bg-primary)', padding: '1.5rem 2.5rem', borderRadius: '1rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📥</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>拖放檔案到這裡</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>支援 PPT、Word、TXT、圖片</div>
+          </div>
+        </div>
+      )}
       {showTemplateGallery && (
         <TemplateGalleryModal
           currentExtraPrompt={globalExtraPrompt}
@@ -1722,37 +1791,8 @@ export const ProjectEditor: React.FC = () => {
                 )}
                 <input type="file" accept=".pptx" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
                   const file = e.target.files?.[0];
-                  if (!file || !id) return;
-                  let exactTotalSlides = 1;
-                  try { const zip = new JSZip(); const content = await zip.loadAsync(file); const sf = Object.keys(content.files).filter(n => n.startsWith('ppt/slides/slide') && n.endsWith('.xml')); if (sf.length > 0) exactTotalSlides = sf.length; } catch(err) { console.warn("slide count fail"); }
-                  setParsingProgress({ current: 0, total: exactTotalSlides });
-                  const progressInterval = setInterval(() => { setParsingProgress(prev => { if (!prev) return prev; const next = prev.current + 1; return { ...prev, current: next >= prev.total ? prev.total - 1 : next }; }); }, 2000);
-                  try {
-                    const formData = new FormData(); formData.append("file", file);
-                    const backendUrl = localStorage.getItem("backendUrl") || import.meta.env.VITE_BACKEND_URL || '';
-                    const res = await fetch(`${backendUrl}/upload-ppt/`, { method: "POST", body: formData });
-                    if (!res.ok) throw new Error("Failed to parse PPT.");
-                    const data = await res.json(); const base64images = data.slides as string[]; const totalSlidesReturned = base64images.length;
-                    if (totalSlidesReturned === 0) { showAlert('找不到投影片，請確認 PPT 檔案格式正確。', '錯誤'); clearInterval(progressInterval); setParsingProgress(null); return; }
-                    clearInterval(progressInterval); setParsingProgress({ current: totalSlidesReturned, total: totalSlidesReturned });
-                    await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
-                    setSavingProgress({ current: 0, total: totalSlidesReturned });
-                    const newSlideIds: string[] = []; const baseTimestamp = Date.now();
-                    setSavingProgress({ current: 0, total: totalSlidesReturned });
-                    const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
-                    const UPLOAD_CONCURRENCY = 4;
-                    for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
-                      const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
-                      const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
-                      allUploadResults.push(...chunkRes);
-                      setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
-                    }
-                    const fb = writeBatch(db);
-                    allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPrompt, status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
-                    await fb.commit();
-                    setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
-                  } catch (err) { console.error(err); showAlert('儲存 PPT 時發生錯誤。', '錯誤'); }
-                  finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); e.target.value = ''; }
+                  if (file) await handlePPTUpload(file);
+                  e.target.value = '';
                 }} />
               </label>
               <button
