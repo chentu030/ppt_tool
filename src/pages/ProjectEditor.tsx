@@ -359,18 +359,25 @@ export const ProjectEditor: React.FC = () => {
     }
   }, [activeSlideId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keyboard navigation between slides
+  // Keyboard navigation between slides — imperative img update for instant feedback
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const idx = slides.findIndex(s => s.id === activeSlideId);
+      const jumpTo = (nextSlide: Slide) => {
+        // Instant canvas update before React re-renders 200+ cards
+        if (imgRef.current) {
+          const src = pendingImages.get(nextSlide.id) || nextSlide.generatedImage || nextSlide.originalImage;
+          if (src) imgRef.current.src = src;
+        }
+        setActiveSlideId(nextSlide.id);
+        React.startTransition(() => setSelectedSlides(new Set([nextSlide.id])));
+      };
       if (e.key === 'ArrowLeft' && idx > 0) {
-        const prevId = slides[idx - 1].id;
-        setActiveSlideId(prevId); setSelectedSlides(new Set([prevId]));
+        jumpTo(slides[idx - 1]);
       } else if ((e.key === 'ArrowRight' || e.key === 'Enter') && idx >= 0 && idx < slides.length - 1) {
-        const nextId = slides[idx + 1].id;
-        setActiveSlideId(nextId); setSelectedSlides(new Set([nextId]));
+        jumpTo(slides[idx + 1]);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
