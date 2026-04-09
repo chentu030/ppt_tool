@@ -1127,6 +1127,7 @@ export const ProjectEditor: React.FC = () => {
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOverPage(false);
+    if (draggingId) return; // internal slide reorder — ignore
     if (parsingProgress || savingProgress || !id) return;
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
@@ -1552,7 +1553,7 @@ export const ProjectEditor: React.FC = () => {
 
   return (
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column', position: 'relative' }}
-      onDragOver={e => { e.preventDefault(); setIsDragOverPage(true); }}
+      onDragOver={e => { e.preventDefault(); if (!draggingId) setIsDragOverPage(true); }}
       onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverPage(false); }}
       onDrop={handleFileDrop}>
       {isDragOverPage && (
