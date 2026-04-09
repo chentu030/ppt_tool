@@ -265,8 +265,11 @@ export const ProjectEditor: React.FC = () => {
 
   const activeSlide = slides.find(s => s.id === activeSlideId);
 
-  // Best preview image: pending (session) > generated > HQ original (lazy-loaded) > compressed original
+  // Grid/thumbnails: use compressed images to avoid scroll lag with many slides
   const getPreviewSrc = (slideId: string, slide: Slide): string | null =>
+    pendingImages.get(slideId) || slide.generatedImage || slide.originalImage || null;
+  // Editor canvas: use HQ for sharp preview
+  const getCanvasSrc = (slideId: string, slide: Slide): string | null =>
     pendingImages.get(slideId) || slide.generatedImage || hqPreviewUrls.get(slideId) || slide.originalImage || null;
 
   // Initialize text history for text-only slides
@@ -2278,7 +2281,7 @@ export const ProjectEditor: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <img ref={imgRef} src={(activeSlideId && activeSlide ? getPreviewSrc(activeSlideId, activeSlide) : undefined) || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
+                  <img ref={imgRef} src={(activeSlideId && activeSlide ? getCanvasSrc(activeSlideId, activeSlide) : undefined) || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
                   <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 1, mixBlendMode: 'normal', zIndex: 10 }} />
                   {activeSlide?.status === 'generating' && (
                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-primary)', padding: '1rem 2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', fontWeight: 500, zIndex: 20 }}>
