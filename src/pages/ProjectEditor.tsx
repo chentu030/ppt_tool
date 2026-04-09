@@ -50,7 +50,7 @@ export const ProjectEditor: React.FC = () => {
 
   const defaultPrompt = useAdvancedSettings
     ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
-    : `幫我重新繪製這張投影片(直接畫，用nano banana)，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
+    : `請根據提供的原始投影片圖片進行修改(用nano banana直接輸出圖片)，保持原始版面配置、比例和所有元素位置不變${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
   const [parsingProgress, setParsingProgress] = useState<{current: number, total: number} | null>(null);
@@ -1380,7 +1380,7 @@ export const ProjectEditor: React.FC = () => {
           const finalPrompt = isLocalModify
             ? (capturedPrompt || 'Edit the masked area.')
             : (slideTextContent + bgColorPrompt + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
-          const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : aspectRatio;
+          const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : (useAdvancedSettings ? aspectRatio : '');
           // Auto-retry every 5 s on 429/499 for up to 60 s before escalating
           let generatedImg = '';
           {

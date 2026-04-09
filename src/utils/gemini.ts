@@ -263,14 +263,14 @@ export const generateImageDesign = async (
     }
   }
 
+  const imageConfig: Record<string, string> = { imageSize: resolution };
+  if (aspectRatio) imageConfig.aspectRatio = aspectRatio;
+
   const requestBody = {
     contents: [{ role: 'user', parts }],
     generationConfig: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio,
-        imageSize: resolution
-      }
+      imageConfig
     }
   };
 
