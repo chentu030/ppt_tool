@@ -87,6 +87,10 @@ export const ProjectEditor: React.FC = () => {
   const defaultPromptRef = useRef<string>('');
   const activeSlideIdRef = useRef<string>('');
 
+  // Progressive HQ preview: lazy-load original-quality images in background
+  const [hqPreviewUrls, setHqPreviewUrls] = useState<Map<string, string>>(new Map());
+  const hqLoadingSet = useRef<Set<string>>(new Set());
+
   // Local-first generation state
   const [pendingImages, setPendingImages] = useState<Map<string, string>>(new Map());
   const [backedUpIds, setBackedUpIds] = useState<Set<string>>(new Set());
@@ -261,6 +265,10 @@ export const ProjectEditor: React.FC = () => {
 
   const activeSlide = slides.find(s => s.id === activeSlideId);
 
+  // Best preview image: pending (session) > generated > HQ original (lazy-loaded) > compressed original
+  const getPreviewSrc = (slideId: string, slide: Slide): string | null =>
+    pendingImages.get(slideId) || slide.generatedImage || hqPreviewUrls.get(slideId) || slide.originalImage || null;
+
   // Initialize text history for text-only slides
   React.useEffect(() => {
     if (!activeSlideId) return;
@@ -392,6 +400,21 @@ export const ProjectEditor: React.FC = () => {
   defaultPromptRef.current = defaultPrompt;
   activeSlideIdRef.current = activeSlideId;
   retryModal429Ref.current = retryModal429;
+
+  // Lazy-load HQ preview images in background
+  React.useEffect(() => {
+    slides.forEach(slide => {
+      const hqSrc = slide.originalImageHQ;
+      if (!hqSrc || hqLoadingSet.current.has(slide.id) || hqPreviewUrls.has(slide.id)) return;
+      hqLoadingSet.current.add(slide.id);
+      const img = new Image();
+      img.onload = () => {
+        setHqPreviewUrls(prev => { const next = new Map(prev); next.set(slide.id, hqSrc); return next; });
+      };
+      img.onerror = () => { hqLoadingSet.current.delete(slide.id); };
+      img.src = hqSrc;
+    });
+  }, [slides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Post-generate auto-retry logic — always retry every 5s until success
   React.useEffect(() => {
@@ -1283,10 +1306,11 @@ export const ProjectEditor: React.FC = () => {
           localPromptRef.current = '';
           localAspectRatioRef.current = '';
           const isLocalModify = !!capturedPrompt;
-          // Always fetch base as proper data URL (fetchImageAsBase64 handles data: URLs as-is)
+          // Prefer HQ original for better generation quality, fall back to compressed
+          const origSrc = slide.originalImageHQ || slide.originalImage;
           const base64Original = capturedBase
             ? await fetchImageAsBase64(capturedBase)
-            : (slide.originalImage ? await fetchImageAsBase64(slide.originalImage) : null);
+            : (origSrc ? await fetchImageAsBase64(origSrc) : null);
           const base64Ref = (!isLocalModify && globalReference) ? await fetchImageAsBase64(globalReference) : null;
           // For local modify: strokes are already baked into capturedBase, no separate mask needed
           let base64Mask: string | null = null;
@@ -1820,8 +1844,8 @@ export const ProjectEditor: React.FC = () => {
                   onDragEnd={handleDragEnd}
                   style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: `2px solid ${dragOverId === slide.id ? '#f59e0b' : activeSlideId === slide.id ? 'var(--accent-color)' : selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)'}`, cursor: 'grab', overflow: 'hidden', transition: 'border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease', boxShadow: dragOverId === slide.id ? '0 0 0 2px #f59e0b' : activeSlideId === slide.id ? '0 0 0 1px var(--accent-color)' : 'var(--shadow-sm)', opacity: draggingId === slide.id ? 0.4 : 1 }}>
                   <div style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (
-                      <img src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {getPreviewSrc(slide.id, slide) ? (
+                      <img src={getPreviewSrc(slide.id, slide)!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : slide.prompt ? (
                       <div style={{ padding: '0.4rem 0.5rem', width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '2px', backgroundColor: 'var(--bg-secondary)' }}>
                         <FileText size={10} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />
@@ -2135,7 +2159,7 @@ export const ProjectEditor: React.FC = () => {
                     </div>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', width: '20px' }}>{index + 1}</span>
                     <div style={{ flex: 1, aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {(pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage) ? (<img loading="lazy" src={pendingImages.get(slide.id) || slide.generatedImage || slide.originalImage!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
+                      {getPreviewSrc(slide.id, slide) ? (<img loading="lazy" src={getPreviewSrc(slide.id, slide)!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
                     </div>
                     <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}><Trash2 size={14} /></Button>
                   </div>
@@ -2221,7 +2245,7 @@ export const ProjectEditor: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <img ref={imgRef} src={(activeSlideId ? pendingImages.get(activeSlideId) : undefined) || activeSlide?.generatedImage || activeSlide?.originalImage || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
+                  <img ref={imgRef} src={(activeSlideId && activeSlide ? getPreviewSrc(activeSlideId, activeSlide) : undefined) || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
                   <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 1, mixBlendMode: 'normal', zIndex: 10 }} />
                   {activeSlide?.status === 'generating' && (
                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-primary)', padding: '1rem 2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', fontWeight: 500, zIndex: 20 }}>
