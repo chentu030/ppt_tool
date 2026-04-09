@@ -41,13 +41,16 @@ export const ProjectEditor: React.FC = () => {
   const [specialMark, setSpecialMark] = useState<string>('');
   const [backgroundColor, setBackgroundColor] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [useAdvancedSettings, setUseAdvancedSettings] = useState(true);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
 
   const [slides, setSlides] = useState<Slide[]>([]);
   const [activeSlideId, setActiveSlideId] = useState<string>('');
   const [globalReference, setGlobalReference] = useState<string | null>(null);
 
-  const defaultPrompt = `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
+  const defaultPrompt = useAdvancedSettings
+    ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
+    : `幫我重新繪製這張投影片(直接畫，用nano banana)，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
   const [parsingProgress, setParsingProgress] = useState<{current: number, total: number} | null>(null);
@@ -143,6 +146,7 @@ export const ProjectEditor: React.FC = () => {
   const localBaseDataRef = useRef<string | null>(null);
   const localPromptRef = useRef<string>('');
   const localAspectRatioRef = useRef<string>('');
+  const localOverrideSlideIdsRef = useRef<string[] | null>(null);
 
   const getAspectRatioString = (w: number, h: number): string => {
     const r = w / h;
@@ -176,6 +180,7 @@ export const ProjectEditor: React.FC = () => {
       if (s.highlightColor) setHighlightColor(s.highlightColor);
       if (s.specialMark !== undefined) setSpecialMark(s.specialMark);
       if (s.backgroundColor !== undefined) setBackgroundColor(s.backgroundColor);
+      if (s.useAdvancedSettings !== undefined) setUseAdvancedSettings(s.useAdvancedSettings);
     } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -196,8 +201,8 @@ export const ProjectEditor: React.FC = () => {
   // Persist advanced settings per-project so each project has independent settings
   React.useEffect(() => {
     if (!id) return;
-    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor }));
-  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor]);
+    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings }));
+  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings]);
 
   // Build a localStorage key scoped to the current API channel + key so different users don't clash
   const getGeneratingKey = () => {
@@ -1138,9 +1143,10 @@ export const ProjectEditor: React.FC = () => {
     if (!id) return;
     // In auto-retry mode: only retry the previously-failed slides, skip all other checks
     const isAutoRetry = skipRefCheck && !!autoRetryConfigRef.current;
-    if (!isAutoRetry) {
+    const isLocalModifyOverride = !!localOverrideSlideIdsRef.current;
+    if (!isAutoRetry && !isLocalModifyOverride) {
       if (selectedSlides.size === 0) { showAlert('請先選取至少一張投影片。', '提示'); return; }
-      if (!skipRefCheck && !globalReference) { showAlert('請先上傳風格參考圖片才能開始生成。', '提示'); return; }
+      if (!skipRefCheck && !globalExtraPrompt.trim()) { showAlert('請先輸入額外提示詞再開始生成。', '提示'); return; }
       const hasContent = Array.from(selectedSlides).some(sid => {
         const s = slides.find(sl => sl.id === sid);
         return s?.originalImage || s?.prompt;
@@ -1151,9 +1157,12 @@ export const ProjectEditor: React.FC = () => {
     const abort = new AbortController();
     generateAbortController.current = abort;
     // Auto-retry: only process the slides that actually failed last time
+    // Local modify override: use ref-based slide IDs to avoid stale closure
+    const localOverride = localOverrideSlideIdsRef.current;
+    localOverrideSlideIdsRef.current = null;
     const slideIds = isAutoRetry
       ? [...autoRetryConfigRef.current!.toRetrySlides]
-      : Array.from(selectedSlides);
+      : localOverride || Array.from(selectedSlides);
     const total = slideIds.length;
     setGenerateProgress({ current: 0, total });
     setIsGenerating(true);
@@ -1531,8 +1540,8 @@ export const ProjectEditor: React.FC = () => {
               </div>
 
               <div>
-                <p style={sl}>進階設定</p>
-                <div style={{ ...bx, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1rem', fontSize: '0.82rem' }}>
+                <p style={sl}>進階設定 {!useAdvancedSettings && <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 400 }}>（未啟用）</span>}</p>
+                <div style={{ ...bx, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem 1rem', fontSize: '0.82rem', opacity: useAdvancedSettings ? 1 : 0.4 }}>
                   <span><strong>比例：</strong>{aspectRatio}</span>
                   <span><strong>解析度：</strong>{resolution}</span>
                   <span><strong>字體：</strong>{fontFamily}</span>
@@ -1855,7 +1864,7 @@ export const ProjectEditor: React.FC = () => {
               <textarea
                 value={globalExtraPrompt}
                 onChange={e => setGlobalExtraPrompt(e.target.value)}
-                placeholder="額外指令（選填）"
+                placeholder="輸入提示詞來引導 AI 生成投影片…"
                 rows={6}
                 style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.3rem', outline: 'none', fontSize: '0.75rem', color: 'var(--text-primary)', padding: '0.4rem 0.5rem', resize: 'vertical', fontFamily: 'inherit' }}
               />
@@ -1867,8 +1876,15 @@ export const ProjectEditor: React.FC = () => {
               const selectS: React.CSSProperties = { ...inputS, cursor: 'pointer' };
               return (
                 <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>進階設定</span>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>進階設定</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                      <input type="checkbox" checked={useAdvancedSettings} onChange={e => setUseAdvancedSettings(e.target.checked)}
+                        style={{ accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
+                      套用
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', opacity: useAdvancedSettings ? 1 : 0.4, pointerEvents: useAdvancedSettings ? 'auto' : 'none' }}>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
                       <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
@@ -1882,6 +1898,7 @@ export const ProjectEditor: React.FC = () => {
                       </select>
                     </div>
                   </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', opacity: useAdvancedSettings ? 1 : 0.4, pointerEvents: useAdvancedSettings ? 'auto' : 'none' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                     <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>字體</span>
                     <input style={inputS} value={fontFamily} onChange={e => setFontFamily(e.target.value)} placeholder="Noto Sans" />
@@ -1912,15 +1929,16 @@ export const ProjectEditor: React.FC = () => {
                     <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
                     <input style={inputS} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
                   </div>
+                  </div>
                 </div>
               );
             })()}
 
             {/* 5. 開始生成 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: 'auto' }}>
-              <div style={{ position: 'relative' }} title={!globalReference ? '請先上傳風格參考圖' : ''}>
-                <button onClick={() => setShowGenerateConfirmModal(true)} disabled={isGenerating || !globalReference || !!autoRetryStatus}
-                  style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', fontWeight: 700, border: 'none', borderRadius: '0.3rem', cursor: (!globalReference || !!autoRetryStatus) ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', opacity: (!globalReference || !!autoRetryStatus) ? 0.5 : 1 }}>
+              <div style={{ position: 'relative' }} title={!globalExtraPrompt.trim() ? '請先輸入額外提示詞' : ''}>
+                <button onClick={() => setShowGenerateConfirmModal(true)} disabled={isGenerating || !globalExtraPrompt.trim() || !!autoRetryStatus}
+                  style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', fontWeight: 700, border: 'none', borderRadius: '0.3rem', cursor: (!globalExtraPrompt.trim() || !!autoRetryStatus) ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', opacity: (!globalExtraPrompt.trim() || !!autoRetryStatus) ? 0.5 : 1 }}>
                   <Sparkles size={14} /> {generateProgress ? `生成中 ${generateProgress.current}/${generateProgress.total}` : '開始生成'}
                 </button>
               </div>
@@ -2188,11 +2206,11 @@ export const ProjectEditor: React.FC = () => {
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; setSelectedSlides(new Set([activeSlideId])); setTimeout(() => handleGenerate(true), 0); } }}
+                  onClick={() => { if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
@@ -2238,8 +2256,8 @@ export const ProjectEditor: React.FC = () => {
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>進階設定</label>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexWrap: 'wrap', gap: '0.3rem 0.8rem' }}>
+              <label style={{ fontSize: '0.82rem', fontWeight: 600 }}>進階設定 {!useAdvancedSettings && <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 400 }}>（未啟用）</span>}</label>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'flex', flexWrap: 'wrap', gap: '0.3rem 0.8rem', opacity: useAdvancedSettings ? 1 : 0.4 }}>
                 <span>字體：{fontFamily}</span><span>主色：{mainColor}</span><span>重點色：{highlightColor}</span>
                 {specialMark && <span>標記：{specialMark}</span>}
                 {backgroundColor && <span>背景色：{backgroundColor}</span>}
