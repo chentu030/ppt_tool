@@ -1060,11 +1060,14 @@ export const ProjectEditor: React.FC = () => {
         allResults.push(...chunkRes);
         setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
       }
-      const fb = writeBatch(db);
-      allResults.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
-      await fb.commit();
+      const BATCH_SIZE = 10;
+      for (let bi = 0; bi < allResults.length; bi += BATCH_SIZE) {
+        const chunk = allResults.slice(bi, bi + BATCH_SIZE);
+        const fb = writeBatch(db);
+        chunk.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+        await fb.commit();
+      }
       setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
-      // Deferred HQ uploads in background
       const projectId = id as string;
       allResults.forEach(({ newId, rawData }) => {
         uploadHQToStorage(projectId, newId, 'originalImage', rawData)
@@ -1110,9 +1113,13 @@ export const ProjectEditor: React.FC = () => {
         allResults.push(...chunkRes);
         setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, base64images.length), total: base64images.length });
       }
-      const fb = writeBatch(db);
-      allResults.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
-      await fb.commit();
+      const BATCH_SIZE = 10;
+      for (let bi = 0; bi < allResults.length; bi += BATCH_SIZE) {
+        const bchunk = allResults.slice(bi, bi + BATCH_SIZE);
+        const fb = writeBatch(db);
+        bchunk.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+        await fb.commit();
+      }
       setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
       const projectId = id as string;
       allResults.forEach(({ newId, rawData }) => {
@@ -1173,17 +1180,21 @@ export const ProjectEditor: React.FC = () => {
         completed += chunk.length;
         setSavingProgress({ current: completed, total: files.length });
       }
-      // Batch write to Firestore (fast — compressed data only)
-      const fb = writeBatch(db);
-      slideData.forEach(({ newId, imageUrl, idx }) => {
-        fb.set(doc(db, 'projects', id as string, 'slides', newId), {
-          originalImage: imageUrl, originalImageHQ: null,
-          generatedImage: null, generatedImageHQ: null, maskImage: null,
-          prompt: dp, status: 'draft',
-          createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000,
+      // Batch write to Firestore in chunks of 10 to stay under ~10MB payload limit
+      const BATCH_SIZE = 10;
+      for (let bi = 0; bi < slideData.length; bi += BATCH_SIZE) {
+        const batchChunk = slideData.slice(bi, bi + BATCH_SIZE);
+        const fb = writeBatch(db);
+        batchChunk.forEach(({ newId, imageUrl, idx }) => {
+          fb.set(doc(db, 'projects', id as string, 'slides', newId), {
+            originalImage: imageUrl, originalImageHQ: null,
+            generatedImage: null, generatedImageHQ: null, maskImage: null,
+            prompt: dp, status: 'draft',
+            createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000,
+          });
         });
-      });
-      await fb.commit();
+        await fb.commit();
+      }
       setSelectedSlides(new Set(newSlideIds));
       setActiveSlideId(newSlideIds[0]);
       // Deferred HQ uploads in background — don't block UI
