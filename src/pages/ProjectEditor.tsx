@@ -1052,20 +1052,76 @@ export const ProjectEditor: React.FC = () => {
       await new Promise(r => setTimeout(r, 600)); setParsingProgress(null);
       setSavingProgress({ current: 0, total: totalSlidesReturned });
       const newSlideIds: string[] = []; const baseTimestamp = Date.now();
-      const allUploadResults: {newId:string,imageUrl:string,hqUrl:string|null,idx:number}[] = [];
+      const allResults: {newId:string,imageUrl:string,rawData:string,idx:number}[] = [];
       const UPLOAD_CONCURRENCY = 4;
       for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
         const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
-        const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const [imageUrl, hqUrl] = await Promise.all([uploadImageToStorage(id as string, newId, 'originalImage', imgData), uploadHQToStorage(id as string, newId, 'originalImage', imgData)]); return { newId, imageUrl, hqUrl, idx }; }));
-        allUploadResults.push(...chunkRes);
+        const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_' + idx; newSlideIds.push(newId); const imageUrl = await uploadImageToStorage(id as string, newId, 'originalImage', imgData); return { newId, imageUrl, rawData: imgData, idx }; }));
+        allResults.push(...chunkRes);
         setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, totalSlidesReturned), total: totalSlidesReturned });
       }
       const fb = writeBatch(db);
-      allUploadResults.forEach(({ newId, imageUrl, hqUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: hqUrl || null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+      allResults.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
       await fb.commit();
       setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+      // Deferred HQ uploads in background
+      const projectId = id as string;
+      allResults.forEach(({ newId, rawData }) => {
+        uploadHQToStorage(projectId, newId, 'originalImage', rawData)
+          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          .catch(() => {});
+      });
     } catch (err) { console.error(err); showAlert('儲存 PPT 時發生錯誤。', '錯誤'); }
     finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); }
+  };
+
+  const handlePDFUpload = async (file: File) => {
+    if (!file || !id) return;
+    setParsingProgress({ current: 0, total: 1 });
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdfDoc.numPages;
+      setParsingProgress({ current: 0, total: totalPages });
+      const base64images: string[] = [];
+      for (let i = 1; i <= totalPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const scale = 2; // 2x for good quality
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d')!;
+        await page.render({ canvasContext: ctx, viewport } as any).promise;
+        base64images.push(canvas.toDataURL('image/jpeg', 0.92));
+        setParsingProgress({ current: i, total: totalPages });
+      }
+      if (base64images.length === 0) { showAlert('找不到頁面，請確認 PDF 檔案格式正確。', '錯誤'); setParsingProgress(null); return; }
+      await new Promise(r => setTimeout(r, 400)); setParsingProgress(null);
+      setSavingProgress({ current: 0, total: base64images.length });
+      const newSlideIds: string[] = []; const baseTimestamp = Date.now();
+      const allResults: {newId:string,imageUrl:string,rawData:string,idx:number}[] = [];
+      const UPLOAD_CONCURRENCY = 4;
+      for (let ci = 0; ci < base64images.length; ci += UPLOAD_CONCURRENCY) {
+        const chunk = base64images.slice(ci, ci + UPLOAD_CONCURRENCY);
+        const chunkRes = await Promise.all(chunk.map(async (imgData, j) => { const idx = ci + j; const newId = baseTimestamp.toString() + '_pdf_' + idx; newSlideIds.push(newId); const imageUrl = await uploadImageToStorage(id as string, newId, 'originalImage', imgData); return { newId, imageUrl, rawData: imgData, idx }; }));
+        allResults.push(...chunkRes);
+        setSavingProgress({ current: Math.min(ci + UPLOAD_CONCURRENCY, base64images.length), total: base64images.length });
+      }
+      const fb = writeBatch(db);
+      allResults.forEach(({ newId, imageUrl, idx }) => { fb.set(doc(db, 'projects', id as string, 'slides', newId), { originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null, prompt: defaultPromptRef.current || '', status: 'draft', createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000 }); });
+      await fb.commit();
+      setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+      const projectId = id as string;
+      allResults.forEach(({ newId, rawData }) => {
+        uploadHQToStorage(projectId, newId, 'originalImage', rawData)
+          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          .catch(() => {});
+      });
+    } catch (err) { console.error(err); showAlert('解析 PDF 時發生錯誤。', '錯誤'); }
+    finally { setParsingProgress(null); setSavingProgress(null); }
   };
 
   const handleFileDrop = async (e: React.DragEvent) => {
@@ -1075,56 +1131,67 @@ export const ProjectEditor: React.FC = () => {
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
     const pptFiles = files.filter(f => f.name.endsWith('.pptx'));
+    const pdfFiles = files.filter(f => f.name.endsWith('.pdf'));
     const textFiles = files.filter(f => f.name.endsWith('.docx') || f.name.endsWith('.txt'));
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
-    // Process PPT files sequentially
     for (const f of pptFiles) await handlePPTUpload(f);
-    // Process text files sequentially
+    for (const f of pdfFiles) await handlePDFUpload(f);
     for (const f of textFiles) await handleTextFileProcess(f);
-    // Process images in batch
     if (imageFiles.length > 0) {
       const dt = new DataTransfer();
       imageFiles.forEach(f => dt.items.add(f));
       await handleImageUpload(dt.files);
     }
-    const skipped = files.length - pptFiles.length - textFiles.length - imageFiles.length;
+    const skipped = files.length - pptFiles.length - pdfFiles.length - textFiles.length - imageFiles.length;
     if (skipped > 0) showToast(`已跳過 ${skipped} 個不支援的檔案`, 'info');
   };
 
   const handleImageUpload = async (fileList: FileList) => {
-    const files = Array.from(fileList); // snapshot — FileList is a live ref cleared when input resets
+    const files = Array.from(fileList);
     if (!id || files.length === 0) return;
     setSavingProgress({ current: 0, total: files.length });
     try {
       const baseTimestamp = Date.now();
-      const defaultPrompt = defaultPromptRef.current || '';
+      const dp = defaultPromptRef.current || '';
       const newSlideIds: string[] = [];
-      const fb = writeBatch(db);
-      for (let i = 0; i < files.length; i++) {
-        setSavingProgress({ current: i, total: files.length });
-        const file = files[i];
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        const imageUrl = await compressForFirestore(base64);
-        const newId = `${baseTimestamp}_img_${i}`;
-        const hqUrl = await uploadHQToStorage(id, newId, 'originalImage', base64);
-        newSlideIds.push(newId);
-        fb.set(doc(db, 'projects', id as string, 'slides', newId), {
-          originalImage: imageUrl,
-          originalImageHQ: hqUrl || null,
-          generatedImage: null, generatedImageHQ: null, maskImage: null,
-          prompt: defaultPrompt, status: 'draft',
-          createdAt: baseTimestamp + i, order: (baseTimestamp + i) * 1000,
-        });
+      const slideData: { newId: string; imageUrl: string; base64: string; idx: number }[] = [];
+      const CONCURRENCY = 4;
+      let completed = 0;
+      // Parallel compress with concurrency
+      for (let ci = 0; ci < files.length; ci += CONCURRENCY) {
+        const chunk = files.slice(ci, ci + CONCURRENCY);
+        const results = await Promise.all(chunk.map(async (file, j) => {
+          const idx = ci + j;
+          const base64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(file); });
+          const imageUrl = await compressForFirestore(base64);
+          const newId = `${baseTimestamp}_img_${idx}`;
+          return { newId, imageUrl, base64, idx };
+        }));
+        slideData.push(...results);
+        results.forEach(r => newSlideIds.push(r.newId));
+        completed += chunk.length;
+        setSavingProgress({ current: completed, total: files.length });
       }
+      // Batch write to Firestore (fast — compressed data only)
+      const fb = writeBatch(db);
+      slideData.forEach(({ newId, imageUrl, idx }) => {
+        fb.set(doc(db, 'projects', id as string, 'slides', newId), {
+          originalImage: imageUrl, originalImageHQ: null,
+          generatedImage: null, generatedImageHQ: null, maskImage: null,
+          prompt: dp, status: 'draft',
+          createdAt: baseTimestamp + idx, order: (baseTimestamp + idx) * 1000,
+        });
+      });
       await fb.commit();
-      setSavingProgress({ current: files.length, total: files.length });
       setSelectedSlides(new Set(newSlideIds));
       setActiveSlideId(newSlideIds[0]);
+      // Deferred HQ uploads in background — don't block UI
+      const projectId = id;
+      slideData.forEach(({ newId, base64 }) => {
+        uploadHQToStorage(projectId, newId, 'originalImage', base64)
+          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          .catch(() => {});
+      });
     } catch (err) {
       console.error(err);
       showAlert('上傳圖片時發生錯誤。', '錯誤');
@@ -1151,7 +1218,7 @@ export const ProjectEditor: React.FC = () => {
         const s = slides.find(sl => sl.id === sid);
         return s?.originalImage || s?.prompt;
       });
-      if (!hasContent) { showAlert('請先上傳 PPT、圖片或 Word/TXT 檔案再開始生成。', '提示'); return; }
+      if (!hasContent) { showAlert('請先上傳 PPT/PDF、圖片或 Word/TXT 檔案再開始生成。', '提示'); return; }
     }
 
     const abort = new AbortController();
@@ -1493,7 +1560,7 @@ export const ProjectEditor: React.FC = () => {
           <div style={{ background: 'var(--bg-primary)', padding: '1.5rem 2.5rem', borderRadius: '1rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📥</div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>拖放檔案到這裡</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>支援 PPT、Word、TXT、圖片</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>支援 PPT、PDF、Word、TXT、圖片</div>
           </div>
         </div>
       )}
@@ -1796,11 +1863,14 @@ export const ProjectEditor: React.FC = () => {
                 ) : savingProgress ? (
                   <><Sparkles size={13} style={{ animation: 'spin 2s linear infinite', color: 'var(--accent-color)' }} /> 儲存 {savingProgress.current}/{savingProgress.total}</>
                 ) : (
-                  <><Plus size={13} /> 上傳 PPT</>
+                  <><Plus size={13} /> 上傳 PPT/PDF</>
                 )}
-                <input type="file" accept=".pptx" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
+                <input type="file" accept=".pptx,.pdf" style={{ display: 'none' }} disabled={parsingProgress !== null || savingProgress !== null} onChange={async (e) => {
                   const file = e.target.files?.[0];
-                  if (file) await handlePPTUpload(file);
+                  if (file) {
+                    if (file.name.endsWith('.pdf')) await handlePDFUpload(file);
+                    else await handlePPTUpload(file);
+                  }
                   e.target.value = '';
                 }} />
               </label>

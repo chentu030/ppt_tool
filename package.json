@@ -16,6 +16,7 @@
     "jszip": "^3.10.1",
     "katex": "^0.16.44",
     "lucide-react": "^0.577.0",
+    "pdfjs-dist": "^5.6.205",
     "pptxgenjs": "^4.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
