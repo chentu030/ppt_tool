@@ -401,20 +401,45 @@ export const ProjectEditor: React.FC = () => {
   activeSlideIdRef.current = activeSlideId;
   retryModal429Ref.current = retryModal429;
 
-  // Lazy-load HQ preview images in background
-  React.useEffect(() => {
-    slides.forEach(slide => {
-      const hqSrc = slide.originalImageHQ;
-      if (!hqSrc || hqLoadingSet.current.has(slide.id) || hqPreviewUrls.has(slide.id)) return;
-      hqLoadingSet.current.add(slide.id);
+  // Lazy-load HQ preview images: active slide first, then expand outward
+  const hqQueueRef = useRef<string[]>([]);
+  const hqActiveCount = useRef(0);
+  const HQ_CONCURRENCY = 2;
+
+  const loadNextHQ = React.useCallback(() => {
+    while (hqActiveCount.current < HQ_CONCURRENCY && hqQueueRef.current.length > 0) {
+      const slideId = hqQueueRef.current.shift()!;
+      const slide = slides.find(s => s.id === slideId);
+      const hqSrc = slide?.originalImageHQ;
+      if (!hqSrc || hqLoadingSet.current.has(slideId)) continue;
+      hqLoadingSet.current.add(slideId);
+      hqActiveCount.current++;
       const img = new Image();
       img.onload = () => {
-        setHqPreviewUrls(prev => { const next = new Map(prev); next.set(slide.id, hqSrc); return next; });
+        setHqPreviewUrls(prev => { const next = new Map(prev); next.set(slideId, hqSrc); return next; });
+        hqActiveCount.current--;
+        loadNextHQ();
       };
-      img.onerror = () => { hqLoadingSet.current.delete(slide.id); };
+      img.onerror = () => { hqLoadingSet.current.delete(slideId); hqActiveCount.current--; loadNextHQ(); };
       img.src = hqSrc;
-    });
+    }
   }, [slides]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
+    const activeIdx = slides.findIndex(s => s.id === activeSlideId);
+    // Build queue sorted by distance from active slide
+    const candidates = slides
+      .map((s, i) => ({ id: s.id, dist: activeIdx >= 0 ? Math.abs(i - activeIdx) : i }))
+      .filter(c => {
+        const s = slides.find(sl => sl.id === c.id);
+        return s?.originalImageHQ && !hqPreviewUrls.has(c.id) && !hqLoadingSet.current.has(c.id);
+      })
+      .sort((a, b) => a.dist - b.dist)
+      .map(c => c.id);
+    if (candidates.length === 0) return;
+    hqQueueRef.current = candidates;
+    loadNextHQ();
+  }, [activeSlideId, slides, loadNextHQ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Post-generate auto-retry logic — always retry every 5s until success
   React.useEffect(() => {
@@ -898,18 +923,26 @@ export const ProjectEditor: React.FC = () => {
 
   const handleDrop = async (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    if (!draggingId || draggingId === targetId || !id) { setDraggingId(null); setDragOverId(null); return; }
-    const fromIdx = slides.findIndex(s => s.id === draggingId);
+    if (!draggingId || !id) { setDraggingId(null); setDragOverId(null); return; }
+    // Determine which slides to move: all selected if dragging a selected slide, else just the one
+    const movingIds = selectedSlides.has(draggingId) ? slides.filter(s => selectedSlides.has(s.id)).map(s => s.id) : [draggingId];
+    const movingSet = new Set(movingIds);
+    if (movingSet.has(targetId)) { setDraggingId(null); setDragOverId(null); return; }
     const toIdx = slides.findIndex(s => s.id === targetId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const reordered = [...slides];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
-    const batch = writeBatch(db);
-    reordered.forEach((slide, idx) => {
-      batch.update(doc(db, 'projects', id, 'slides', slide.id), { order: (idx + 1) * 1000 });
+    if (toIdx === -1) { setDraggingId(null); setDragOverId(null); return; }
+    // Remove moving slides, keeping their relative order
+    const remaining = slides.filter(s => !movingSet.has(s.id));
+    const movingSlides = slides.filter(s => movingSet.has(s.id));
+    // Insert before or after target based on original positions
+    const firstMovingIdx = slides.findIndex(s => movingSet.has(s.id));
+    const insertIdx = remaining.findIndex(s => s.id === targetId);
+    const insertAt = firstMovingIdx < toIdx ? insertIdx + 1 : insertIdx;
+    remaining.splice(insertAt, 0, ...movingSlides);
+    const fb = writeBatch(db);
+    remaining.forEach((slide, idx) => {
+      fb.update(doc(db, 'projects', id, 'slides', slide.id), { order: (idx + 1) * 1000 });
     });
-    await batch.commit();
+    await fb.commit();
     setDraggingId(null);
     setDragOverId(null);
   };
@@ -1842,7 +1875,7 @@ export const ProjectEditor: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, slide.id)}
                   onDrop={(e) => handleDrop(e, slide.id)}
                   onDragEnd={handleDragEnd}
-                  style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: `2px solid ${dragOverId === slide.id ? '#f59e0b' : activeSlideId === slide.id ? 'var(--accent-color)' : selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)'}`, cursor: 'grab', overflow: 'hidden', transition: 'border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease', boxShadow: dragOverId === slide.id ? '0 0 0 2px #f59e0b' : activeSlideId === slide.id ? '0 0 0 1px var(--accent-color)' : 'var(--shadow-sm)', opacity: draggingId === slide.id ? 0.4 : 1 }}>
+                  style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: `2px solid ${dragOverId === slide.id ? '#f59e0b' : activeSlideId === slide.id ? 'var(--accent-color)' : selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)'}`, cursor: 'grab', overflow: 'hidden', transition: 'border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease', boxShadow: dragOverId === slide.id ? '0 0 0 2px #f59e0b' : activeSlideId === slide.id ? '0 0 0 1px var(--accent-color)' : 'var(--shadow-sm)', opacity: draggingId && (slide.id === draggingId || (selectedSlides.has(draggingId) && selectedSlides.has(slide.id))) ? 0.4 : 1 }}>
                   <div style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                     {getPreviewSrc(slide.id, slide) ? (
                       <img src={getPreviewSrc(slide.id, slide)!} alt={`Slide ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
