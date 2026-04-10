@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { showAlert } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus, Upload } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus, Upload, Send, Paperclip, Loader, MessageSquare } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -12,7 +12,13 @@ import { db, auth, storage } from '../firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, compressForFirestore, uploadToDrive } from '../utils/storageHelper';
-import { getApiKey } from '../utils/gemini';
+import { getApiKey, chatWithGemini } from '../utils/gemini';
+import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface Slide {
   id: string;
@@ -139,6 +145,18 @@ export const ProjectEditor: React.FC = () => {
   const insertFileRef = useRef<HTMLInputElement | null>(null);
   const insertImageRef = useRef<HTMLInputElement | null>(null);
   const insertTargetIdx = useRef<number>(-1);
+  // AI Chat panel (right side)
+  interface AIChatMsg { id: string; role: 'user' | 'assistant'; text: string; images: string[]; attachments: { name: string; mimeType: string; dataUrl: string }[]; taggedSlides: number[]; timestamp: number; }
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiChatMsgs, setAiChatMsgs] = useState<AIChatMsg[]>([]);
+  const [aiChatInput, setAiChatInput] = useState('');
+  const [aiChatLoading, setAiChatLoading] = useState(false);
+  const [aiChatAttachments, setAiChatAttachments] = useState<{ name: string; mimeType: string; dataUrl: string }[]>([]);
+  const [aiChatTaggedSlides, setAiChatTaggedSlides] = useState<Set<number>>(new Set());
+  const [aiChatTagPicker, setAiChatTagPicker] = useState(false);
+  const aiChatScrollRef = useRef<HTMLDivElement | null>(null);
+  const aiChatFileRef = useRef<HTMLInputElement | null>(null);
+  const aiChatAbortRef = useRef<AbortController | null>(null);
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
   const [appModal, setAppModal] = useState<{ title: string; body: React.ReactNode; type?: 'error' | 'success' | 'warning' | 'info' } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -863,6 +881,104 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const unbackedCount = Array.from(pendingImages.keys()).filter(sid => !backedUpIds.has(sid)).length;
+
+  // ── Markdown renderer (react-markdown + GFM + KaTeX) ──
+  const mdComponents: Record<string, React.FC<any>> = React.useMemo(() => ({
+    h1: ({ children }: any) => <h1 style={{ fontSize: '1rem', fontWeight: 700, margin: '0.4rem 0 0.15rem' }}>{children}</h1>,
+    h2: ({ children }: any) => <h2 style={{ fontSize: '0.9rem', fontWeight: 700, margin: '0.35rem 0 0.1rem' }}>{children}</h2>,
+    h3: ({ children }: any) => <h3 style={{ fontSize: '0.85rem', fontWeight: 600, margin: '0.3rem 0 0.1rem' }}>{children}</h3>,
+    p: ({ children }: any) => <p style={{ margin: '0.15rem 0', lineHeight: 1.6 }}>{children}</p>,
+    ul: ({ children }: any) => <ul style={{ margin: '0.15rem 0', paddingLeft: '1.2rem' }}>{children}</ul>,
+    ol: ({ children }: any) => <ol style={{ margin: '0.15rem 0', paddingLeft: '1.2rem' }}>{children}</ol>,
+    li: ({ children }: any) => <li style={{ marginBottom: '0.05rem' }}>{children}</li>,
+    strong: ({ children }: any) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+    hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.3rem 0' }} />,
+    code: ({ inline, children, className }: any) => inline
+      ? <code style={{ background: 'var(--bg-tertiary)', padding: '0.1rem 0.25rem', borderRadius: '3px', fontSize: '0.78em' }}>{children}</code>
+      : <pre style={{ background: 'var(--bg-tertiary)', padding: '0.5rem 0.6rem', borderRadius: '0.3rem', overflow: 'auto', fontSize: '0.72rem', margin: '0.2rem 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}><code className={className}>{children}</code></pre>,
+    table: ({ children }: any) => <div style={{ overflowX: 'auto', margin: '0.2rem 0' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem' }}>{children}</table></div>,
+    thead: ({ children }: any) => <thead style={{ background: 'var(--bg-tertiary)' }}>{children}</thead>,
+    th: ({ children }: any) => <th style={{ padding: '0.25rem 0.4rem', borderBottom: '2px solid var(--border-color)', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>{children}</th>,
+    td: ({ children }: any) => <td style={{ padding: '0.2rem 0.4rem', borderBottom: '1px solid var(--border-color)' }}>{children}</td>,
+    blockquote: ({ children }: any) => <blockquote style={{ margin: '0.2rem 0', paddingLeft: '0.6rem', borderLeft: '3px solid var(--accent-color)', color: 'var(--text-secondary)' }}>{children}</blockquote>,
+    a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>{children}</a>,
+  }), []);
+
+  // ── AI Chat send handler ──
+  const handleAiChatSend = async () => {
+    const trimmed = aiChatInput.trim();
+    if (!trimmed && aiChatAttachments.length === 0) return;
+    const activeIdx = slides.findIndex(s => s.id === activeSlideId);
+    const currentImg = activeSlide ? getCanvasSrc(activeSlideId, activeSlide) : null;
+
+    const userMsg: typeof aiChatMsgs[0] = {
+      id: Date.now().toString(), role: 'user', text: trimmed, images: [], attachments: [...aiChatAttachments],
+      taggedSlides: Array.from(aiChatTaggedSlides), timestamp: Date.now(),
+    };
+    setAiChatMsgs(prev => [...prev, userMsg]);
+    setAiChatInput(''); setAiChatAttachments([]); setAiChatTaggedSlides(new Set()); setAiChatTagPicker(false);
+    setAiChatLoading(true);
+    setTimeout(() => aiChatScrollRef.current?.scrollTo({ top: aiChatScrollRef.current.scrollHeight, behavior: 'smooth' }), 50);
+
+    const ctrl = new AbortController(); aiChatAbortRef.current = ctrl;
+    try {
+      // Build Gemini message parts
+      const parts: GeminiChatMessage['parts'] = [];
+      // Always include current slide
+      if (currentImg) {
+        const b64 = currentImg.includes(',') ? currentImg.split(',')[1] : currentImg;
+        parts.push({ text: `[目前投影片: 第 ${activeIdx + 1} 頁]` });
+        parts.push({ inlineData: { mimeType: 'image/jpeg', data: b64 } });
+      }
+      // Include tagged slides
+      for (const idx of userMsg.taggedSlides) {
+        const s = slides[idx];
+        if (!s) continue;
+        const src = getPreviewSrc(s.id, s);
+        if (src) {
+          const b64 = src.includes(',') ? src.split(',')[1] : src;
+          parts.push({ text: `[TAG: 第 ${idx + 1} 頁]` });
+          parts.push({ inlineData: { mimeType: 'image/jpeg', data: b64 } });
+        }
+      }
+      // Include uploaded attachments
+      for (const a of userMsg.attachments) {
+        const b64 = a.dataUrl.includes(',') ? a.dataUrl.split(',')[1] : a.dataUrl;
+        parts.push({ inlineData: { mimeType: a.mimeType, data: b64 } });
+      }
+      // User text
+      if (trimmed) parts.push({ text: trimmed });
+
+      // Build conversation history
+      const history: GeminiChatMessage[] = [];
+      // System context
+      history.push({ role: 'user', parts: [{ text: '你是投影片助手。使用者會提供投影片圖片並向你提問。請用繁體中文回答，支援 Markdown 和 LaTeX 數學公式格式。回答要簡潔、精確。' }] });
+      history.push({ role: 'model', parts: [{ text: '好的，我是你的投影片助手。請提供投影片圖片或問題，我會幫你解答。' }] });
+      // Previous messages (last 10 turns)
+      const recentMsgs = aiChatMsgs.slice(-10);
+      for (const m of recentMsgs) {
+        if (m.role === 'user') {
+          const p: GeminiChatMessage['parts'] = [];
+          if (m.text) p.push({ text: m.text });
+          history.push({ role: 'user', parts: p.length > 0 ? p : [{ text: '(附件)' }] });
+        } else {
+          history.push({ role: 'model', parts: [{ text: m.text || '...' }] });
+        }
+      }
+      // Current user message
+      history.push({ role: 'user', parts });
+
+      const resp = await chatWithGemini(history, undefined, { generateImage: false }, ctrl.signal);
+      setAiChatMsgs(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: resp.images, attachments: [], taggedSlides: [], timestamp: Date.now() }]);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setAiChatMsgs(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `❌ 錯誤: ${err?.message || '未知錯誤'}`, images: [], attachments: [], taggedSlides: [], timestamp: Date.now() }]);
+      }
+    } finally {
+      setAiChatLoading(false);
+      setTimeout(() => aiChatScrollRef.current?.scrollTo({ top: aiChatScrollRef.current.scrollHeight, behavior: 'smooth' }), 100);
+    }
+  };
 
   const handleBack = () => {
     if (unbackedCount > 0) {
@@ -2020,7 +2136,7 @@ export const ProjectEditor: React.FC = () => {
       </div>
 
       {/* Main Workspace */}
-      <div style={{ flex: 1, display: 'flex', gap: '0.75rem', minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'flex', gap: '0.75rem', minHeight: 0, position: 'relative' }}>
 
         {/* ===== MODE A: Grid + Right Sidebar ===== */}
         {!previewOpen && (
@@ -2672,6 +2788,136 @@ export const ProjectEditor: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* ── Right AI Chat Panel ── */}
+          {aiChatOpen ? (
+            <div style={{ width: '340px', flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-color)', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+                <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <MessageSquare size={15} color="var(--accent-color)" /> AI 助手
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <button onClick={() => { setAiChatMsgs([]); }} title="清除對話" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)' }}><Trash2 size={13} /></button>
+                  <button onClick={() => setAiChatOpen(false)} title="收合" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)' }}><X size={15} /></button>
+                </div>
+              </div>
+              {/* Messages */}
+              <div ref={aiChatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {aiChatMsgs.length === 0 && (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--text-secondary)', padding: '2rem 1rem', textAlign: 'center' }}>
+                    <MessageSquare size={36} style={{ opacity: 0.2 }} />
+                    <p style={{ fontSize: '0.82rem', fontWeight: 600, margin: 0 }}>投影片 AI 助手</p>
+                    <p style={{ fontSize: '0.72rem', lineHeight: 1.6, margin: 0 }}>自動附帶當前投影片<br />可 TAG 其他頁面或上傳檔案<br />支援提問、翻譯、摘要等</p>
+                  </div>
+                )}
+                {aiChatMsgs.map(msg => (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                    {msg.taggedSlides.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap', marginBottom: '0.2rem', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                        {msg.taggedSlides.map(idx => (
+                          <span key={idx} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem', background: 'var(--accent-color)', color: '#fff', borderRadius: '4px', fontWeight: 600 }}>第 {idx + 1} 頁</span>
+                        ))}
+                      </div>
+                    )}
+                    {msg.attachments.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap', marginBottom: '0.2rem', maxWidth: '90%', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                        {msg.attachments.map((a, i) => (
+                          a.mimeType.startsWith('image/') ? (
+                            <img key={i} src={a.dataUrl} alt={a.name} style={{ maxHeight: '60px', maxWidth: '100px', borderRadius: '0.3rem', border: '1px solid var(--border-color)' }} />
+                          ) : (
+                            <div key={i} style={{ padding: '0.2rem 0.4rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', fontSize: '0.62rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}><Paperclip size={9} />{a.name}</div>
+                          )
+                        ))}
+                      </div>
+                    )}
+                    {msg.text && (
+                      <div style={{
+                        maxWidth: '90%', padding: '0.5rem 0.65rem', borderRadius: '0.6rem', fontSize: '0.78rem', lineHeight: 1.6, wordBreak: 'break-word',
+                        ...(msg.role === 'user'
+                          ? { background: 'var(--accent-color)', color: '#fff', borderBottomRightRadius: '0.15rem' }
+                          : { background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderBottomLeftRadius: '0.15rem' }),
+                      }}>
+                        {msg.role === 'assistant' ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>{msg.text}</ReactMarkdown>
+                        ) : (
+                          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'inherit' }}>{msg.text}</pre>
+                        )}
+                      </div>
+                    )}
+                    <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', marginTop: '0.1rem', paddingInline: '0.15rem' }}>
+                      {new Date(msg.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+                {aiChatLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-secondary)', fontSize: '0.72rem', padding: '0.3rem' }}>
+                    <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> AI 思考中…
+                    <button onClick={() => aiChatAbortRef.current?.abort()} style={{ marginLeft: '0.2rem', padding: '0.1rem 0.3rem', fontSize: '0.62rem', border: '1px solid var(--border-color)', borderRadius: '0.2rem', cursor: 'pointer', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}>取消</button>
+                  </div>
+                )}
+              </div>
+              {/* Tag picker */}
+              {aiChatTagPicker && (
+                <div style={{ maxHeight: '150px', overflowY: 'auto', borderTop: '1px solid var(--border-color)', padding: '0.4rem', display: 'flex', flexWrap: 'wrap', gap: '0.25rem', background: 'var(--bg-secondary)' }}>
+                  {slides.map((s, idx) => {
+                    const active = aiChatTaggedSlides.has(idx);
+                    return (
+                      <button key={s.id} onClick={() => setAiChatTaggedSlides(prev => { const n = new Set(prev); if (active) n.delete(idx); else n.add(idx); return n; })}
+                        style={{ padding: '0.2rem 0.4rem', fontSize: '0.65rem', fontWeight: 600, border: `1px solid ${active ? 'var(--accent-color)' : 'var(--border-color)'}`, borderRadius: '0.25rem', cursor: 'pointer', background: active ? 'var(--accent-color)' : 'var(--bg-primary)', color: active ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                        {idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Attachments preview */}
+              {aiChatAttachments.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.25rem', padding: '0.3rem 0.5rem', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', background: 'var(--bg-secondary)' }}>
+                  {aiChatAttachments.map((a, i) => (
+                    <div key={i} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.15rem 0.35rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', fontSize: '0.62rem' }}>
+                      {a.mimeType.startsWith('image/') ? <img src={a.dataUrl} alt="" style={{ width: '20px', height: '20px', objectFit: 'cover', borderRadius: '2px' }} /> : <Paperclip size={9} />}
+                      <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                      <button onClick={() => setAiChatAttachments(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-secondary)', lineHeight: 1 }}><X size={10} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Input area */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
+                <input ref={aiChatFileRef} type="file" multiple hidden onChange={(e) => {
+                  if (!e.target.files) return;
+                  Array.from(e.target.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = () => setAiChatAttachments(prev => [...prev, { name: file.name, mimeType: file.type || 'application/octet-stream', dataUrl: reader.result as string }]);
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value = '';
+                }} />
+                <button onClick={() => aiChatFileRef.current?.click()} title="上傳檔案" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: 'var(--text-secondary)', flexShrink: 0 }}><Paperclip size={15} /></button>
+                <button onClick={() => setAiChatTagPicker(v => !v)} title="TAG 投影片"
+                  style={{ background: aiChatTaggedSlides.size > 0 ? 'var(--accent-color)' : 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.35rem', color: aiChatTaggedSlides.size > 0 ? '#fff' : 'var(--text-secondary)', flexShrink: 0, borderRadius: '0.2rem', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                  <ImagePlus size={13} />{aiChatTaggedSlides.size > 0 && ` ${aiChatTaggedSlides.size}`}
+                </button>
+                <input
+                  value={aiChatInput}
+                  onChange={e => setAiChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !aiChatLoading) { e.preventDefault(); e.stopPropagation(); handleAiChatSend(); } }}
+                  placeholder="問投影片問題..."
+                  style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.78rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none', minWidth: 0 }}
+                />
+                <button onClick={handleAiChatSend} disabled={aiChatLoading} title="送出"
+                  style={{ background: aiChatLoading ? 'var(--bg-secondary)' : 'var(--accent-color)', border: 'none', cursor: aiChatLoading ? 'not-allowed' : 'pointer', padding: '0.3rem', borderRadius: '0.3rem', color: aiChatLoading ? 'var(--text-secondary)' : '#fff', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Send size={14} />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAiChatOpen(true)} title="開啟 AI 助手"
+              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', zIndex: 20, background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+              <MessageSquare size={18} />
+            </button>
+          )}
         </>)}
       </div>
 
