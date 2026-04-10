@@ -922,11 +922,17 @@ export const ProjectEditor: React.FC = () => {
 
     const ctrl = new AbortController(); aiChatAbortRef.current = ctrl;
     try {
+      // Helper: ensure image source is a base64 data URL (convert URLs via fetch)
+      const toDataUrl = async (src: string): Promise<string> => {
+        if (src.startsWith('data:')) return src;
+        return fetchImageAsBase64(src);
+      };
       // Build Gemini message parts
       const parts: GeminiChatMessage['parts'] = [];
       // Always include current slide
       if (currentImg) {
-        const b64 = currentImg.includes(',') ? currentImg.split(',')[1] : currentImg;
+        const dataUrl = await toDataUrl(currentImg);
+        const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
         parts.push({ text: `[目前投影片: 第 ${activeIdx + 1} 頁]` });
         parts.push({ inlineData: { mimeType: 'image/jpeg', data: b64 } });
       }
@@ -936,7 +942,8 @@ export const ProjectEditor: React.FC = () => {
         if (!s) continue;
         const src = getPreviewSrc(s.id, s);
         if (src) {
-          const b64 = src.includes(',') ? src.split(',')[1] : src;
+          const dataUrl = await toDataUrl(src);
+          const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
           parts.push({ text: `[TAG: 第 ${idx + 1} 頁]` });
           parts.push({ inlineData: { mimeType: 'image/jpeg', data: b64 } });
         }
