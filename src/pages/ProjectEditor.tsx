@@ -109,6 +109,10 @@ export const ProjectEditor: React.FC = () => {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [isDragOverPage, setIsDragOverPage] = useState(false);
+
+  // Resizable sidebar
+  const [sidebarWidth, setSidebarWidth] = useState(280);
+  const isResizing = useRef(false);
   const [globalExtraPrompt, setGlobalExtraPrompt] = useState('');
   const [textHistories, setTextHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [textSaving, setTextSaving] = useState(false);
@@ -966,6 +970,30 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const handleDragEnd = () => { setDraggingId(null); setDragOverId(null); };
+
+  // Sidebar resize
+  const handleResizeStart = React.useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newW = Math.min(600, Math.max(180, startW + (ev.clientX - startX)));
+      setSidebarWidth(newW);
+    };
+    const onUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [sidebarWidth]);
 
   const setPrompt = (prompt: string) => {
     if (!id || !activeSlideId) return;
@@ -2118,7 +2146,7 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
+          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
@@ -2219,8 +2247,18 @@ export const ProjectEditor: React.FC = () => {
             </div>
           </div>
 
+          {/* Resize Handle */}
+          <div
+            onMouseDown={handleResizeStart}
+            style={{ width: '6px', cursor: 'col-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '3px', transition: 'background 0.15s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-color)')}
+            onMouseLeave={e => { if (!isResizing.current) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <div style={{ width: '2px', height: '32px', borderRadius: '1px', background: 'var(--border-color)' }} />
+          </div>
+
           {/* Canvas Area */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
             <div style={{ flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: activeSlide?.status === 'empty' ? '1px dashed var(--border-color)' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', position: 'relative', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
               {activeSlide && !activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId) && activeSlide.status !== 'empty' ? (
                 // ── Text-only slide: show text editor ──
