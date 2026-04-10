@@ -390,9 +390,9 @@ export const ProjectEditor: React.FC = () => {
         }
         setActiveSlideId(nextSlide.id);
       };
-      if (e.key === 'ArrowLeft' && idx > 0) {
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && idx > 0) {
         jumpTo(slides[idx - 1]);
-      } else if ((e.key === 'ArrowRight' || e.key === 'Enter') && idx >= 0 && idx < slides.length - 1) {
+      } else if ((e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'Enter') && idx >= 0 && idx < slides.length - 1) {
         jumpTo(slides[idx + 1]);
       }
     };
@@ -2523,8 +2523,8 @@ export const ProjectEditor: React.FC = () => {
               )}
             </div>
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
-              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, overflowX: 'auto', maxWidth: '60%' }}>
+              <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', overflow: 'visible' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, overflowX: 'auto', maxWidth: '60%', overflow: 'visible' }}>
                   {(() => {
                     const hist = activeSlideId ? imageHistories.get(activeSlideId) : undefined;
                     const canUndo = !!hist && hist.pos > 0;
@@ -2591,13 +2591,13 @@ export const ProjectEditor: React.FC = () => {
                   }} />
                   {/* Thumbnail strip for uploaded extra images */}
                   {localExtraImages.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.3rem', padding: '0 0.4rem', borderLeft: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.3rem', padding: '6px 0.4rem 0', borderLeft: '1px solid var(--border-color)', overflow: 'visible' }}>
                       {localExtraImages.map((img, idx) => (
                         <div key={img.id} style={{ position: 'relative', flexShrink: 0 }} title={`@${idx + 1} ${img.name}`}>
                           <img src={img.dataUrl} alt={`@${idx + 1}`} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
-                          <span style={{ position: 'absolute', top: '-6px', left: '-4px', background: 'var(--accent-color)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, borderRadius: '6px', padding: '0 3px', lineHeight: '14px' }}>@{idx + 1}</span>
+                          <span style={{ position: 'absolute', top: '-5px', left: '-4px', background: 'var(--accent-color)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, borderRadius: '6px', padding: '0 3px', lineHeight: '14px' }}>@{idx + 1}</span>
                           <button onClick={() => setLocalExtraImages(prev => prev.filter(p => p.id !== img.id))}
-                            style={{ position: 'absolute', top: '-6px', right: '-4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.55rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>×</button>
+                            style={{ position: 'absolute', top: '-5px', right: '-4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.55rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>×</button>
                         </div>
                       ))}
                     </div>
