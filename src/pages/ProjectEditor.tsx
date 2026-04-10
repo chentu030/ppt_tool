@@ -1879,6 +1879,41 @@ export const ProjectEditor: React.FC = () => {
             </>
           )}
         </div>
+        {/* Page indicator — preview mode only */}
+        {previewOpen && slides.length > 0 && (() => {
+          const currentIdx = slides.findIndex(s => s.id === activeSlideId);
+          const pageNum = currentIdx >= 0 ? currentIdx + 1 : 1;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <input
+                type="text"
+                defaultValue={pageNum}
+                key={activeSlideId}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = parseInt((e.target as HTMLInputElement).value);
+                    if (val >= 1 && val <= slides.length) {
+                      setActiveSlideId(slides[val - 1].id);
+                    } else {
+                      (e.target as HTMLInputElement).value = String(pageNum);
+                    }
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                onBlur={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (val >= 1 && val <= slides.length) {
+                    setActiveSlideId(slides[val - 1].id);
+                  } else {
+                    e.target.value = String(pageNum);
+                  }
+                }}
+                style={{ width: '2.5rem', textAlign: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '0.25rem', padding: '0.15rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-primary)', outline: 'none' }}
+              />
+              <span>/ {slides.length}</span>
+            </div>
+          );
+        })()}
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
           {!previewOpen && (
             <button onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }}
