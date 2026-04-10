@@ -2297,7 +2297,7 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
@@ -2389,7 +2389,7 @@ export const ProjectEditor: React.FC = () => {
                   <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
                 </div>
               </div>
-              <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0', overflowY: 'auto', flex: 1 }}>
+              <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0', flex: 1 }}>
                 {/* Hidden file inputs for insert */}
                 <input ref={insertFileRef} type="file" accept=".pptx,.pdf,.docx,.txt" multiple hidden onChange={async (e) => {
                   if (e.target.files && e.target.files.length > 0) await handleInsertFiles(e.target.files);
