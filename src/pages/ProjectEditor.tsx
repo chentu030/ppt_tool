@@ -2132,6 +2132,12 @@ export const ProjectEditor: React.FC = () => {
             style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isExporting ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', gap: '0.2rem', opacity: isExporting ? 0.6 : 1 }}>
             <Download size={12} /> {isExporting ? '匯出中...' : '匯出 PPTX'}
           </button>
+          {previewOpen && (
+            <button onClick={() => setAiChatOpen(v => !v)}
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: aiChatOpen ? 'none' : '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', background: aiChatOpen ? 'var(--accent-color)' : 'var(--bg-secondary)', color: aiChatOpen ? '#fff' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <MessageSquare size={12} /> AI 助手
+            </button>
+          )}
         </div>
       </div>
 
@@ -2413,7 +2419,7 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
+          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: '0.5rem' }}>
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
@@ -2791,7 +2797,7 @@ export const ProjectEditor: React.FC = () => {
 
           {/* ── Right AI Chat Panel ── */}
           {aiChatOpen ? (
-            <div style={{ width: '340px', flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', borderLeft: '1px solid var(--border-color)', overflow: 'hidden' }}>
+            <div style={{ width: '340px', flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
                 <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -2912,12 +2918,7 @@ export const ProjectEditor: React.FC = () => {
                 </button>
               </div>
             </div>
-          ) : (
-            <button onClick={() => setAiChatOpen(true)} title="開啟 AI 助手"
-              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', zIndex: 20, background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-              <MessageSquare size={18} />
-            </button>
-          )}
+          ) : null}
         </>)}
       </div>
 
