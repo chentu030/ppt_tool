@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { showAlert } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus, Upload, Send, Paperclip, Loader, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus, Upload, Send, Paperclip, Loader, MessageSquare, Clock } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -12,7 +12,7 @@ import { db, auth, storage } from '../firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { uploadImageToStorage, uploadHQToStorage, fetchImageAsBase64, compressImage, compressForFirestore, uploadToDrive } from '../utils/storageHelper';
-import { getApiKey, chatWithGemini } from '../utils/gemini';
+import { getApiKey, chatWithGemini, generateChatTitle } from '../utils/gemini';
 import type { ChatMessage as GeminiChatMessage } from '../utils/gemini';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -34,6 +34,24 @@ interface Slide {
   imageHistoryPos?: number;
   generatedImageDriveUrl?: string | null;
 }
+
+// ── AI Chat Persistence ─────────────────────────────────────────────────────
+interface AIChatMsg { id: string; role: 'user' | 'assistant'; text: string; images: string[]; attachments: { name: string; mimeType: string; dataUrl: string }[]; taggedSlides: number[]; timestamp: number; }
+interface AIChatConv { id: string; title: string; projectId: string; messages: AIChatMsg[]; createdAt: number; updatedAt: number; }
+const AI_CHAT_LS_KEY = 'editor_ai_chat_conversations';
+const loadAiConversations = (): AIChatConv[] => { try { return JSON.parse(localStorage.getItem(AI_CHAT_LS_KEY) || '[]'); } catch { return []; } };
+const saveAiConversations = (convs: AIChatConv[]) => {
+  // Strip large attachments to avoid localStorage quota
+  const lite = convs.map(c => ({
+    ...c,
+    messages: c.messages.map(m => ({
+      ...m,
+      attachments: m.attachments.map(a => ({ ...a, dataUrl: a.mimeType.startsWith('image/') ? a.dataUrl.slice(0, 200) : '' })),
+      images: m.images.map(img => img.slice(0, 200)),
+    })),
+  }));
+  try { localStorage.setItem(AI_CHAT_LS_KEY, JSON.stringify(lite)); } catch { /* quota */ }
+};
 
 export const ProjectEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -145,18 +163,21 @@ export const ProjectEditor: React.FC = () => {
   const insertFileRef = useRef<HTMLInputElement | null>(null);
   const insertImageRef = useRef<HTMLInputElement | null>(null);
   const insertTargetIdx = useRef<number>(-1);
-  // AI Chat panel (right side)
-  interface AIChatMsg { id: string; role: 'user' | 'assistant'; text: string; images: string[]; attachments: { name: string; mimeType: string; dataUrl: string }[]; taggedSlides: number[]; timestamp: number; }
+  // AI Chat panel (right side) — persistent conversations
   const [aiChatOpen, setAiChatOpen] = useState(false);
-  const [aiChatMsgs, setAiChatMsgs] = useState<AIChatMsg[]>([]);
+  const [aiConversations, setAiConversations] = useState<AIChatConv[]>(loadAiConversations);
+  const [aiActiveConvId, setAiActiveConvId] = useState<string | null>(null);
   const [aiChatInput, setAiChatInput] = useState('');
   const [aiChatLoading, setAiChatLoading] = useState(false);
   const [aiChatAttachments, setAiChatAttachments] = useState<{ name: string; mimeType: string; dataUrl: string }[]>([]);
   const [aiChatTaggedSlides, setAiChatTaggedSlides] = useState<Set<number>>(new Set());
   const [aiChatTagPicker, setAiChatTagPicker] = useState(false);
+  const [aiChatHistoryOpen, setAiChatHistoryOpen] = useState(false);
   const aiChatScrollRef = useRef<HTMLDivElement | null>(null);
   const aiChatFileRef = useRef<HTMLInputElement | null>(null);
   const aiChatAbortRef = useRef<AbortController | null>(null);
+  const aiActiveConv = aiConversations.find(c => c.id === aiActiveConvId) || null;
+  const aiChatMsgs = aiActiveConv?.messages || [];
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
   const [appModal, setAppModal] = useState<{ title: string; body: React.ReactNode; type?: 'error' | 'success' | 'warning' | 'info' } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -904,6 +925,28 @@ export const ProjectEditor: React.FC = () => {
     a: ({ href, children }: any) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>{children}</a>,
   }), []);
 
+  // ── AI Chat helpers ──
+  const updateAiConv = (convId: string, updater: (c: AIChatConv) => AIChatConv) => {
+    setAiConversations(prev => {
+      const next = prev.map(c => c.id === convId ? updater(c) : c);
+      saveAiConversations(next);
+      return next;
+    });
+  };
+  const addMsgToConv = (convId: string, msg: AIChatMsg) => {
+    updateAiConv(convId, c => ({ ...c, messages: [...c.messages, msg], updatedAt: Date.now() }));
+  };
+  const startNewAiChat = () => {
+    const newConv: AIChatConv = { id: Date.now().toString(), title: '新對話', projectId: id || '', messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+    setAiConversations(prev => { const next = [newConv, ...prev]; saveAiConversations(next); return next; });
+    setAiActiveConvId(newConv.id);
+    setAiChatHistoryOpen(false);
+  };
+  const deleteAiConv = (convId: string) => {
+    setAiConversations(prev => { const next = prev.filter(c => c.id !== convId); saveAiConversations(next); return next; });
+    if (aiActiveConvId === convId) setAiActiveConvId(null);
+  };
+
   // ── AI Chat send handler ──
   const handleAiChatSend = async () => {
     const trimmed = aiChatInput.trim();
@@ -911,14 +954,32 @@ export const ProjectEditor: React.FC = () => {
     const activeIdx = slides.findIndex(s => s.id === activeSlideId);
     const currentImg = activeSlide ? getCanvasSrc(activeSlideId, activeSlide) : null;
 
-    const userMsg: typeof aiChatMsgs[0] = {
+    // Auto-create conversation if none active
+    let convId = aiActiveConvId;
+    if (!convId) {
+      const newConv: AIChatConv = { id: Date.now().toString(), title: '新對話', projectId: id || '', messages: [], createdAt: Date.now(), updatedAt: Date.now() };
+      setAiConversations(prev => { const next = [newConv, ...prev]; saveAiConversations(next); return next; });
+      convId = newConv.id;
+      setAiActiveConvId(convId);
+    }
+    const isFirstMsg = aiChatMsgs.length === 0;
+
+    const userMsg: AIChatMsg = {
       id: Date.now().toString(), role: 'user', text: trimmed, images: [], attachments: [...aiChatAttachments],
       taggedSlides: Array.from(aiChatTaggedSlides), timestamp: Date.now(),
     };
-    setAiChatMsgs(prev => [...prev, userMsg]);
+    addMsgToConv(convId, userMsg);
     setAiChatInput(''); setAiChatAttachments([]); setAiChatTaggedSlides(new Set()); setAiChatTagPicker(false);
     setAiChatLoading(true);
     setTimeout(() => aiChatScrollRef.current?.scrollTo({ top: aiChatScrollRef.current.scrollHeight, behavior: 'smooth' }), 50);
+
+    // Auto-generate title for new conversations
+    if (isFirstMsg && trimmed) {
+      const cid = convId;
+      generateChatTitle(trimmed).then(title => {
+        updateAiConv(cid, c => ({ ...c, title }));
+      }).catch(() => {});
+    }
 
     const ctrl = new AbortController(); aiChatAbortRef.current = ctrl;
     try {
@@ -976,10 +1037,10 @@ export const ProjectEditor: React.FC = () => {
       history.push({ role: 'user', parts });
 
       const resp = await chatWithGemini(history, undefined, { generateImage: false }, ctrl.signal);
-      setAiChatMsgs(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: resp.images, attachments: [], taggedSlides: [], timestamp: Date.now() }]);
+      addMsgToConv(convId, { id: (Date.now() + 1).toString(), role: 'assistant', text: resp.text, images: resp.images, attachments: [], taggedSlides: [], timestamp: Date.now() });
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
-        setAiChatMsgs(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', text: `❌ 錯誤: ${err?.message || '未知錯誤'}`, images: [], attachments: [], taggedSlides: [], timestamp: Date.now() }]);
+        addMsgToConv(convId, { id: (Date.now() + 1).toString(), role: 'assistant', text: `❌ 錯誤: ${err?.message || '未知錯誤'}`, images: [], attachments: [], taggedSlides: [], timestamp: Date.now() });
       }
     } finally {
       setAiChatLoading(false);
@@ -2807,14 +2868,41 @@ export const ProjectEditor: React.FC = () => {
             <div style={{ width: '340px', flexShrink: 0, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.75rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-                <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <MessageSquare size={15} color="var(--accent-color)" /> AI 助手
+                <span style={{ fontWeight: 700, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                  <MessageSquare size={15} color="var(--accent-color)" style={{ flexShrink: 0 }} /> {aiActiveConv?.title || 'AI 助手'}
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <button onClick={() => { setAiChatMsgs([]); }} title="清除對話" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)' }}><Trash2 size={13} /></button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
+                  <button onClick={startNewAiChat} title="新對話" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)' }}><Plus size={14} /></button>
+                  <button onClick={() => setAiChatHistoryOpen(v => !v)} title="歷史對話" style={{ background: aiChatHistoryOpen ? 'var(--bg-tertiary)' : 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)', borderRadius: '0.2rem' }}><Clock size={13} /></button>
                   <button onClick={() => setAiChatOpen(false)} title="收合" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)' }}><X size={15} /></button>
                 </div>
               </div>
+              {/* History panel */}
+              {aiChatHistoryOpen ? (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0.4rem' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', padding: '0.3rem 0.4rem', marginBottom: '0.2rem' }}>歷史對話 ({aiConversations.length})</div>
+                  {aiConversations.length === 0 && (
+                    <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.72rem' }}>尚無對話記錄</div>
+                  )}
+                  {aiConversations.map(conv => (
+                    <div key={conv.id}
+                      onClick={() => { setAiActiveConvId(conv.id); setAiChatHistoryOpen(false); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.5rem', cursor: 'pointer', borderRadius: '0.3rem', marginBottom: '0.15rem',
+                        background: conv.id === aiActiveConvId ? 'var(--bg-tertiary)' : 'transparent',
+                        border: conv.id === aiActiveConvId ? '1px solid var(--accent-color)' : '1px solid transparent',
+                      }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.76rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{conv.title}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+                          {conv.messages.length} 則訊息 · {new Date(conv.updatedAt).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' })} {new Date(conv.updatedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); deleteAiConv(conv.id); }} title="刪除" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-secondary)', flexShrink: 0, opacity: 0.5 }}><Trash2 size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+              <>
               {/* Messages */}
               <div ref={aiChatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {aiChatMsgs.length === 0 && (
@@ -2924,6 +3012,8 @@ export const ProjectEditor: React.FC = () => {
                   <Send size={14} />
                 </button>
               </div>
+              </>
+              )}
             </div>
           ) : null}
         </>)}
