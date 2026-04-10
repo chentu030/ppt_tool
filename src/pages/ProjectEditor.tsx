@@ -2608,39 +2608,35 @@ export const ProjectEditor: React.FC = () => {
                     </div>
                     {/* Insert zone between slides */}
                     <div
-                      style={{ position: 'relative', height: sidebarInsertMenu === index ? 'auto' : '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: sidebarInsertMenu === index ? '0.25rem 0' : '2px 0' }}
                       onClick={(e) => { e.stopPropagation(); setSidebarInsertMenu(prev => prev === index ? null : index); }}
-                      onMouseEnter={(e) => { if (sidebarInsertMenu === null) { const line = e.currentTarget.querySelector('[data-insert-line]') as HTMLElement; if (line) line.style.opacity = '1'; } }}
-                      onMouseLeave={(e) => { if (sidebarInsertMenu === null) { const line = e.currentTarget.querySelector('[data-insert-line]') as HTMLElement; if (line) line.style.opacity = '0'; } }}
                     >
-                      <div data-insert-line style={{ position: 'absolute', left: '8px', right: '8px', height: '2px', background: 'var(--accent-color)', borderRadius: '1px', opacity: sidebarInsertMenu === index ? 1 : 0, transition: 'opacity 0.15s', pointerEvents: 'none' }} />
-                      {sidebarInsertMenu === null && (
-                        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', opacity: 0, transition: 'opacity 0.15s', pointerEvents: 'none', background: 'var(--accent-color)', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, zIndex: 2 }}
-                          ref={(el) => {
-                            if (!el) return;
-                            const parent = el.parentElement;
-                            if (!parent) return;
-                            parent.addEventListener('mouseenter', () => { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; });
-                            parent.addEventListener('mouseleave', () => { el.style.opacity = '0'; el.style.pointerEvents = 'none'; });
-                          }}>+</div>
-                      )}
-                      {sidebarInsertMenu === index && (
-                        <div style={{ display: 'flex', gap: '0.3rem', padding: '0.35rem 0', zIndex: 3 }}>
+                      {sidebarInsertMenu !== index ? (
+                        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '2px 0' }}
+                          onMouseEnter={(e) => { const b = e.currentTarget.querySelector('[data-insert-btn]') as HTMLElement; if (b) b.style.opacity = '1'; }}
+                          onMouseLeave={(e) => { const b = e.currentTarget.querySelector('[data-insert-btn]') as HTMLElement; if (b) b.style.opacity = '0'; }}>
+                          <div data-insert-btn style={{ opacity: 0, transition: 'opacity 0.15s', background: 'var(--accent-color)', color: '#fff', borderRadius: '10px', padding: '1px 10px', fontSize: '0.6rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                            <Plus size={10} /> 插入
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '0.3rem', padding: '0.3rem 0.5rem', border: '1px solid var(--border-color)', borderRadius: '0.4rem', background: 'var(--bg-secondary)', alignItems: 'center' }}
+                          onClick={(e) => e.stopPropagation()}>
                           <button onClick={(e) => { e.stopPropagation(); insertTargetIdx.current = index; insertFileRef.current?.click(); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                            <Upload size={11} /> 檔案
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.4rem', fontSize: '0.62rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <Upload size={10} /> 檔案
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); insertTargetIdx.current = index; insertImageRef.current?.click(); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                            <ImagePlus size={11} /> 圖片
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.4rem', fontSize: '0.62rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <ImagePlus size={10} /> 圖片
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); addSlide('text', 1, index); setSidebarInsertMenu(null); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                            <FileText size={11} /> 文字
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.2rem 0.4rem', fontSize: '0.62rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <FileText size={10} /> 文字
                           </button>
                           <button onClick={(e) => { e.stopPropagation(); setSidebarInsertMenu(null); }}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.2rem', border: 'none', borderRadius: '0.25rem', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                            <X size={12} />
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.15rem', border: 'none', borderRadius: '0.2rem', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: '-0.1rem' }}>
+                            <X size={11} />
                           </button>
                         </div>
                       )}
