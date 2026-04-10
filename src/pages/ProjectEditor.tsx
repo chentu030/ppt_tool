@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { showAlert } from '../utils/dialog';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
-import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus } from 'lucide-react';
+import { ArrowLeft, Download, Image as ImageIcon, Plus, Trash2, X, Circle, Sparkles, CheckSquare, Eye, RotateCcw, ChevronLeft, ChevronRight, FileText, Share2, ImagePlus, Upload } from 'lucide-react';
 import TemplateGalleryModal from '../components/TemplateGalleryModal';
 import type { ApplyParams } from '../components/TemplateGalleryModal';
 import pptxgen from 'pptxgenjs';
@@ -133,6 +133,11 @@ export const ProjectEditor: React.FC = () => {
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addSlideCount, setAddSlideCount] = useState(1);
+  // Sidebar insert between slides
+  const [sidebarInsertMenu, setSidebarInsertMenu] = useState<number | null>(null); // index of slide AFTER which to insert
+  const insertFileRef = useRef<HTMLInputElement | null>(null);
+  const insertImageRef = useRef<HTMLInputElement | null>(null);
+  const insertTargetIdx = useRef<number>(-1);
   const [downloadScopeModal, setDownloadScopeModal] = useState<'save' | 'export' | null>(null);
   const [appModal, setAppModal] = useState<{ title: string; body: React.ReactNode; type?: 'error' | 'success' | 'warning' | 'info' } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -666,8 +671,25 @@ export const ProjectEditor: React.FC = () => {
     } finally { setIsSharing(false); }
   };
 
-  const addSlide = async (type: 'image' | 'text' = 'image', count: number = 1) => {
+  const addSlide = async (type: 'image' | 'text' = 'image', count: number = 1, insertAfterIdx?: number) => {
     if (!id) return;
+    if (insertAfterIdx !== undefined && insertAfterIdx >= 0 && insertAfterIdx < slides.length) {
+      const curOrder = slides[insertAfterIdx].order ?? 0;
+      const nextOrder = insertAfterIdx + 1 < slides.length ? (slides[insertAfterIdx + 1].order ?? curOrder + 1000 * (count + 1)) : curOrder + 1000 * (count + 1);
+      const gap = (nextOrder - curOrder) / (count + 1);
+      let lastId = '';
+      for (let i = 0; i < count; i++) {
+        const newId = Math.random().toString(36).substr(2, 9);
+        const order = Math.round(curOrder + gap * (i + 1));
+        await setDoc(doc(db, 'projects', id, 'slides', newId), {
+          originalImage: null, generatedImage: null, maskImage: null, prompt: '',
+          status: type === 'text' ? 'draft' : 'empty', createdAt: Date.now() + i, order
+        });
+        lastId = newId;
+      }
+      if (lastId) { setActiveSlideId(lastId); }
+      return;
+    }
     let maxOrder = slides.reduce((m, s) => Math.max(m, s.order ?? 0), 0);
     let lastId = '';
     for (let i = 0; i < count; i++) {
@@ -684,7 +706,6 @@ export const ProjectEditor: React.FC = () => {
     }
     if (lastId) {
       setActiveSlideId(lastId);
-      setSelectedSlides(prev => new Set(prev).add(lastId));
     }
   };
 
@@ -1325,6 +1346,49 @@ export const ProjectEditor: React.FC = () => {
       showAlert('上傳圖片時發生錯誤。', '錯誤');
     } finally {
       setSavingProgress(null);
+    }
+  };
+
+  // Insert images at a specific position (between slides)
+  const handleInsertImages = async (fileList: FileList, afterIdx: number) => {
+    const files = Array.from(fileList);
+    if (!id || files.length === 0) return;
+    const curOrder = afterIdx >= 0 ? (slides[afterIdx]?.order ?? 0) : 0;
+    const nextOrder = afterIdx + 1 < slides.length ? (slides[afterIdx + 1]?.order ?? curOrder + 1000 * (files.length + 1)) : curOrder + 1000 * (files.length + 1);
+    const gap = (nextOrder - curOrder) / (files.length + 1);
+    setSavingProgress({ current: 0, total: files.length });
+    try {
+      const dp = defaultPromptRef.current || '';
+      const newSlideIds: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const base64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(files[i]); });
+        const imageUrl = await compressForFirestore(base64);
+        const newId = Math.random().toString(36).substr(2, 9);
+        const order = Math.round(curOrder + gap * (i + 1));
+        await setDoc(doc(db, 'projects', id, 'slides', newId), {
+          originalImage: imageUrl, originalImageHQ: null, generatedImage: null, generatedImageHQ: null, maskImage: null,
+          prompt: dp, status: 'draft', createdAt: Date.now() + i, order
+        });
+        newSlideIds.push(newId);
+        setSavingProgress({ current: i + 1, total: files.length });
+        // HQ upload in background
+        const projectId = id;
+        uploadHQToStorage(projectId, newId, 'originalImage', base64)
+          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          .catch(() => {});
+      }
+      if (newSlideIds.length > 0) setActiveSlideId(newSlideIds[0]);
+    } catch (err) { console.error(err); showAlert('上傳圖片時發生錯誤。', '錯誤'); }
+    finally { setSavingProgress(null); }
+  };
+
+  // Insert files (PPT/PDF/Word/TXT) — delegates to existing handlers (appends at end)
+  const handleInsertFiles = async (fileList: FileList) => {
+    const files = Array.from(fileList);
+    for (const f of files) {
+      if (f.name.endsWith('.pdf')) await handlePDFUpload(f);
+      else if (f.name.endsWith('.pptx')) await handlePPTUpload(f);
+      else if (f.name.endsWith('.docx') || f.name.endsWith('.txt')) await handleTextFileProcess(f);
     }
   };
 
@@ -2291,19 +2355,69 @@ export const ProjectEditor: React.FC = () => {
                   <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
                 </div>
               </div>
-              <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
+              <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0', overflowY: 'auto', flex: 1 }}>
+                {/* Hidden file inputs for insert */}
+                <input ref={insertFileRef} type="file" accept=".pptx,.pdf,.docx,.txt" multiple hidden onChange={async (e) => {
+                  if (e.target.files && e.target.files.length > 0) await handleInsertFiles(e.target.files);
+                  e.target.value = ''; setSidebarInsertMenu(null);
+                }} />
+                <input ref={insertImageRef} type="file" accept="image/*" multiple hidden onChange={async (e) => {
+                  if (e.target.files && e.target.files.length > 0) await handleInsertImages(e.target.files, insertTargetIdx.current);
+                  e.target.value = ''; setSidebarInsertMenu(null);
+                }} />
                 {slides.map((slide, index) => (
-                  <div key={slide.id} data-sidebar-slide={slide.id} onClick={() => setActiveSlideId(slide.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: activeSlideId === slide.id ? 'var(--bg-secondary)' : 'transparent', border: `1px solid ${activeSlideId === slide.id ? 'var(--border-color)' : 'transparent'}` }}>
-                    <div onClick={(e) => toggleSlideSelection(slide.id, e)} style={{ cursor: 'pointer', color: selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)' }}>
-                      <CheckSquare size={18} fill={selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'transparent'} color={selectedSlides.has(slide.id) ? 'white' : 'currentColor'} />
+                  <React.Fragment key={slide.id}>
+                    <div data-sidebar-slide={slide.id} onClick={() => setActiveSlideId(slide.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: activeSlideId === slide.id ? 'var(--bg-secondary)' : 'transparent', border: `1px solid ${activeSlideId === slide.id ? 'var(--border-color)' : 'transparent'}` }}>
+                      <div onClick={(e) => toggleSlideSelection(slide.id, e)} style={{ cursor: 'pointer', color: selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)' }}>
+                        <CheckSquare size={18} fill={selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'transparent'} color={selectedSlides.has(slide.id) ? 'white' : 'currentColor'} />
+                      </div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', width: '20px' }}>{index + 1}</span>
+                      <div style={{ flex: 1, aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {getPreviewSrc(slide.id, slide) ? (<img loading="lazy" src={getPreviewSrc(slide.id, slide)!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}><Trash2 size={14} /></Button>
                     </div>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', width: '20px' }}>{index + 1}</span>
-                    <div style={{ flex: 1, aspectRatio: '16/9', backgroundColor: 'var(--bg-tertiary)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {getPreviewSrc(slide.id, slide) ? (<img loading="lazy" src={getPreviewSrc(slide.id, slide)!} alt="Slide" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />) : slide.prompt ? (<div style={{ padding: '0.3rem', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}><FileText size={9} style={{ color: 'var(--accent-color)', flexShrink: 0 }} /><span style={{ fontSize: '0.5rem', color: 'var(--text-secondary)', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>{slide.prompt}</span></div>) : (<span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empty</span>)}
+                    {/* Insert zone between slides */}
+                    <div
+                      style={{ position: 'relative', height: sidebarInsertMenu === index ? 'auto' : '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      onClick={(e) => { e.stopPropagation(); setSidebarInsertMenu(prev => prev === index ? null : index); }}
+                      onMouseEnter={(e) => { if (sidebarInsertMenu === null) { const line = e.currentTarget.querySelector('[data-insert-line]') as HTMLElement; if (line) line.style.opacity = '1'; } }}
+                      onMouseLeave={(e) => { if (sidebarInsertMenu === null) { const line = e.currentTarget.querySelector('[data-insert-line]') as HTMLElement; if (line) line.style.opacity = '0'; } }}
+                    >
+                      <div data-insert-line style={{ position: 'absolute', left: '8px', right: '8px', height: '2px', background: 'var(--accent-color)', borderRadius: '1px', opacity: sidebarInsertMenu === index ? 1 : 0, transition: 'opacity 0.15s', pointerEvents: 'none' }} />
+                      {sidebarInsertMenu === null && (
+                        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', opacity: 0, transition: 'opacity 0.15s', pointerEvents: 'none', background: 'var(--accent-color)', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, zIndex: 2 }}
+                          ref={(el) => {
+                            if (!el) return;
+                            const parent = el.parentElement;
+                            if (!parent) return;
+                            parent.addEventListener('mouseenter', () => { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; });
+                            parent.addEventListener('mouseleave', () => { el.style.opacity = '0'; el.style.pointerEvents = 'none'; });
+                          }}>+</div>
+                      )}
+                      {sidebarInsertMenu === index && (
+                        <div style={{ display: 'flex', gap: '0.3rem', padding: '0.35rem 0', zIndex: 3 }}>
+                          <button onClick={(e) => { e.stopPropagation(); insertTargetIdx.current = index; insertFileRef.current?.click(); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <Upload size={11} /> 檔案
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); insertTargetIdx.current = index; insertImageRef.current?.click(); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <ImagePlus size={11} /> 圖片
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); addSlide('text', 1, index); setSidebarInsertMenu(null); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.45rem', fontSize: '0.65rem', fontWeight: 600, border: '1px solid var(--border-color)', borderRadius: '0.25rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            <FileText size={11} /> 文字
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setSidebarInsertMenu(null); }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.2rem', border: 'none', borderRadius: '0.25rem', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <Button variant="ghost" size="sm" onClick={(e) => deleteSlide(e, slide.id)} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}><Trash2 size={14} /></Button>
-                  </div>
+                  </React.Fragment>
                 ))}
               </div>
             </div>
