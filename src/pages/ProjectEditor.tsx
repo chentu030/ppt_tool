@@ -42,7 +42,7 @@ export const ProjectEditor: React.FC = () => {
   const [backgroundColor, setBackgroundColor] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [useAdvancedSettings, setUseAdvancedSettings] = useState(true);
-  const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set(['1']));
+  const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set());
 
   const [slides, setSlides] = useState<Slide[]>([]);
   const [activeSlideId, setActiveSlideId] = useState<string>('');
