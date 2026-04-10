@@ -113,6 +113,10 @@ export const ProjectEditor: React.FC = () => {
   // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
+  // Extra reference images for local modify (@1, @2, ...)
+  const [localExtraImages, setLocalExtraImages] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
+  const localExtraImagesRef = useRef<{ label: string; dataUrl: string }[]>([]);
+  const extraImgInputRef = useRef<HTMLInputElement | null>(null);
   const [globalExtraPrompt, setGlobalExtraPrompt] = useState('');
   const [textHistories, setTextHistories] = useState<Map<string, { stack: string[]; pos: number }>>(new Map());
   const [textSaving, setTextSaving] = useState(false);
@@ -1409,6 +1413,9 @@ export const ProjectEditor: React.FC = () => {
             ? (capturedPrompt || 'Edit the masked area.')
             : (slideTextContent + bgColorPrompt + (globalExtraPrompt.trim() ? globalExtraPrompt.trim() + '\n' : '') + defaultPromptRef.current);
           const finalAspectRatio = isLocalModify && capturedAspectRatio ? capturedAspectRatio : (useAdvancedSettings ? aspectRatio : '');
+          // Capture extra images for local modify
+          const capturedExtras = isLocalModify ? [...localExtraImagesRef.current] : undefined;
+          if (isLocalModify) localExtraImagesRef.current = [];
           // Auto-retry every 5 s on 429/499 for up to 60 s before escalating
           let generatedImg = '';
           {
@@ -1419,7 +1426,8 @@ export const ProjectEditor: React.FC = () => {
               try {
                 generatedImg = await generateImageDesign(
                   base64Original, base64Ref, base64Mask,
-                  finalPrompt, apiKey, model, finalAspectRatio, resolution, abort.signal
+                  finalPrompt, apiKey, model, finalAspectRatio, resolution, abort.signal,
+                  capturedExtras
                 );
                 break;
               } catch (e: unknown) {
@@ -2357,7 +2365,7 @@ export const ProjectEditor: React.FC = () => {
             </div>
             {(activeSlide?.status === 'draft' || activeSlide?.status === 'done') && !(!activeSlide.originalImage && !activeSlide.generatedImage && !pendingImages.get(activeSlideId)) && (
               <div style={{ backgroundColor: 'var(--bg-primary)', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, overflowX: 'auto', maxWidth: '60%' }}>
                   {(() => {
                     const hist = activeSlideId ? imageHistories.get(activeSlideId) : undefined;
                     const canUndo = !!hist && hist.pos > 0;
@@ -2402,19 +2410,52 @@ export const ProjectEditor: React.FC = () => {
                       </div>
                     </div>
                   )}
+                  {/* Upload extra reference images */}
+                  <Button variant="secondary" onClick={() => extraImgInputRef.current?.click()} style={{ whiteSpace: 'nowrap', marginLeft: '0.3rem' }}>
+                    <ImagePlus size={16} style={{ marginRight: '0.4rem' }} />上傳圖片
+                  </Button>
+                  <input ref={extraImgInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => {
+                    const files = e.target.files;
+                    if (!files) return;
+                    Array.from(files).forEach(file => {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const dataUrl = reader.result as string;
+                        setLocalExtraImages(prev => {
+                          const next = [...prev, { id: crypto.randomUUID(), dataUrl, name: file.name }];
+                          return next;
+                        });
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                    e.target.value = '';
+                  }} />
+                  {/* Thumbnail strip for uploaded extra images */}
+                  {localExtraImages.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.3rem', padding: '0 0.4rem', borderLeft: '1px solid var(--border-color)' }}>
+                      {localExtraImages.map((img, idx) => (
+                        <div key={img.id} style={{ position: 'relative', flexShrink: 0 }} title={`@${idx + 1} ${img.name}`}>
+                          <img src={img.dataUrl} alt={`@${idx + 1}`} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
+                          <span style={{ position: 'absolute', top: '-6px', left: '-4px', background: 'var(--accent-color)', color: '#fff', fontSize: '0.6rem', fontWeight: 700, borderRadius: '6px', padding: '0 3px', lineHeight: '14px' }}>@{idx + 1}</span>
+                          <button onClick={() => setLocalExtraImages(prev => prev.filter(p => p.id !== img.id))}
+                            style={{ position: 'absolute', top: '-6px', right: '-4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '14px', height: '14px', fontSize: '0.55rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <input
-                  placeholder="描述想修改的方向，例如：把標題放大、換背景顏色..."
+                  placeholder={localExtraImages.length > 0 ? '用 @1 @2 引用圖片，例如：@1 logo 放左下角...' : '描述想修改的方向，例如：把標題放大、換背景顏色...'}
                   value={promptDraft}
                   onChange={(e) => setPromptDraft(e.target.value)}
                   onCompositionStart={() => { isComposing.current = true; }}
                   onCompositionEnd={(e) => { isComposing.current = false; if (activeSlide?.originalImage) setPrompt((e.target as HTMLInputElement).value); }}
                   onBlur={(e) => { if (!isComposing.current && activeSlide?.originalImage) setPrompt(e.target.value); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isGenerating) { e.preventDefault(); if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localExtraImagesRef.current = localExtraImages.map((img, i) => ({ label: `@${i + 1}`, dataUrl: img.dataUrl })); localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } } }}
                   style={{ flex: 1, width: 0, minWidth: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', outline: 'none', fontSize: '0.875rem', color: 'var(--text-primary)', padding: '0.5rem 0.75rem' }}
                 />
                 <button
-                  onClick={() => { if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } }}
+                  onClick={() => { if (activeSlideId) { const hasStrokes = isDrawingMode && canvasRef.current && canvasRef.current.width > 0; localBaseDataRef.current = hasStrokes ? canvasRef.current!.toDataURL('image/jpeg', 0.92) : (pendingImages.get(activeSlideId) || activeSlide?.generatedImage || activeSlide?.originalImage || null); localMaskDataRef.current = null; const colorLabel = PEN_COLORS.find(pc => pc.color === penColor)?.label || ''; const prefix = hasStrokes && colorLabel ? `${colorLabel}筆畫標記的區域幫我` : ''; localPromptRef.current = prefix + promptDraft; localAspectRatioRef.current = imgRef.current ? getAspectRatioString(imgRef.current.naturalWidth, imgRef.current.naturalHeight) : ''; localExtraImagesRef.current = localExtraImages.map((img, i) => ({ label: `@${i + 1}`, dataUrl: img.dataUrl })); localOverrideSlideIdsRef.current = [activeSlideId]; handleGenerateRef.current(true); } }}
                   disabled={isGenerating}
                   style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', backgroundColor: isGenerating ? 'var(--bg-secondary)' : 'var(--accent-color)', color: isGenerating ? 'var(--text-secondary)' : 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}
                 >

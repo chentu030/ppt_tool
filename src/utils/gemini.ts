@@ -234,13 +234,19 @@ export const generateImageDesign = async (
   modelName: string = 'gemini-3.1-flash-image-preview',
   aspectRatio: string = '16:9',
   resolution: string = '2K',
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  extraImages?: { label: string; dataUrl: string }[]
 ): Promise<string> => {
-  console.log(`Calling API with model: ${modelName}, ratio: ${aspectRatio}, res: ${resolution}, mask: ${!!maskImage}`);
+  console.log(`Calling API with model: ${modelName}, ratio: ${aspectRatio}, res: ${resolution}, mask: ${!!maskImage}, extraImages: ${extraImages?.length ?? 0}`);
 
   const cleanBase = baseImage ? (baseImage.split(',')[1] || baseImage) : null;
   const cleanRef = referenceImage ? (referenceImage.split(',')[1] || referenceImage) : null;
   const cleanMask = maskImage ? (maskImage.split(',')[1] || maskImage) : null;
+  const cleanExtras = (extraImages || []).map(ei => ({
+    label: ei.label,
+    data: ei.dataUrl.split(',')[1] || ei.dataUrl,
+    mime: ei.dataUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
+  }));
 
   // No mask — use Gemini generateContent
   // Text-only slides (no baseImage): just send text prompt + reference style image
@@ -261,6 +267,12 @@ export const generateImageDesign = async (
       parts.push({ text: 'Reference Style:' });
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanRef } });
     }
+  }
+
+  // Append user-uploaded extra images with @N labels
+  for (const ei of cleanExtras) {
+    parts.push({ text: `${ei.label}:` });
+    parts.push({ inlineData: { mimeType: ei.mime, data: ei.data } });
   }
 
   const imageConfig: Record<string, string> = { imageSize: resolution };
