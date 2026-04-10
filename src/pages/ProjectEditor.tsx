@@ -575,7 +575,6 @@ export const ProjectEditor: React.FC = () => {
       // Auto-select first slide if none selected
       if (dbSlides.length > 0 && !activeSlideIdRef.current) {
           setActiveSlideId(dbSlides[0].id);
-          setSelectedSlides(new Set([dbSlides[0].id]));
       }
 
 
