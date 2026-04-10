@@ -4,7 +4,7 @@ import { geminiApiFetch } from '../utils/gemini';
 
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, getBlob } from 'firebase/storage';
+import { ref, getBlob } from 'firebase/storage';
 
 export interface TemplateSettings {
   fontFamily?: string; mainColor?: string; highlightColor?: string;
@@ -88,56 +88,7 @@ async function loadIndexFromFirestore():Promise<StoredTemplate[]>{
   }catch(err){console.warn('[Firestore] templateGalleryIndex load failed:',err);return[];}
 }
 
-async function syncDriveToFirebase(
-  scriptUrl:string,
-  onProgress:(done:number,total:number)=>void
-):Promise<StoredTemplate[]>{
-  const[listRes,settingsTxt]=await Promise.all([
-    fetch(`${scriptUrl}?action=listTemplates`).then(r=>r.json()).catch(()=>[]),
-    fetch(`${scriptUrl}?action=getTemplateSettings`).then(r=>r.text()).catch(()=>''),
-  ]);
-  const driveFiles:Array<{id:string;name:string}>=Array.isArray(listRes)?listRes:[];
-  const parsedSettings=parseSettingsTxt(settingsTxt);
-  const existing=await loadIndexFromFirestore();
-  const existingNames=new Set(existing.map(t=>t.name));
-  const newFiles=driveFiles.filter(f=>f?.id&&f?.name&&!existingNames.has(f.name));
-  // Update settings for existing templates (in case txt changed)
-  let allTemplates:StoredTemplate[]=existing.map(t=>({...t,settings:(parsedSettings[t.name]??t.settings) as TemplateSettings|null}));
-  if(newFiles.length>0){
-    let done=0;
-    const BATCH=5;
-    for(let i=0;i<newFiles.length;i+=BATCH){
-      const batch=newFiles.slice(i,i+BATCH);
-      const results=await Promise.allSettled(batch.map(async file=>{
-        const proxy=await fetch(`${scriptUrl}?action=getThumbnail&fileId=${file.id}`).then(r=>r.json());
-        if(!proxy.ok)throw new Error(`getThumbnail failed for ${file.name}: ${proxy.error}`);
-        const bytes=Uint8Array.from(atob(proxy.data),c=>c.charCodeAt(0));
-        const blob=new Blob([bytes],{type:proxy.mimeType||'image/jpeg'});
-        const storageRef=ref(storage,`templates/${file.name}`);
-        await uploadBytes(storageRef,blob);
-        const url=await getDownloadURL(storageRef);
-        return{name:file.name,url,settings:parsedSettings[file.name]??null} as StoredTemplate;
-      }));
-      done+=BATCH;
-      onProgress(Math.min(done,newFiles.length),newFiles.length);
-      results.forEach(r=>{
-        if(r.status==='fulfilled')allTemplates.push(r.value);
-        else console.warn('[sync] upload failed:',r.reason);
-      });
-    }
-  }
-  // Save updated index to Firestore (only if we have templates — never overwrite with empty)
-  if(allTemplates.length>0){
-    try{
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await setDoc(TMPL_INDEX,{templates:allTemplates as any[],updatedAt:Date.now()});
-      console.log(`[sync] Saved ${allTemplates.length} templates to Firestore`);
-    }catch(err){console.warn('[Firestore] templateGalleryIndex save failed:',err);}
-  }else{
-    console.warn('[sync] 0 templates uploaded — Firestore NOT updated. Check Firebase Storage rules.');
-  }
-  return allTemplates;
-}
+
 
 async function fbLoad():Promise<{starred:Set<string>;history:HistoryEntry[];pinned:Set<string>}|null>{
   const user=auth.currentUser;if(!user)return null;
@@ -177,21 +128,6 @@ async function rateCommunity(tid:string,score:number):Promise<{avg:number;count:
 }
 
 function shuffleArray<T>(arr:T[]):T[]{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function parseSettingsTxt(txt:string):Record<string,TemplateSettings>{
-  const result:Record<string,TemplateSettings>={};
-  txt.split('\n').slice(1).forEach(line=>{
-    const trim=line.trim();if(!trim)return;
-    const dot=trim.indexOf('.');if(dot<0)return;
-    const key=trim.slice(0,dot);const parts=trim.slice(dot+1).split('/');
-    const s:TemplateSettings={};const[font,main,hi,mark,ep,bg]=parts;
-    if(font&&font!=='無')s.fontFamily=font;if(main&&main!=='無')s.mainColor=main;
-    if(hi&&hi!=='無')s.highlightColor=hi;if(mark&&mark!=='無')s.specialMark=mark;
-    if(ep&&ep.trim()&&ep.trim()!=='無')s.extraPrompt=ep.trim();
-    if(bg&&bg.trim()&&bg.trim()!=='無')s.backgroundColor=bg.trim();
-    result[`${key}.jpg`]=s;
-  });
-  return result;
-}
 
 type Tab='all'|'starred'|'history'|'community';
 type ConflictChoice='replace'|'merge'|'keep';
@@ -213,7 +149,6 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
 
   const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
   const [driveLoading,setDriveLoading]=useState(false);
-  const [syncProgress,setSyncProgress]=useState<{done:number;total:number}|null>(null);
   const [visibleCount,setVisibleCount]=useState(15);
 
   const [communityItems,setCommunityItems]=useState<SharedTemplate[]>([]);
@@ -273,7 +208,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  // ── 2) Load templates: Firestore first (fast), then sync new Drive→Firebase ──
+  // ── 2) Load templates from Firestore cache only ──
   useEffect(()=>{
     const toItem=(t:StoredTemplate):TemplateItem=>({
       id:t.name,
@@ -281,50 +216,16 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
       imageUrl:t.url,
       settings:t.settings,
     });
-    const scriptUrl=localStorage.getItem('driveScriptUrl')||import.meta.env.VITE_DRIVE_SCRIPT_URL||'';
     setDriveLoading(true);
-    // Step 1: Firestore index (instant on repeat visits)
-    loadIndexFromFirestore().then(async cached=>{
+    loadIndexFromFirestore().then(cached=>{
       if(cached.length>0){
         setAllItems(shuffleArray(cached.map(toItem)));
         setVisibleCount(15);
-        setDriveLoading(false);
       }
-      // Step 2a: Firestore empty → immediately show Drive thumbnails as fallback
-      if(cached.length===0&&scriptUrl){
-        try{
-          const[listRes,settingsTxt]=await Promise.all([
-            fetch(`${scriptUrl}?action=listTemplates`).then(r=>r.json()).catch(()=>[]),
-            fetch(`${scriptUrl}?action=getTemplateSettings`).then(r=>r.text()).catch(()=>''),
-          ]);
-          const files:Array<{id:string;name:string}>=Array.isArray(listRes)?listRes:[];
-          if(files.length>0){
-            const ps=parseSettingsTxt(settingsTxt);
-            setAllItems(shuffleArray(files.filter(f=>f?.id&&f?.name).map(f=>({
-              id:f.id,
-              label:/^\d+\./.test(f.name)?`範本 ${f.name.split('.')[0]}`:f.name.replace(/\.[^.]+$/,'').slice(0,10),
-              imageUrl:`https://drive.google.com/thumbnail?id=${f.id}&sz=w600`,
-              settings:ps[f.name]??null,
-            }))));
-            setVisibleCount(15);
-          }
-        }catch(e){console.warn('[templates] Drive fallback failed:',e);}
-        setDriveLoading(false);
-      }else if(cached.length===0){
-        setDriveLoading(false);
-      }
-      // Step 2b: background sync Drive → Firebase Storage (future fast loads)
-      if(!scriptUrl)return;
-      syncDriveToFirebase(scriptUrl,(done,total)=>{
-        setSyncProgress({done,total});
-      }).then(all=>{
-        if(all.length>0)setAllItems(shuffleArray(all.map(toItem)));
-        setVisibleCount(15);
-        setSyncProgress(null);
-      }).catch((err:unknown)=>{
-        console.warn('[sync] Drive→Firebase failed:',err);
-        setSyncProgress(null);
-      });
+      setDriveLoading(false);
+    }).catch(err=>{
+      console.warn('[templates] Firestore load failed:',err);
+      setDriveLoading(false);
     });
   },[]);
 
@@ -659,15 +560,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
           </div>
         </div>
 
-        {syncProgress&&(
-          <div style={{padding:'0.45rem 1.25rem',fontSize:'0.76rem',color:'var(--text-secondary)',background:'var(--bg-secondary)',borderBottom:'1px solid var(--border-color)',flexShrink:0,display:'flex',alignItems:'center',gap:'0.6rem'}}>
-            <Loader size={12} style={{animation:'spin 1s linear infinite',flexShrink:0}}/>
-            <span>同步新範本到 Firebase … {syncProgress.done}/{syncProgress.total}</span>
-            <div style={{flex:1,height:'4px',background:'var(--border-color)',borderRadius:'2px',overflow:'hidden'}}>
-              <div style={{height:'100%',background:'var(--accent-color)',width:`${Math.round(syncProgress.done/syncProgress.total*100)}%`,transition:'width 0.3s'}}/>
-            </div>
-          </div>
-        )}
+        
 
         {/* Gemini prompt */}
         {geminiPending&&(
