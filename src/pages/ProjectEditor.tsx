@@ -118,7 +118,7 @@ export const ProjectEditor: React.FC = () => {
 
   // Local-first generation state
   const [pendingImages, setPendingImages] = useState<Map<string, string>>(new Map());
-  const [backedUpIds, setBackedUpIds] = useState<Set<string>>(new Set());
+  const [backedUpIds, setBackedUpIds] = useState<Map<string, number>>(new Map());
   const [lastBackupTime, setLastBackupTime] = useState<Date | null>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const backupFailCount = useRef(0);
@@ -453,7 +453,7 @@ export const ProjectEditor: React.FC = () => {
 
   // Always-on auto-backup: triggers after new unbacked images appear, with exponential backoff on failure
   React.useEffect(() => {
-    const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
+    const unbacked = Array.from(pendingImages.entries()).filter(([sid, img]) => backedUpIds.get(sid) !== img.length);
     if (unbacked.length === 0 || isBackingUp || backupFailCount.current >= 3) return;
     const delay = backupFailCount.current === 0 ? 2000 : Math.min(5000 * Math.pow(2, backupFailCount.current - 1), 30000);
     const timer = setTimeout(() => { handleBackup(); }, delay);
@@ -866,7 +866,7 @@ export const ProjectEditor: React.FC = () => {
   }, [slides]);
 
   const handleBackup = async () => {
-    const unbacked = Array.from(pendingImages.entries()).filter(([sid]) => !backedUpIds.has(sid));
+    const unbacked = Array.from(pendingImages.entries()).filter(([sid, img]) => backedUpIds.get(sid) !== img.length);
     if (!id || !userId || unbacked.length === 0 || isBackingUp) return;
     setIsBackingUp(true);
     try {
@@ -890,7 +890,11 @@ export const ProjectEditor: React.FC = () => {
         await fb.commit();
       }
       // Keep pendingImages in memory (original quality for this session)
-      setBackedUpIds(prev => new Set([...prev, ...newlyBacked]));
+      setBackedUpIds(prev => {
+        const next = new Map(prev);
+        unbacked.forEach(([sid, img]) => { if (newlyBacked.has(sid)) next.set(sid, img.length); });
+        return next;
+      });
       setLastBackupTime(new Date());
       backupFailCount.current = 0;
     } catch (err) {
@@ -901,7 +905,7 @@ export const ProjectEditor: React.FC = () => {
     }
   };
 
-  const unbackedCount = Array.from(pendingImages.keys()).filter(sid => !backedUpIds.has(sid)).length;
+  const unbackedCount = Array.from(pendingImages.entries()).filter(([sid, img]) => backedUpIds.get(sid) !== img.length).length;
 
   // ── Markdown renderer (react-markdown + GFM + KaTeX) ──
   const mdComponents: Record<string, React.FC<any>> = React.useMemo(() => ({
@@ -2182,7 +2186,7 @@ export const ProjectEditor: React.FC = () => {
             </button>
           )}
           {pendingImages.size > 0 && (() => {
-            const unbackedCount = Array.from(pendingImages.keys()).filter(sid => !backedUpIds.has(sid)).length;
+            const unbackedCount = Array.from(pendingImages.entries()).filter(([sid, img]) => backedUpIds.get(sid) !== img.length).length;
             return unbackedCount > 0 ? (
               <button onClick={() => { backupFailCount.current = 0; handleBackup(); }} disabled={isBackingUp}
                 style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1 }}>
