@@ -862,7 +862,7 @@ export const ProjectEditor: React.FC = () => {
     }
   };
 
-  const unbackedCount = pendingImages.size - backedUpIds.size;
+  const unbackedCount = Array.from(pendingImages.keys()).filter(sid => !backedUpIds.has(sid)).length;
 
   const handleBack = () => {
     if (unbackedCount > 0) {
@@ -1998,7 +1998,7 @@ export const ProjectEditor: React.FC = () => {
             </button>
           )}
           {pendingImages.size > 0 && (() => {
-            const unbackedCount = pendingImages.size - backedUpIds.size;
+            const unbackedCount = Array.from(pendingImages.keys()).filter(sid => !backedUpIds.has(sid)).length;
             return unbackedCount > 0 ? (
               <button onClick={() => { backupFailCount.current = 0; handleBackup(); }} disabled={isBackingUp}
                 style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.3rem', cursor: isBackingUp ? 'not-allowed' : 'pointer', background: 'var(--accent-color)', color: '#fff', opacity: isBackingUp ? 0.7 : 1 }}>
@@ -2297,7 +2297,7 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0 }}>
+          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflow: 'hidden', flexShrink: 0 }}>
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
