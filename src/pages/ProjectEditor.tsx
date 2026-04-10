@@ -2545,7 +2545,21 @@ export const ProjectEditor: React.FC = () => {
               ) : (
                 <>
                   <img ref={imgRef} src={(activeSlideId && activeSlide ? getCanvasSrc(activeSlideId, activeSlide) : undefined) || ''} alt="Editor Canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: activeSlide?.status === 'generating' ? 0.5 : 1, transition: 'opacity 0.3s' }} />
-                  <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={{ position: 'absolute', top: imgRef.current ? imgRef.current.offsetTop : 0, left: imgRef.current ? imgRef.current.offsetLeft : 0, width: imgRef.current ? imgRef.current.offsetWidth : '100%', height: imgRef.current ? imgRef.current.offsetHeight : '100%', pointerEvents: isDrawingMode ? 'auto' : 'none', cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 1, mixBlendMode: 'normal', zIndex: 10 }} />
+                  <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} style={(() => {
+                    const img = imgRef.current;
+                    if (!img) return { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', pointerEvents: (isDrawingMode ? 'auto' : 'none') as any, cursor: isDrawingMode ? 'crosshair' : 'default', zIndex: 10 };
+                    // Compute actual rendered image rect inside objectFit:contain
+                    const natW = img.naturalWidth || 1;
+                    const natH = img.naturalHeight || 1;
+                    const elemW = img.offsetWidth;
+                    const elemH = img.offsetHeight;
+                    const scale = Math.min(elemW / natW, elemH / natH);
+                    const renderedW = natW * scale;
+                    const renderedH = natH * scale;
+                    const offsetX = (elemW - renderedW) / 2;
+                    const offsetY = (elemH - renderedH) / 2;
+                    return { position: 'absolute' as const, top: img.offsetTop + offsetY, left: img.offsetLeft + offsetX, width: renderedW, height: renderedH, pointerEvents: (isDrawingMode ? 'auto' : 'none') as any, cursor: isDrawingMode ? 'crosshair' : 'default', opacity: 1, mixBlendMode: 'normal' as const, zIndex: 10 };
+                  })()} />
                   {activeSlide?.status === 'generating' && (
                     <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--bg-primary)', padding: '1rem 2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', fontWeight: 500, zIndex: 20 }}>
                       <Sparkles size={16} style={{ display: 'inline', marginRight: '0.5rem', animation: 'spin 2s linear infinite' }} /> Generating with Gemini...
@@ -2623,8 +2637,8 @@ export const ProjectEditor: React.FC = () => {
                     });
                     e.target.value = '';
                   }} />
-                  {/* Thumbnail strip for uploaded extra images */}
-                  {localExtraImages.length > 0 && (
+                  {/* Thumbnail strip for uploaded extra images — hidden in drawing mode */}
+                  {localExtraImages.length > 0 && !isDrawingMode && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.3rem', padding: '6px 0.4rem 0', borderLeft: '1px solid var(--border-color)', overflow: 'visible' }}>
                       {localExtraImages.map((img, idx) => (
                         <div key={img.id} style={{ position: 'relative', flexShrink: 0 }} title={`@${idx + 1} ${img.name}`}>
