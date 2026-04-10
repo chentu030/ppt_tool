@@ -1938,7 +1938,7 @@ export const ProjectEditor: React.FC = () => {
 
   return (
     <div style={{ height: 'calc(100vh - 4rem)', display: 'flex', flexDirection: 'column', position: 'relative' }}
-      onDragOver={e => { e.preventDefault(); if (!draggingId) setIsDragOverPage(true); }}
+      onDragOver={e => { e.preventDefault(); if (!draggingId && e.dataTransfer.types.includes('Files')) setIsDragOverPage(true); }}
       onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverPage(false); }}
       onDrop={handleFileDrop}>
       {isDragOverPage && (

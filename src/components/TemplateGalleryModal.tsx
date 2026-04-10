@@ -149,7 +149,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
 
   const [allItems,setAllItems]=useState<TemplateItem[]>(()=>shuffleArray(LOCAL_TEMPLATES));
   const [driveLoading,setDriveLoading]=useState(false);
-  const [visibleCount,setVisibleCount]=useState(15);
+  const [visibleCount,setVisibleCount]=useState(9999);
 
   const [communityItems,setCommunityItems]=useState<SharedTemplate[]>([]);
   const [communityLoading,setCommunityLoading]=useState(false);
@@ -220,7 +220,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
     loadIndexFromFirestore().then(cached=>{
       if(cached.length>0){
         setAllItems(shuffleArray(cached.map(toItem)));
-        setVisibleCount(15);
+        setVisibleCount(9999);
       }
       setDriveLoading(false);
     }).catch(err=>{
@@ -236,7 +236,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
   },[]);
 
   // ── Reset visible count on tab change ─────────────────────────────────────
-  useEffect(()=>{setVisibleCount(15);},[tab]);
+  useEffect(()=>{setVisibleCount(9999);},[tab]);
 
   // ── Infinite scroll (debounced, [tab] dep prevents rapid-fire) ────────────
   useEffect(()=>{
@@ -393,7 +393,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
         onMouseEnter={()=>setHoveredCard(item.id)} onMouseLeave={()=>setHoveredCard(null)}>
         <button onClick={()=>handleTemplateClick(item)}
           style={{padding:0,border:`2px solid ${isHovered?'var(--accent-color)':'var(--border-color)'}`,borderRadius:'0.6rem',cursor:'pointer',background:'none',overflow:'hidden',display:'flex',flexDirection:'column',textAlign:'left',width:'100%',transition:'border-color 0.15s'}}>
-          <img src={item.imageUrl} alt={item.label} style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
+          <img src={item.imageUrl} alt={item.label} loading="lazy" style={{width:'100%',height:'auto',display:'block'}} onError={e=>{(e.currentTarget as HTMLImageElement).style.opacity='0.3';}}/>
           <div style={{padding:'0.35rem 0.5rem',fontSize:'0.7rem',color:'var(--text-secondary)',background:'var(--bg-secondary)',width:'100%',boxSizing:'border-box'}}>
             <span style={{fontWeight:700,color:'var(--text-primary)'}}>{item.label}</span>
             {item.settings
@@ -657,7 +657,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
               else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>尚無社群模板</p>;}
             }else{
               if(visibleItems.length>0)cards=visibleItems.map(renderTemplateCard);
-              else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':'Drive 模板載入中…'}</p>;}
+              else{cards=[];emptyMsg=<p style={{color:'var(--text-secondary)',fontSize:'0.85rem'}}>{tab==='starred'?'尚無收藏':driveLoading?'範本載入中…':'尚無範本'}</p>;}
             }
             if(emptyMsg)return emptyMsg;
             // Round-robin distribute into 3 columns
