@@ -133,8 +133,9 @@ export const ProjectEditor: React.FC = () => {
   const [showAddSlideModal, setShowAddSlideModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addSlideCount, setAddSlideCount] = useState(1);
-  // Sidebar insert between slides
-  const [sidebarInsertMenu, setSidebarInsertMenu] = useState<number | null>(null); // index of slide AFTER which to insert
+  // Insert between slides (sidebar + grid)
+  const [sidebarInsertMenu, setSidebarInsertMenu] = useState<number | null>(null);
+  const [gridInsertMenu, setGridInsertMenu] = useState<number | null>(null);
   const insertFileRef = useRef<HTMLInputElement | null>(null);
   const insertImageRef = useRef<HTMLInputElement | null>(null);
   const insertTargetIdx = useRef<number>(-1);
@@ -2028,7 +2029,8 @@ export const ProjectEditor: React.FC = () => {
           <div ref={gridRef} onMouseDown={handleGridMouseDown} style={{ flex: 1, overflowY: 'auto', padding: '0.25rem', userSelect: 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
               {slides.map((slide, index) => (
-                <div key={slide.id}
+                <div key={slide.id} style={{ position: 'relative' }}>
+                <div
                   data-slide-card
                   ref={(el) => { if (el) slideCardRefs.current.set(slide.id, el); else slideCardRefs.current.delete(slide.id); }}
                   onMouseDown={(e) => e.stopPropagation()}
@@ -2078,6 +2080,38 @@ export const ProjectEditor: React.FC = () => {
                       <Trash2 size={14} />
                     </Button>
                   </div>
+                </div>
+                {/* Grid insert zone — right edge of card */}
+                <div
+                  onClick={(e) => { e.stopPropagation(); setGridInsertMenu(prev => prev === index ? null : index); }}
+                  onMouseEnter={(e) => { if (gridInsertMenu === null) { const btn = e.currentTarget.querySelector('[data-grid-insert-btn]') as HTMLElement; if (btn) btn.style.opacity = '1'; } }}
+                  onMouseLeave={(e) => { if (gridInsertMenu === null) { const btn = e.currentTarget.querySelector('[data-grid-insert-btn]') as HTMLElement; if (btn) btn.style.opacity = '0'; } }}
+                  style={{ position: 'absolute', right: '-8px', top: 0, bottom: 0, width: '16px', cursor: 'pointer', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {gridInsertMenu === null && (
+                    <div data-grid-insert-btn style={{ opacity: 0, transition: 'opacity 0.15s', background: 'var(--accent-color)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>+</div>
+                  )}
+                  {gridInsertMenu === index && (
+                    <div style={{ position: 'absolute', right: '20px', top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.4rem', background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: '0.4rem', boxShadow: 'var(--shadow-md)', zIndex: 20, whiteSpace: 'nowrap' }}
+                      onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => { insertTargetIdx.current = index; insertFileRef.current?.click(); setGridInsertMenu(null); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.5rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Upload size={13} /> 插入檔案
+                      </button>
+                      <button onClick={() => { insertTargetIdx.current = index; insertImageRef.current?.click(); setGridInsertMenu(null); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.5rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <ImagePlus size={13} /> 插入圖片
+                      </button>
+                      <button onClick={() => { addSlide('text', 1, index); setGridInsertMenu(null); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.5rem', fontSize: '0.72rem', fontWeight: 600, border: 'none', borderRadius: '0.25rem', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <FileText size={13} /> 插入文字頁
+                      </button>
+                    </div>
+                  )}
+                </div>
                 </div>
               ))}
             </div>
@@ -2359,11 +2393,11 @@ export const ProjectEditor: React.FC = () => {
                 {/* Hidden file inputs for insert */}
                 <input ref={insertFileRef} type="file" accept=".pptx,.pdf,.docx,.txt" multiple hidden onChange={async (e) => {
                   if (e.target.files && e.target.files.length > 0) await handleInsertFiles(e.target.files);
-                  e.target.value = ''; setSidebarInsertMenu(null);
+                  e.target.value = ''; setSidebarInsertMenu(null); setGridInsertMenu(null);
                 }} />
                 <input ref={insertImageRef} type="file" accept="image/*" multiple hidden onChange={async (e) => {
                   if (e.target.files && e.target.files.length > 0) await handleInsertImages(e.target.files, insertTargetIdx.current);
-                  e.target.value = ''; setSidebarInsertMenu(null);
+                  e.target.value = ''; setSidebarInsertMenu(null); setGridInsertMenu(null);
                 }} />
                 {slides.map((slide, index) => (
                   <React.Fragment key={slide.id}>
