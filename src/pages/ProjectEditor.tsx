@@ -2073,13 +2073,13 @@ export const ProjectEditor: React.FC = () => {
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>比例</span>
                       <select style={selectS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
-                        <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option><option value="3:4">3:4</option><option value="3:2">3:2</option>
+                        <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="21:9">21:9</option><option value="1:1">1:1</option><option value="1:4">1:4</option><option value="1:8">1:8</option><option value="2:3">2:3</option><option value="3:2">3:2</option><option value="3:4">3:4</option><option value="4:1">4:1</option><option value="4:3">4:3</option><option value="4:5">4:5</option><option value="5:4">5:4</option><option value="8:1">8:1</option>
                       </select>
                     </div>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>解析度</span>
                       <select style={selectS} value={resolution} onChange={e => setResolution(e.target.value)}>
-                        <option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
+                        <option value="0.5K">0.5K</option><option value="1K">1K</option><option value="2K">2K</option><option value="4K">4K</option>
                       </select>
                     </div>
                   </div>
@@ -2167,15 +2167,24 @@ export const ProjectEditor: React.FC = () => {
                           <select style={selectStyle} value={aspectRatio} onChange={e => setAspectRatio(e.target.value)}>
                             <option value="16:9">16:9</option>
                             <option value="9:16">9:16</option>
+                            <option value="21:9">21:9</option>
                             <option value="1:1">1:1</option>
-                            <option value="4:3">4:3</option>
-                            <option value="3:4">3:4</option>
+                            <option value="1:4">1:4</option>
+                            <option value="1:8">1:8</option>
+                            <option value="2:3">2:3</option>
                             <option value="3:2">3:2</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:1">4:1</option>
+                            <option value="4:3">4:3</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="8:1">8:1</option>
                           </select>
                         </div>
                         <div style={rowStyle}>
                           <label style={labelStyle}>解析度</label>
                           <select style={selectStyle} value={resolution} onChange={e => setResolution(e.target.value)}>
+                            <option value="0.5K">0.5K</option>
                             <option value="1K">1K</option>
                             <option value="2K">2K</option>
                             <option value="4K">4K</option>
