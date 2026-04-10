@@ -113,6 +113,7 @@ export const ProjectEditor: React.FC = () => {
   // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const isResizing = useRef(false);
+  const sidebarListRef = useRef<HTMLDivElement | null>(null);
   // Extra reference images for local modify (@1, @2, ...)
   const [localExtraImages, setLocalExtraImages] = useState<{ id: string; dataUrl: string; name: string }[]>([]);
   const localExtraImagesRef = useRef<{ label: string; dataUrl: string }[]>([]);
@@ -383,7 +384,6 @@ export const ProjectEditor: React.FC = () => {
           if (src) imgRef.current.src = src;
         }
         setActiveSlideId(nextSlide.id);
-        React.startTransition(() => setSelectedSlides(new Set([nextSlide.id])));
       };
       if (e.key === 'ArrowLeft' && idx > 0) {
         jumpTo(slides[idx - 1]);
@@ -394,6 +394,17 @@ export const ProjectEditor: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [slides, activeSlideId]);
+
+  // Auto-scroll sidebar to active slide
+  React.useEffect(() => {
+    if (!activeSlideId || !previewOpen) return;
+    requestAnimationFrame(() => {
+      const container = sidebarListRef.current;
+      if (!container) return;
+      const el = container.querySelector(`[data-sidebar-slide="${activeSlideId}"]`) as HTMLElement | null;
+      if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  }, [activeSlideId, previewOpen]);
 
   // Always-on auto-backup: triggers after new unbacked images appear, with exponential backoff on failure
   React.useEffect(() => {
@@ -744,7 +755,7 @@ export const ProjectEditor: React.FC = () => {
       });
       lastAnchorId.current = slideId;
     } else {
-      setSelectedSlides(new Set([slideId]));
+      // Plain click: open preview without resetting selection
       lastAnchorId.current = slideId;
       setActiveSlideId(slideId);
       setPreviewOpen(true);
@@ -1856,7 +1867,7 @@ export const ProjectEditor: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', padding: '0 0.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           {previewOpen ? (
-            <button onClick={() => setPreviewOpen(false)} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.25rem 0.55rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
+            <button onClick={() => { setPreviewOpen(false); requestAnimationFrame(() => { const el = slideCardRefs.current.get(activeSlideId); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); }} style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '0.3rem', cursor: 'pointer', padding: '0.25rem 0.55rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}>
               <ArrowLeft size={13} /> 退出預覽
             </button>
           ) : (
@@ -2246,9 +2257,9 @@ export const ProjectEditor: React.FC = () => {
                   <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
+              <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
                 {slides.map((slide, index) => (
-                  <div key={slide.id} onClick={() => setActiveSlideId(slide.id)}
+                  <div key={slide.id} data-sidebar-slide={slide.id} onClick={() => setActiveSlideId(slide.id)}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', borderRadius: 'var(--radius-md)', cursor: 'pointer', backgroundColor: activeSlideId === slide.id ? 'var(--bg-secondary)' : 'transparent', border: `1px solid ${activeSlideId === slide.id ? 'var(--border-color)' : 'transparent'}` }}>
                     <div onClick={(e) => toggleSlideSelection(slide.id, e)} style={{ cursor: 'pointer', color: selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'var(--border-color)' }}>
                       <CheckSquare size={18} fill={selectedSlides.has(slide.id) ? 'var(--accent-color)' : 'transparent'} color={selectedSlides.has(slide.id) ? 'white' : 'currentColor'} />
@@ -2359,7 +2370,7 @@ export const ProjectEditor: React.FC = () => {
                     </div>
                   )}
                   {/* Prev/Next slide nav buttons */}
-                  {(() => { const idx = slides.findIndex(s => s.id === activeSlideId); const hasPrev = idx > 0; const hasNext = idx < slides.length - 1; const navBtn = (enabled: boolean): React.CSSProperties => ({ position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 15, background: enabled ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.15)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'default', color: 'white', transition: 'background 0.2s' }); return (<><button style={{ ...navBtn(hasPrev), left: '10px' }} disabled={!hasPrev} onClick={() => { if (hasPrev) { const prevId = slides[idx-1].id; setActiveSlideId(prevId); setSelectedSlides(new Set([prevId])); } }}><ChevronLeft size={20} /></button><button style={{ ...navBtn(hasNext), right: '10px' }} disabled={!hasNext} onClick={() => { if (hasNext) { const nextId = slides[idx+1].id; setActiveSlideId(nextId); setSelectedSlides(new Set([nextId])); } }}><ChevronRight size={20} /></button></>); })()}
+                  {(() => { const idx = slides.findIndex(s => s.id === activeSlideId); const hasPrev = idx > 0; const hasNext = idx < slides.length - 1; const navBtn = (enabled: boolean): React.CSSProperties => ({ position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 15, background: enabled ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.15)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'default', color: 'white', transition: 'background 0.2s' }); return (<><button style={{ ...navBtn(hasPrev), left: '10px' }} disabled={!hasPrev} onClick={() => { if (hasPrev) setActiveSlideId(slides[idx-1].id); }}><ChevronLeft size={20} /></button><button style={{ ...navBtn(hasNext), right: '10px' }} disabled={!hasNext} onClick={() => { if (hasNext) setActiveSlideId(slides[idx+1].id); }}><ChevronRight size={20} /></button></>); })()}
                 </>
               )}
             </div>
