@@ -320,7 +320,13 @@ export const generateImageDesign = async (
       return `data:${mime};base64,${imagePart.inlineData.data}`;
     }
 
-    console.warn("API didn't return an image part. Returning original.");
+    // No image part — retry if attempts remain
+    if (attempt < MAX_RETRIES) {
+      console.warn(`[Retry ${attempt + 1}/${MAX_RETRIES}] API didn't return an image part, retrying...`);
+      lastError = new Error('API did not return an image part');
+      continue;
+    }
+    console.warn("API didn't return an image part after all retries. Returning original.");
     return baseImage ?? '';
 
   } catch (error: any) {
