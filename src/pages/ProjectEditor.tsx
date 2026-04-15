@@ -1394,12 +1394,17 @@ export const ProjectEditor: React.FC = () => {
         await fb.commit();
       }
       setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+      // Deferred HQ uploads — throttled to avoid blocking
       const projectId = id as string;
-      allResults.forEach(({ newId, rawData }) => {
-        uploadHQToStorage(projectId, newId, 'originalImage', rawData)
-          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
-          .catch(() => {});
-      });
+      const HQ_CONCURRENCY = 2;
+      (async () => {
+        for (let hi = 0; hi < allResults.length; hi += HQ_CONCURRENCY) {
+          await Promise.allSettled(allResults.slice(hi, hi + HQ_CONCURRENCY).map(({ newId, rawData }) =>
+            uploadHQToStorage(projectId, newId, 'originalImage', rawData)
+              .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          ));
+        }
+      })();
     } catch (err) { console.error(err); showAlert('儲存 PPT 時發生錯誤。', '錯誤'); }
     finally { clearInterval(progressInterval); setParsingProgress(null); setSavingProgress(null); }
   };
@@ -1447,12 +1452,17 @@ export const ProjectEditor: React.FC = () => {
         await fb.commit();
       }
       setSelectedSlides(new Set(newSlideIds)); setActiveSlideId(newSlideIds[0]);
+      // Deferred HQ uploads — throttled to avoid blocking
       const projectId = id as string;
-      allResults.forEach(({ newId, rawData }) => {
-        uploadHQToStorage(projectId, newId, 'originalImage', rawData)
-          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
-          .catch(() => {});
-      });
+      const HQ_CONCURRENCY = 2;
+      (async () => {
+        for (let hi = 0; hi < allResults.length; hi += HQ_CONCURRENCY) {
+          await Promise.allSettled(allResults.slice(hi, hi + HQ_CONCURRENCY).map(({ newId, rawData }) =>
+            uploadHQToStorage(projectId, newId, 'originalImage', rawData)
+              .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          ));
+        }
+      })();
     } catch (err) { console.error(err); showAlert('解析 PDF 時發生錯誤。', '錯誤'); }
     finally { setParsingProgress(null); setSavingProgress(null); }
   };
@@ -1462,7 +1472,7 @@ export const ProjectEditor: React.FC = () => {
     setIsDragOverPage(false);
     if (draggingId) return; // internal slide reorder — ignore
     if (parsingProgress || savingProgress || !id) return;
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     if (files.length === 0) return;
     const pptFiles = files.filter(f => f.name.endsWith('.pptx'));
     const pdfFiles = files.filter(f => f.name.endsWith('.pdf'));
@@ -1481,7 +1491,7 @@ export const ProjectEditor: React.FC = () => {
   };
 
   const handleImageUpload = async (fileList: FileList) => {
-    const files = Array.from(fileList);
+    const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     if (!id || files.length === 0) return;
     setSavingProgress({ current: 0, total: files.length });
     try {
@@ -1523,13 +1533,17 @@ export const ProjectEditor: React.FC = () => {
       }
       setSelectedSlides(new Set(newSlideIds));
       setActiveSlideId(newSlideIds[0]);
-      // Deferred HQ uploads in background — don't block UI
+      // Deferred HQ uploads in background — throttled to avoid blocking
       const projectId = id;
-      slideData.forEach(({ newId, base64 }) => {
-        uploadHQToStorage(projectId, newId, 'originalImage', base64)
-          .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
-          .catch(() => {});
-      });
+      const HQ_CONCURRENCY = 2;
+      (async () => {
+        for (let hi = 0; hi < slideData.length; hi += HQ_CONCURRENCY) {
+          await Promise.allSettled(slideData.slice(hi, hi + HQ_CONCURRENCY).map(({ newId, base64 }) =>
+            uploadHQToStorage(projectId, newId, 'originalImage', base64)
+              .then(hqUrl => { if (hqUrl) updateDoc(doc(db, 'projects', projectId, 'slides', newId), { originalImageHQ: hqUrl }).catch(() => {}); })
+          ));
+        }
+      })();
     } catch (err) {
       console.error(err);
       showAlert('上傳圖片時發生錯誤。', '錯誤');
@@ -1540,7 +1554,7 @@ export const ProjectEditor: React.FC = () => {
 
   // Insert images at a specific position (between slides)
   const handleInsertImages = async (fileList: FileList, afterIdx: number) => {
-    const files = Array.from(fileList);
+    const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     if (!id || files.length === 0) return;
     const curOrder = afterIdx >= 0 ? (slides[afterIdx]?.order ?? 0) : 0;
     const nextOrder = afterIdx + 1 < slides.length ? (slides[afterIdx + 1]?.order ?? curOrder + 1000 * (files.length + 1)) : curOrder + 1000 * (files.length + 1);
@@ -1573,7 +1587,7 @@ export const ProjectEditor: React.FC = () => {
 
   // Insert files (PPT/PDF/Word/TXT) — delegates to existing handlers (appends at end)
   const handleInsertFiles = async (fileList: FileList) => {
-    const files = Array.from(fileList);
+    const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     for (const f of files) {
       if (f.name.endsWith('.pdf')) await handlePDFUpload(f);
       else if (f.name.endsWith('.pptx')) await handlePPTUpload(f);
