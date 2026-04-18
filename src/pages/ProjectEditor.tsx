@@ -136,6 +136,7 @@ export const ProjectEditor: React.FC = () => {
 
   // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = useState(280);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isResizing = useRef(false);
   const sidebarListRef = useRef<HTMLDivElement | null>(null);
   // Extra reference images for local modify (@1, @2, ...)
@@ -2505,7 +2506,22 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: '0.5rem' }}>
+          <div style={{ width: sidebarCollapsed ? '36px' : `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: sidebarCollapsed ? '0' : '1.5rem', overflowY: sidebarCollapsed ? 'hidden' : 'auto', overflowX: 'hidden', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: sidebarCollapsed ? '0.5rem 0.25rem' : '0.5rem', transition: 'width 0.2s ease', position: 'relative' }}>
+            {/* Collapse/Expand toggle */}
+            <button
+              onClick={() => setSidebarCollapsed(c => !c)}
+              title={sidebarCollapsed ? '展開側邊欄' : '收合側邊欄'}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.3rem', borderRadius: '0.25rem', alignSelf: sidebarCollapsed ? 'center' : 'flex-end', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
+              {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+            {sidebarCollapsed ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <span style={{ writingMode: 'vertical-rl', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>Slides</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{slides.length}</span>
+              </div>
+            ) : (<>
             {/* 進階設定 */}
             {(() => {
               const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
@@ -2659,17 +2675,18 @@ export const ProjectEditor: React.FC = () => {
                 ))}
               </div>
             </div>
+            </>)}
           </div>
 
           {/* Resize Handle */}
-          <div
+          {!sidebarCollapsed && <div
             onMouseDown={handleResizeStart}
             style={{ width: '6px', cursor: 'col-resize', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '3px', transition: 'background 0.15s' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-color)')}
             onMouseLeave={e => { if (!isResizing.current) e.currentTarget.style.background = 'transparent'; }}
           >
             <div style={{ width: '2px', height: '32px', borderRadius: '1px', background: 'var(--border-color)' }} />
-          </div>
+          </div>}
 
           {/* Canvas Area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: 0 }}>
