@@ -2506,7 +2506,7 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: sidebarCollapsed ? '36px' : `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', overflowY: sidebarCollapsed ? 'hidden' : 'auto', overflowX: 'hidden', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: 0, transition: 'width 0.2s ease', position: 'relative' }}>
+          <div style={{ width: sidebarCollapsed ? '36px' : `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', overflowY: sidebarCollapsed ? 'hidden' : 'auto', overflowX: 'hidden', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: 0, position: 'relative' }}>
             {/* Sticky toolbar */}
             <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-primary)', borderBottom: sidebarCollapsed ? 'none' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', padding: sidebarCollapsed ? '0.4rem 0.25rem' : '0.35rem 0.5rem', flexShrink: 0 }}>
               <button
