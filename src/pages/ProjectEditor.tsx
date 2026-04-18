@@ -2506,16 +2506,39 @@ export const ProjectEditor: React.FC = () => {
         {/* ===== MODE B: Preview Open ??Sidebar + Canvas ===== */}
         {previewOpen && (<>
           {/* Left Sidebar */}
-          <div style={{ width: sidebarCollapsed ? '36px' : `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', gap: sidebarCollapsed ? '0' : '1.5rem', overflowY: sidebarCollapsed ? 'hidden' : 'auto', overflowX: 'hidden', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: sidebarCollapsed ? '0.5rem 0.25rem' : '0.5rem', transition: 'width 0.2s ease', position: 'relative' }}>
-            {/* Collapse/Expand toggle */}
-            <button
-              onClick={() => setSidebarCollapsed(c => !c)}
-              title={sidebarCollapsed ? '展開側邊欄' : '收合側邊欄'}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.3rem', borderRadius: '0.25rem', alignSelf: sidebarCollapsed ? 'center' : 'flex-end', flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
-              {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            </button>
+          <div style={{ width: sidebarCollapsed ? '36px' : `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', overflowY: sidebarCollapsed ? 'hidden' : 'auto', overflowX: 'hidden', flexShrink: 0, borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', padding: 0, transition: 'width 0.2s ease', position: 'relative' }}>
+            {/* Sticky toolbar */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--bg-primary)', borderBottom: sidebarCollapsed ? 'none' : '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'space-between', padding: sidebarCollapsed ? '0.4rem 0.25rem' : '0.35rem 0.5rem', flexShrink: 0 }}>
+              <button
+                onClick={() => setSidebarCollapsed(c => !c)}
+                title={sidebarCollapsed ? '展開側邊欄' : '收合側邊欄'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0.25rem', borderRadius: '0.25rem', flexShrink: 0 }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
+                {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+              </button>
+              {!sidebarCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <button
+                    onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }}
+                    title={selectedSlides.size === slides.length ? '取消全選' : '全選'}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer', color: selectedSlides.size === slides.length ? 'var(--accent-color)' : 'var(--text-secondary)', padding: '0.25rem', borderRadius: '0.25rem' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+                    <CheckSquare size={15} />
+                  </button>
+                  <button
+                    onClick={() => { if (selectedSlides.size > 0) setShowDeleteConfirm(true); }}
+                    title={`刪除勾選的 (${selectedSlides.size})`}
+                    disabled={selectedSlides.size === 0}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: selectedSlides.size > 0 ? 'pointer' : 'not-allowed', color: selectedSlides.size > 0 ? '#ef4444' : 'var(--text-secondary)', padding: '0.25rem', borderRadius: '0.25rem', opacity: selectedSlides.size > 0 ? 1 : 0.4 }}
+                    onMouseEnter={e => { if (selectedSlides.size > 0) e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              )}
+            </div>
             {sidebarCollapsed ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <span style={{ writingMode: 'vertical-rl', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>Slides</span>
@@ -2603,16 +2626,7 @@ export const ProjectEditor: React.FC = () => {
             })()}
 
             {/* Slides List - sidebar mode */}
-            <div style={{ backgroundColor: 'var(--bg-primary)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1rem', margin: 0 }}>Slides Gallery</h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <Button size="sm" variant="ghost" onClick={() => { if (selectedSlides.size === slides.length) setSelectedSlides(new Set()); else setSelectedSlides(new Set(slides.map(s => s.id))); }} style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                    {selectedSlides.size === slides.length ? '取消全選' : '全選'}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setShowAddSlideModal(true)} style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Plus size={16} />新增頁面</Button>
-                </div>
-              </div>
+            <div style={{ padding: '0.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
               <div ref={sidebarListRef} style={{ display: 'flex', flexDirection: 'column', gap: '0', flex: 1 }}>
                 {/* Hidden file inputs for insert */}
                 <input ref={insertFileRef} type="file" accept=".pptx,.pdf,.docx,.txt" multiple hidden onChange={async (e) => {
