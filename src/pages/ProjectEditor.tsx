@@ -65,6 +65,7 @@ export const ProjectEditor: React.FC = () => {
   const [specialMark, setSpecialMark] = useState<string>('');
   const [backgroundColor, setBackgroundColor] = useState<string>('');
   const [addIllustration, setAddIllustration] = useState(false);
+  const [translateLanguage, setTranslateLanguage] = useState<string>('');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [useAdvancedSettings, setUseAdvancedSettings] = useState(true);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set());
@@ -73,9 +74,12 @@ export const ProjectEditor: React.FC = () => {
   const [activeSlideId, setActiveSlideId] = useState<string>('');
   const [globalReference, setGlobalReference] = useState<string | null>(null);
 
+  const langInstruction = translateLanguage.trim()
+    ? `，文字語言使用：${translateLanguage.trim()}`
+    : '，文字語言維持原始圖片中的語言（不要翻譯）';
   const defaultPrompt = useAdvancedSettings
-    ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計${addIllustration ? '，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)' : ''}，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
-    : `請根據提供的原始投影片圖片進行修改(用nano banana直接輸出圖片)，保持原始版面配置、比例和所有元素位置不變${globalReference ? '，請參考提供的風格圖' : ''}`;
+    ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計${addIllustration ? '，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)' : ''}，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}${langInstruction}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
+    : `請根據提供的原始投影片圖片進行修改(用nano banana直接輸出圖片)，保持原始版面配置、比例和所有元素位置不變${langInstruction}${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
   const [parsingProgress, setParsingProgress] = useState<{current: number, total: number} | null>(null);
@@ -246,6 +250,7 @@ export const ProjectEditor: React.FC = () => {
       if (s.backgroundColor !== undefined) setBackgroundColor(s.backgroundColor);
       if (s.useAdvancedSettings !== undefined) setUseAdvancedSettings(s.useAdvancedSettings);
       if (s.addIllustration !== undefined) setAddIllustration(s.addIllustration);
+      if (s.translateLanguage !== undefined) setTranslateLanguage(s.translateLanguage);
     } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -294,8 +299,8 @@ export const ProjectEditor: React.FC = () => {
   // Persist advanced settings per-project so each project has independent settings
   React.useEffect(() => {
     if (!id) return;
-    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration }));
-  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration]);
+    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration, translateLanguage }));
+  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration, translateLanguage]);
 
   // Build a localStorage key scoped to the current API channel + key so different users don't clash
   const getGeneratingKey = () => {
@@ -2531,6 +2536,10 @@ export const ProjectEditor: React.FC = () => {
                     <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
                     自動加入插圖
                   </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.2rem' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>翻譯語言（選填）</span>
+                    <input style={inputS} value={translateLanguage} onChange={e => setTranslateLanguage(e.target.value)} placeholder="預設維持原語言，例：English、日本語" />
+                  </div>
                   </div>
                 </div>
               );
@@ -2680,6 +2689,10 @@ export const ProjectEditor: React.FC = () => {
                         <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
                         自動加入插圖
                       </label>
+                      <div style={rowStyle}>
+                        <label style={labelStyle}>翻譯語言（選填）</label>
+                        <input style={inputStyle} value={translateLanguage} onChange={e => setTranslateLanguage(e.target.value)} placeholder="預設維持原語言，例：English、日本語" />
+                      </div>
                     </div>
                   )}
                 </div>
