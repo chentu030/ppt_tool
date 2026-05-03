@@ -247,8 +247,10 @@ export const ProjectEditor: React.FC = () => {
   // Save reference image to localStorage whenever it changes
   React.useEffect(() => {
     if (!id) return;
-    if (globalReference) localStorage.setItem(`refImg_${id}`, globalReference);
-    else localStorage.removeItem(`refImg_${id}`);
+    if (globalReference) {
+      try { localStorage.setItem(`refImg_${id}`, globalReference); }
+      catch { /* QuotaExceededError — image too large for localStorage, skip persisting */ }
+    } else localStorage.removeItem(`refImg_${id}`);
   }, [globalReference, id]);
 
   // Save extra prompt to localStorage whenever it changes
