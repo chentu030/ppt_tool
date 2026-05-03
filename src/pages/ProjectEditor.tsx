@@ -2527,6 +2527,10 @@ export const ProjectEditor: React.FC = () => {
                     <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>背景色（選填）</span>
                     <input style={inputS} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色" />
                   </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
+                    自動加入插圖
+                  </label>
                   </div>
                 </div>
               );
