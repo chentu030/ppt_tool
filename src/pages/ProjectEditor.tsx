@@ -2534,7 +2534,7 @@ export const ProjectEditor: React.FC = () => {
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                     <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
-                    自動加入插圖
+                    自動加入大量插圖（不建議勾選）
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.2rem' }}>
                     <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-secondary)' }}>翻譯語言（選填）</span>
@@ -2687,7 +2687,7 @@ export const ProjectEditor: React.FC = () => {
                       </div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                         <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
-                        自動加入插圖
+                        自動加入大量插圖（不建議勾選）
                       </label>
                       <div style={rowStyle}>
                         <label style={labelStyle}>翻譯語言（選填）</label>
