@@ -704,15 +704,23 @@ export const ProjectEditor: React.FC = () => {
       const user = auth.currentUser;
       if (!user) throw new Error('請先登入');
       const docId = `${user.uid}_${Date.now()}`;
-      // Upload reference image
+      // Upload reference image to sharedTemplates/ (publicly readable)
       let refUrl = globalReference;
+      const shareRef = storageRef(storage, `sharedTemplates/${docId}/reference.jpg`);
       if (globalReference.startsWith('data:')) {
         const b64 = globalReference.split(',')[1];
         const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: 'image/jpeg' });
-        const sRef = storageRef(storage, `sharedTemplates/${docId}/reference.jpg`);
-        await uploadBytes(sRef, blob);
-        refUrl = await getDownloadURL(sRef);
+        await uploadBytes(shareRef, blob);
+        refUrl = await getDownloadURL(shareRef);
+      } else {
+        // Remote URL (e.g. from project storage) — fetch and re-upload so community can access it
+        try {
+          const resp = await fetch(globalReference);
+          const blob = await resp.blob();
+          await uploadBytes(shareRef, blob);
+          refUrl = await getDownloadURL(shareRef);
+        } catch { /* keep original URL as fallback */ }
       }
       // Upload selected result images (max 3)
       const resultUrls: string[] = [];
@@ -721,15 +729,20 @@ export const ProjectEditor: React.FC = () => {
         const slideId = selected[i];
         const img = pendingImages.get(slideId) || slides.find(s => s.id === slideId)?.generatedImage;
         if (!img) continue;
+        const resultRef = storageRef(storage, `sharedTemplates/${docId}/result_${i}.jpg`);
         if (img.startsWith('data:')) {
           const b64 = img.split(',')[1];
           const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
           const blob = new Blob([bytes], { type: 'image/jpeg' });
-          const sRef = storageRef(storage, `sharedTemplates/${docId}/result_${i}.jpg`);
-          await uploadBytes(sRef, blob);
-          resultUrls.push(await getDownloadURL(sRef));
+          await uploadBytes(resultRef, blob);
+          resultUrls.push(await getDownloadURL(resultRef));
         } else {
-          resultUrls.push(img);
+          try {
+            const resp = await fetch(img);
+            const blob = await resp.blob();
+            await uploadBytes(resultRef, blob);
+            resultUrls.push(await getDownloadURL(resultRef));
+          } catch { resultUrls.push(img); }
         }
       }
       await setDoc(doc(db, 'sharedTemplates', docId), {
