@@ -227,9 +227,12 @@ export const ProjectEditor: React.FC = () => {
   // Restore persisted reference image, extra prompt, and per-project advanced settings on mount
   React.useEffect(() => {
     if (!id) return;
-    const savedRef = localStorage.getItem(`refImg_${id}`);
+    // Load reference image URL from Firestore project doc
+    getDoc(doc(db, 'projects', id)).then(snap => {
+      const data = snap.data();
+      if (data?.referenceImageUrl) setGlobalReference(data.referenceImageUrl);
+    }).catch(() => {});
     const savedPrompt = localStorage.getItem(`extraPrompt_${id}`);
-    if (savedRef) setGlobalReference(savedRef);
     if (savedPrompt) setGlobalExtraPrompt(savedPrompt);
     try {
       const s = JSON.parse(localStorage.getItem(`advancedSettings_${id}`) || '{}');
@@ -244,13 +247,39 @@ export const ProjectEditor: React.FC = () => {
     } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save reference image to localStorage whenever it changes
+  // Save reference image to Firebase Storage + Firestore whenever it changes
+  const refUploadInFlight = useRef(false);
   React.useEffect(() => {
     if (!id) return;
-    if (globalReference) {
-      try { localStorage.setItem(`refImg_${id}`, globalReference); }
-      catch { /* QuotaExceededError — image too large for localStorage, skip persisting */ }
-    } else localStorage.removeItem(`refImg_${id}`);
+    if (!globalReference) {
+      // Cleared — remove from Firestore
+      updateDoc(doc(db, 'projects', id), { referenceImageUrl: null }).catch(() => {});
+      return;
+    }
+    // If it's already a remote URL (not base64), just save the URL
+    if (!globalReference.startsWith('data:')) {
+      updateDoc(doc(db, 'projects', id), { referenceImageUrl: globalReference }).catch(() => {});
+      return;
+    }
+    // Upload base64 to Firebase Storage
+    if (refUploadInFlight.current) return;
+    refUploadInFlight.current = true;
+    (async () => {
+      try {
+        const b64 = globalReference.split(',')[1];
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'image/jpeg' });
+        const sRef = storageRef(storage, `projects/${id}/referenceImage.jpg`);
+        await uploadBytes(sRef, blob);
+        const url = await getDownloadURL(sRef);
+        setGlobalReference(url); // swap base64 → URL (triggers this effect again with URL path)
+        await updateDoc(doc(db, 'projects', id), { referenceImageUrl: url });
+      } catch (err) {
+        console.warn('[RefImg] Upload failed:', err);
+      } finally {
+        refUploadInFlight.current = false;
+      }
+    })();
   }, [globalReference, id]);
 
   // Save extra prompt to localStorage whenever it changes
