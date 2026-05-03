@@ -625,6 +625,11 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
                   style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                <label style={{width:'60px',fontWeight:600,flexShrink:0}}>特殊標記</label>
+                <input value={editingCommunity.settings.specialMark||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,specialMark:e.target.value}})}
+                  placeholder="選填" style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
                 <label style={{width:'60px',fontWeight:600,flexShrink:0}}>背景色</label>
                 <input value={editingCommunity.settings.backgroundColor||''} onChange={e=>setEditingCommunity({...editingCommunity,settings:{...editingCommunity.settings,backgroundColor:e.target.value}})}
                   style={{flex:1,padding:'0.3rem 0.5rem',border:'1px solid var(--border-color)',borderRadius:'0.3rem',fontSize:'0.78rem',background:'var(--bg-primary)',color:'var(--text-primary)',outline:'none'}}/>

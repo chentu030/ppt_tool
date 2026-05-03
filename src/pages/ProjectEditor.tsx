@@ -64,6 +64,7 @@ export const ProjectEditor: React.FC = () => {
   const [highlightColor, setHighlightColor] = useState<string>('金黃色');
   const [specialMark, setSpecialMark] = useState<string>('');
   const [backgroundColor, setBackgroundColor] = useState<string>('');
+  const [addIllustration, setAddIllustration] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [useAdvancedSettings, setUseAdvancedSettings] = useState(true);
   const [selectedSlides, setSelectedSlides] = useState<Set<string>>(new Set());
@@ -73,7 +74,7 @@ export const ProjectEditor: React.FC = () => {
   const [globalReference, setGlobalReference] = useState<string | null>(null);
 
   const defaultPrompt = useAdvancedSettings
-    ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
+    ? `幫我重新繪製這張投影片(直接畫，用nano banana)，使用極簡風格設計${addIllustration ? '，可以適當加一些相關內容的簡單插圖(插畫風格與背景一致)' : ''}，使用${fontFamily}系列字體，${mainColor}(主體)、${highlightColor}(重點字)字體，適當排版${specialMark ? `，特殊標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}，比例${aspectRatio}(橫向)${globalReference ? '，請參考提供的風格圖' : ''}`
     : `請根據提供的原始投影片圖片進行修改(用nano banana直接輸出圖片)，保持原始版面配置、比例和所有元素位置不變${globalReference ? '，請參考提供的風格圖' : ''}`;
   
   // Progress states
@@ -244,6 +245,7 @@ export const ProjectEditor: React.FC = () => {
       if (s.specialMark !== undefined) setSpecialMark(s.specialMark);
       if (s.backgroundColor !== undefined) setBackgroundColor(s.backgroundColor);
       if (s.useAdvancedSettings !== undefined) setUseAdvancedSettings(s.useAdvancedSettings);
+      if (s.addIllustration !== undefined) setAddIllustration(s.addIllustration);
     } catch { /* ignore corrupt data */ }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -292,8 +294,8 @@ export const ProjectEditor: React.FC = () => {
   // Persist advanced settings per-project so each project has independent settings
   React.useEffect(() => {
     if (!id) return;
-    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings }));
-  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings]);
+    localStorage.setItem(`advancedSettings_${id}`, JSON.stringify({ aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration }));
+  }, [id, aspectRatio, resolution, fontFamily, mainColor, highlightColor, specialMark, backgroundColor, useAdvancedSettings, addIllustration]);
 
   // Build a localStorage key scoped to the current API channel + key so different users don't clash
   const getGeneratingKey = () => {
@@ -2670,6 +2672,10 @@ export const ProjectEditor: React.FC = () => {
                         <label style={labelStyle}>背景色（選填）</label>
                         <input style={inputStyle} value={backgroundColor} onChange={e => setBackgroundColor(e.target.value)} placeholder="例：白色、淺灰色、深藍色" />
                       </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        <input type="checkbox" checked={addIllustration} onChange={e => setAddIllustration(e.target.checked)} style={{ accentColor: 'var(--accent-color)' }} />
+                        自動加入插圖
+                      </label>
                     </div>
                   )}
                 </div>
