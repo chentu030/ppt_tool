@@ -680,11 +680,18 @@ export const ProjectEditor: React.FC = () => {
       const modelName = localStorage.getItem('vertexModel') || localStorage.getItem('geminiModel') || 'gemini-2.0-flash';
       const styleDesc = `字體：${fontFamily}，主色：${mainColor}，重點色：${highlightColor}${specialMark ? `，標記：${specialMark}` : ''}${backgroundColor ? `，背景色：${backgroundColor}` : ''}`;
       const resp = await geminiApiFetch(modelName, {
-        contents: [{ role: 'user', parts: [{ text: `請用8個字以內為以下投影片模板風格取一個簡短好記的名稱，直接回覆名稱文字，不要加標點符號或其他說明：\n${styleDesc}` }] }],
+        contents: [{ role: 'user', parts: [{ text: `為以下投影片模板風格取一個簡短好記的中文名稱（最多8個字）。\n風格：${styleDesc}\n\n規則：只輸出名稱本身，不要有任何其他文字、標點符號、引號、星號或說明。` }] }],
       });
       if (!resp.ok) { console.error('AI naming failed:', resp.status); return; }
       const data = await resp.json();
-      const name = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      let name = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      // Strip markdown bold/italic, quotes, and any reasoning prefix
+      name = name.replace(/\*+/g, '').replace(/["""''`]/g, '').replace(/^[#\s]+/, '').trim();
+      // If multi-line, take only the last non-empty line (model sometimes adds reasoning before the answer)
+      const lines = name.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      if (lines.length > 1) name = lines[lines.length - 1];
+      // Truncate to 20 chars max as a safety net
+      if (name.length > 20) name = name.slice(0, 20);
       if (name) setShareLabel(name);
     } catch (err) { console.error('AI naming error:', err); }
     finally { setIsGeneratingLabel(false); }
