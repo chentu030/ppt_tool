@@ -478,7 +478,7 @@ const TemplateGalleryModal:React.FC<Props>=({currentExtraPrompt,currentSettings,
               </div>
               {(isOwner||canDelete)&&(
                 <div style={{display:'flex',gap:'0.25rem'}}>
-                  {isOwner&&<button onClick={e=>{e.stopPropagation();handleEditCommunity(t);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'var(--text-secondary)'}} title="編輯"><Pencil size={12}/></button>}
+                  {(isOwner||isAdmin)&&<button onClick={e=>{e.stopPropagation();handleEditCommunity(t);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'var(--text-secondary)'}} title="編輯"><Pencil size={12}/></button>}
                   <button onClick={e=>{e.stopPropagation();handleDeleteCommunity(t.id);}} style={{background:'none',border:'none',cursor:'pointer',padding:'2px',color:'#e53e3e'}} title="刪除"><Trash2 size={12}/></button>
                 </div>
               )}

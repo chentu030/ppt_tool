@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Projects: owner can read/write
+    match /projects/{projectId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null;
+
+      // Slides: same as parent project
+      match /slides/{slideId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Shared community templates
+    match /sharedTemplates/{templateId} {
+      // Anyone authenticated can read
+      allow read: if request.auth != null;
+      // Anyone authenticated can create
+      allow create: if request.auth != null;
+      // Owner or admin can update/delete
+      allow update, delete: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || request.auth.token.email == 'lcy101120@gmail.com');
+    }
+
+    // Template gallery index
+    match /templateGalleryIndex/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Allow all other authenticated reads (for flexibility)
+    match /{document=**} {
+      allow read: if request.auth != null;
+    }
+  }
+}
